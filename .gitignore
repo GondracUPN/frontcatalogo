@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+
+.env
+.env.local
+.env.*.local
+
+*.log
+.dev-clean-err.log
+.dev-clean-out.log
+.dev-err.log
+.dev-out.log
+
+tsconfig.tsbuildinfo

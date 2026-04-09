@@ -1,0 +1,199 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f3f2ee;
+  --background-elevated: #fbfaf7;
+  --foreground: #141414;
+  --foreground-soft: #5f6570;
+  --accent: #1a73e8;
+  --accent-strong: #0f4fb6;
+  --accent-soft: #dce9ff;
+  --border: rgba(17, 24, 39, 0.1);
+  --border-strong: rgba(17, 24, 39, 0.18);
+  --surface: rgba(255, 255, 255, 0.78);
+  --surface-strong: #ffffff;
+  --surface-muted: rgba(248, 245, 238, 0.88);
+  --shadow-soft: 0 18px 50px rgba(25, 35, 52, 0.08);
+  --shadow-strong: 0 24px 80px rgba(15, 23, 42, 0.14);
+  --radius-card: 28px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), sans-serif;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.94), transparent 28%),
+    radial-gradient(circle at top right, rgba(225, 234, 255, 0.8), transparent 24%),
+    linear-gradient(180deg, #fbfaf7 0%, #f3f2ee 26%, #eef1f5 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.22), transparent 45%),
+    radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.36), transparent 26%);
+  opacity: 0.7;
+  z-index: -1;
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
+::selection {
+  background: rgba(26, 115, 232, 0.18);
+}
+
+img {
+  color: transparent;
+}
+
+input,
+select,
+textarea {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 16px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: rgba(26, 115, 232, 0.5);
+  box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.1);
+}
+
+.surface-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(22px);
+}
+
+.surface-card-strong {
+  background: var(--surface-strong);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: calc(var(--radius-card) + 4px);
+  box-shadow: var(--shadow-strong);
+}
+
+.soft-outline {
+  position: relative;
+}
+
+.soft-outline::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+
+.pill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.625rem 0.95rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(18px);
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-ghost {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.btn-primary::before,
+.btn-secondary::before,
+.btn-ghost::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.24) 50%, transparent 80%);
+  transform: translateX(-130%);
+  transition: transform 420ms ease;
+  z-index: -1;
+}
+
+.btn-primary:hover::before,
+.btn-secondary:hover::before,
+.btn-ghost:hover::before {
+  transform: translateX(130%);
+}
+
+.btn-primary:hover,
+.btn-secondary:hover,
+.btn-ghost:hover {
+  transform: translateY(-2px) scale(1.01);
+}
+
+.btn-primary:active,
+.btn-secondary:active,
+.btn-ghost:active {
+  transform: translateY(0) scale(0.985);
+}
+
+.section-shell {
+  position: relative;
+  overflow: hidden;
+}
+
+.section-shell::before {
+  content: "";
+  position: absolute;
+  inset: auto -18% -45% 25%;
+  height: 360px;
+  background: radial-gradient(circle, rgba(178, 204, 255, 0.34), transparent 62%);
+  pointer-events: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

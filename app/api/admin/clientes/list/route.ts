@@ -1,0 +1,29 @@
+import { NextResponse } from "next/server";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  try {
+    const dir = path.join(process.cwd(), "public", "clientes");
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const files = entries
+      .filter((e) => e.isFile())
+      .map((e) => e.name)
+      .filter((name) => /\.(png|jpe?g|webp|gif|avif)$/i.test(name))
+      .filter((name) => name.toLowerCase() !== "logo.png");
+    const withTimes = await Promise.all(
+      files.map(async (name) => {
+        const stat = await fs.stat(path.join(dir, name));
+        return { name, mtime: stat.mtimeMs };
+      })
+    );
+    const urls = withTimes
+      .sort((a, b) => b.mtime - a.mtime)
+      .map((f) => `/clientes/${f.name}`);
+    return NextResponse.json({ ok: true, urls });
+  } catch {
+    return NextResponse.json({ ok: true, urls: [] });
+  }
+}

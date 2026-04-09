@@ -1,0 +1,23 @@
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ipadBody" x1="40" y1="24" x2="196" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2A2D33"/>
+      <stop offset="0.6" stop-color="#1A1D22"/>
+      <stop offset="1" stop-color="#101216"/>
+    </linearGradient>
+    <linearGradient id="ipadScreen" x1="62" y1="44" x2="178" y2="196" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A0B0D"/>
+      <stop offset="0.5" stop-color="#1C1F24"/>
+      <stop offset="1" stop-color="#0A0B0D"/>
+    </linearGradient>
+    <linearGradient id="ipadGlow" x1="70" y1="60" x2="170" y2="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2A2F36"/>
+      <stop offset="0.45" stop-color="#0D1014"/>
+      <stop offset="1" stop-color="#1A1F26"/>
+    </linearGradient>
+  </defs>
+  <rect x="34" y="16" width="172" height="208" rx="20" fill="url(#ipadBody)"/>
+  <rect x="46" y="30" width="148" height="180" rx="14" fill="url(#ipadScreen)"/>
+  <path d="M58 86C84 62 122 68 150 88C170 102 186 106 194 98V202H58V86Z" fill="url(#ipadGlow)"/>
+  <circle cx="188" cy="30" r="4" fill="#E5E7EB"/>
+</svg>
