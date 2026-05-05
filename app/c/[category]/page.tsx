@@ -1,7 +1,13 @@
 import { listCatalog } from "@/app/actions";
 import CategoryBrowser from "../../components/CategoryBrowser";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
+
+const CATEGORY_PARAMS = ["macbook", "ipad", "iphone", "watch", "otros", "accesorios"] as const;
+
+export function generateStaticParams() {
+  return CATEGORY_PARAMS.map((category) => ({ category }));
+}
 
 function toTitle(cat: string) {
   const m: Record<string, string> = {

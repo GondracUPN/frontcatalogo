@@ -9,23 +9,25 @@ function apiBase() {
   return raw.trim().replace(/\/+$/, "");
 }
 
-async function apiFetch<T>(path: string, init: RequestInit = {}) {
+type ApiInit = RequestInit & {
+  next?: {
+    revalidate?: number;
+    tags?: string[];
+  };
+};
+
+async function apiFetch<T>(path: string, init: ApiInit = {}) {
   const base = apiBase();
-  // Simple debug log to backend
-  // eslint-disable-next-line no-console
-  console.log(`[apiFetch] ${init.method || 'GET'} ${base}${path}`);
   const res = await fetch(`${base}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       ...(init.headers || {}),
     },
-    cache: "no-store",
+    cache: init.cache ?? "no-store",
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    // eslint-disable-next-line no-console
-    console.error(`[apiFetch] ERROR ${res.status} ${base}${path} -> ${text}`);
+    await res.text().catch(() => "");
     throw new Error(`API ${path} ${res.status}`);
   }
   return (await res.json()) as T;
@@ -69,7 +71,7 @@ export async function loginAction(formData: FormData) {
       path: "/",
     });
     redirect(next);
-  } catch (e) {
+  } catch {
     redirect(`/servmacso10?error=1&next=${encodeURIComponent(next)}`);
   }
 }
@@ -237,11 +239,41 @@ export async function listCatalog(params: { category?: string } = {}) {
   const qs = new URLSearchParams(
     Object.entries({ category: params.category || "" }).filter(([, v]) => String(v)) as any
   ).toString();
-  return apiFetch<{ items: any[] }>(`/catalog${qs ? `?${qs}` : ""}`, { method: "GET" });
+  return apiFetch<{ items: any[] }>(`/catalog${qs ? `?${qs}` : ""}`, {
+    method: "GET",
+    cache: "force-cache",
+    next: { revalidate: 300, tags: ["catalog-products"] },
+  });
+}
+
+export async function getHomeCatalog() {
+  return apiFetch<{
+    items: Array<{
+      id: string;
+      slug: string;
+      category: string | null;
+      image: string;
+      title: string;
+      created_at: string;
+      condition: string;
+      saleType: string;
+      price: number;
+      compareAt: number | null;
+    }>;
+    categories: Array<{ key: string; total: number; minPrice: number | null }>;
+  }>("/catalog/home", {
+    method: "GET",
+    cache: "force-cache",
+    next: { revalidate: 300, tags: ["catalog-products"] },
+  });
 }
 
 export async function getCatalogItem(slug: string) {
-  return apiFetch<{ item: any }>(`/catalog/${encodeURIComponent(slug)}`, { method: "GET" });
+  return apiFetch<{ item: any }>(`/catalog/${encodeURIComponent(slug)}`, {
+    method: "GET",
+    cache: "force-cache",
+    next: { revalidate: 300, tags: ["catalog-products"] },
+  });
 }
 
 // ----- Admin: unpublish one -----

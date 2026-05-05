@@ -1,59 +1,9 @@
+import Image from "next/image";
 import CategoryStripHome from "./components/CategoryStripHome";
 import CategoryClientsCarousel from "./components/CategoryClientsCarousel";
-import { listCatalog } from "./actions";
+import { getHomeCatalog } from "./actions";
 
-export const dynamic = "force-dynamic";
-
-function withinDays(d: string | Date, days = 14) {
-  const t = new Date(d).getTime();
-  const now = Date.now();
-  return now - t <= days * 24 * 60 * 60 * 1000;
-}
-
-function parseNotes(row: any) {
-  try {
-    return row?.staged?.notes && typeof row.staged.notes === "string"
-      ? JSON.parse(row.staged.notes)
-      : row?.staged?.notes || {};
-  } catch {
-    return {};
-  }
-}
-
-function priceMeta(row: any) {
-  const isSold = row?.product?.status === "sold";
-  const notes = parseNotes(row);
-  const saleType = String(row?.product?.sale_type || row?.staged?.sale_type || notes?.saleType || "").toUpperCase();
-  const salePrice = Number(row?.product?.price ?? row?.staged?.price ?? 0);
-  const discount = Number(row?.product?.discount ?? row?.staged?.discount ?? notes?.discount ?? notes?.descuentoPorc ?? 0);
-  const finalPrice = row?.product?.final_price ?? row?.staged?.final_price ?? notes?.finalPrice ?? null;
-  let price = isSold ? 0 : salePrice;
-  let compareAt: number | null = null;
-
-  if (saleType === "PROMOCION") {
-    const computed = finalPrice !== null ? Number(finalPrice) : +(salePrice * (1 - discount / 100)).toFixed(2);
-    if (isFinite(computed) && computed > 0) price = computed;
-    compareAt = salePrice || null;
-  } else if (!saleType && typeof notes?.precioLista !== "undefined") {
-    compareAt = notes?.precioLista ? Number(notes.precioLista) : null;
-    if ((!price || price <= 0) && typeof notes?.precioLista !== "undefined") {
-      const p = Number(notes?.precioLista || 0);
-      const d = Number(notes?.descuentoPorc || 0);
-      const f = +(p * (1 - d / 100)).toFixed(2);
-      if (isFinite(f) && f > 0) price = f;
-    }
-  }
-
-  const condition = String(
-    row?.product?.product_condition ||
-      row?.staged?.product_condition ||
-      notes?.productCondition ||
-      notes?.estado ||
-      ""
-  );
-
-  return { condition, saleType, isSold, price, compareAt };
-}
+export const revalidate = 300;
 
 function conditionTone(condition: string, isSold: boolean) {
   if (isSold) {
@@ -68,13 +18,10 @@ function conditionTone(condition: string, isSold: boolean) {
 }
 
 export default async function Home() {
-  const { items } = await listCatalog().catch(() => ({ items: [] as any[] }));
-  const availableItems = (items || []).filter((row: any) => row?.product?.status !== "sold");
-  const sortedAvailable = [...availableItems].sort(
-    (a: any, b: any) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime()
-  );
-  const recentItems = sortedAvailable.filter((row: any) => withinDays(row?.created_at, 14));
-  const available = (recentItems.length ? recentItems : sortedAvailable).slice(0, 8);
+  const { items: available, categories } = await getHomeCatalog().catch(() => ({
+    items: [] as Awaited<ReturnType<typeof getHomeCatalog>>["items"],
+    categories: [] as Awaited<ReturnType<typeof getHomeCatalog>>["categories"],
+  }));
   return (
     <div className="space-y-10 pb-8 sm:space-y-14 sm:pb-12">
       <section className="section-shell px-3 pt-4 sm:px-4 sm:pt-6">
@@ -109,9 +56,9 @@ export default async function Home() {
         </div>
       </section>
 
-      <CategoryStripHome />
+      <CategoryStripHome categories={categories} />
 
-      <section className="px-3 sm:px-4">
+      <section className="deferred-section px-3 sm:px-4">
         <div className="mx-auto max-w-7xl">
           <div className="surface-card soft-outline overflow-hidden px-5 py-6 sm:px-7 sm:py-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -130,10 +77,14 @@ export default async function Home() {
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {available.length
-                ? available.map((row: any) => {
-                    const img = (row.images && row.images[0]) || row.staged?.images?.[0] || "/placeholder.svg";
-                    const title: string = row.product?.title || row.staged?.title || row.slug;
-                    const { condition, isSold, price, compareAt, saleType } = priceMeta(row);
+                ? available.map((row) => {
+                    const img = row.image || "/placeholder.svg";
+                    const title = row.title || row.slug;
+                    const condition = row.condition || "";
+                    const isSold = false;
+                    const price = Number(row.price || 0);
+                    const compareAt = row.compareAt;
+                    const saleType = row.saleType;
                     return (
                       <a
                         key={row.id}
@@ -152,8 +103,15 @@ export default async function Home() {
                               </span>
                             )}
                           </div>
-                          <div className="aspect-square p-5">
-                            <img src={img} alt={title} className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.03]" />
+                          <div className="relative aspect-square p-5">
+                            <Image
+                              src={img}
+                              alt={title}
+                              fill
+                              sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw"
+                              className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.03]"
+                              loading="lazy"
+                            />
                           </div>
                         </div>
 
@@ -187,7 +145,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="px-3 sm:px-4">
+      <section className="deferred-section px-3 sm:px-4">
         <div className="mx-auto max-w-7xl">
           <div className="surface-card soft-outline px-6 py-7">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

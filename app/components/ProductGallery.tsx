@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import React from "react";
 
 type Point = { x: number; y: number };
@@ -9,6 +10,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
   const [viewerOpen, setViewerOpen] = React.useState(false);
   const [zoom, setZoom] = React.useState(1);
   const [pan, setPan] = React.useState<Point>({ x: 0, y: 0 });
+  const imageSignature = React.useMemo(() => images?.join("|") || "", [images]);
   const safeIndex = (i: number) => Math.max(0, Math.min(i, imgs.length - 1));
   const stageRef = React.useRef<HTMLDivElement | null>(null);
   const dragRef = React.useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
@@ -16,7 +18,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
 
   React.useEffect(() => {
     setActive(0);
-  }, [images?.join("|")]);
+  }, [imageSignature]);
 
   React.useEffect(() => {
     if (!viewerOpen || typeof document === "undefined") return;
@@ -53,14 +55,6 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
     setViewerOpen(false);
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  };
-
-  const stepZoom = (delta: number) => {
-    setZoom((current) => {
-      const next = Math.max(1, Math.min(5, +(current + delta).toFixed(2)));
-      if (next === 1) setPan({ x: 0, y: 0 });
-      return next;
-    });
   };
 
   const zoomAtPoint = React.useCallback((nextZoom: number, clientX?: number, clientY?: number) => {
@@ -191,7 +185,14 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
         aria-label="Abrir imagen en grande"
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.84),transparent_42%)]" />
-        <img src={imgs[safeIndex(active)]} alt="" className="relative z-[1] h-full max-h-full w-full object-contain" />
+        <Image
+          src={imgs[safeIndex(active)]}
+          alt=""
+          fill
+          priority
+          sizes="(max-width: 1024px) 100vw, 760px"
+          className="relative z-[1] h-full max-h-full w-full object-contain"
+        />
         <div className="absolute bottom-3 right-3 rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[color:var(--foreground-soft)] backdrop-blur-xl sm:bottom-4 sm:right-4 sm:text-xs">
           {active + 1} / {imgs.length}
         </div>
@@ -214,8 +215,8 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
                 : "border-black/8 bg-white/82 hover:border-black/15"
             }`}
           >
-            <div className="h-[3.75rem] w-[3.75rem] overflow-hidden rounded-[14px] bg-[linear-gradient(145deg,#f6f8fb,#e8edf4)] sm:h-[4.5rem] sm:w-[4.5rem] md:h-[5.5rem] md:w-[5.5rem]">
-              <img src={u} alt="" className="h-full w-full object-cover" />
+            <div className="relative h-[3.75rem] w-[3.75rem] overflow-hidden rounded-[14px] bg-[linear-gradient(145deg,#f6f8fb,#e8edf4)] sm:h-[4.5rem] sm:w-[4.5rem] md:h-[5.5rem] md:w-[5.5rem]">
+              <Image src={u} alt="" fill sizes="88px" className="h-full w-full object-cover" />
             </div>
           </button>
         ))}

@@ -1,6 +1,7 @@
+import Image from "next/image";
 import { listCatalog } from "../actions";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 function withinDays(d: string | Date, days = 14) {
   const t = new Date(d).getTime();
@@ -72,8 +73,14 @@ export default async function NovedadesPage() {
                     className="group rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.94))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
                   >
                     <div className="overflow-hidden rounded-[24px] bg-[linear-gradient(145deg,#f5f7fa,#ebf0f6)]">
-                      <div className="aspect-[4/3] p-5">
-                        <img src={img} alt={title} className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.03]" />
+                      <div className="relative aspect-[4/3] p-5">
+                        <Image
+                          src={img}
+                          alt={title}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw"
+                          className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.03]"
+                        />
                       </div>
                     </div>
                     <div className="mt-4 text-lg font-semibold leading-6 tracking-[-0.03em] text-[color:var(--foreground)] line-clamp-2">

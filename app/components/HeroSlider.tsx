@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect } from "react";
 
 type Slide = {
@@ -21,9 +22,11 @@ export default function HeroSlider({ slides }: { slides?: Slide[] }) {
 
   // Auto-play every 6s
   useEffect(() => {
-    const t = setInterval(() => go(1), 6000);
+    const t = setInterval(() => {
+      setIndex((prev) => (prev + 1) % data.length);
+    }, 6000);
     return () => clearInterval(t);
-  }, []);
+  }, [data.length]);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white">
@@ -34,7 +37,7 @@ export default function HeroSlider({ slides }: { slides?: Slide[] }) {
         {data.map((s) => (
           <div key={s.id} className="min-w-full aspect-[16/6] relative">
             {s.image ? (
-              <img src={s.image} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <Image src={s.image} alt="" fill sizes="100vw" className="absolute inset-0 w-full h-full object-cover" />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-[#6e6e73]">{s.title}</div>
             )}

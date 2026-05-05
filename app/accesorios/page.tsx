@@ -1,6 +1,7 @@
+import Image from "next/image";
 import { listCatalog } from "@/app/actions";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 function priceFromRow(row: any): number {
   const saleType = String(row?.product?.sale_type || row?.staged?.sale_type || "").toUpperCase();
@@ -37,8 +38,14 @@ export default async function AccesoriosPage() {
           const price: number = priceFromRow(row);
           return (
             <a key={row.id} href={`/product/${row.slug}`} className="rounded-xl bg-white shadow-sm border border-gray-200 p-3 block">
-              <div className="aspect-square rounded-lg bg-gray-50 overflow-hidden">
-                <img src={img} alt="" className="w-full h-full object-cover" />
+              <div className="relative aspect-square rounded-lg bg-gray-50 overflow-hidden">
+                <Image
+                  src={img}
+                  alt={title}
+                  fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="mt-3 text-sm font-medium text-gray-900 line-clamp-2">{title}</div>
               <div className="mt-2 text-sm text-gray-900 flex items-center gap-2">

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 
 type Props = {
@@ -47,11 +48,19 @@ export default function CategoryClientsCarouselClient({ images }: Props) {
             className="overflow-hidden rounded-[28px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(239,244,250,0.92))] shadow-[0_18px_40px_rgba(15,23,42,0.08)] shrink-0 w-[48%] sm:w-[32%]"
           >
             <div className="aspect-[3/4] relative bg-[linear-gradient(145deg,#eff3f7,#dfe7f1)]">
-              <img src={src} alt="" className="h-full w-full object-cover" />
+              <Image
+                src={src}
+                alt=""
+                fill
+                sizes="(max-width: 640px) 48vw, 32vw"
+                className="h-full w-full object-cover"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/18 via-transparent to-white/14" />
-              <img
+              <Image
                 src={WATERMARK_SRC}
                 alt=""
+                width={220}
+                height={220}
                 className="pointer-events-none absolute inset-0 m-auto w-[58%] max-w-[220px] select-none opacity-45"
               />
             </div>

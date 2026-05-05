@@ -1,56 +1,25 @@
-import { listCatalog } from "@/app/actions";
+import Image from "next/image";
 
 const CATS = [
-  { key: "macbook", label: "MacBook", href: "/c/macbook", icon: "/imagenestipos/mac.png", note: "Trabajo y estudio." },
-  { key: "iphone", label: "iPhone", href: "/c/iphone", icon: "/imagenestipos/iphone.png", note: "Uso diario." },
-  { key: "ipad", label: "iPad", href: "/c/ipad", icon: "/imagenestipos/ipad.png", note: "Movilidad y creatividad." },
-  { key: "watch", label: "Watch", href: "/c/watch", icon: "/imagenestipos/watch.png", note: "Estilo y ecosistema." },
-  { key: "accesorios", label: "Accesorios", href: "/c/accesorios", icon: "/imagenestipos/accesorios.png", note: "Complementos clave." },
+  { key: "macbook", label: "MacBook", href: "/c/macbook", icon: "/imagenestipos/mac.webp", note: "Trabajo y estudio." },
+  { key: "iphone", label: "iPhone", href: "/c/iphone", icon: "/imagenestipos/iphone.webp", note: "Uso diario." },
+  { key: "ipad", label: "iPad", href: "/c/ipad", icon: "/imagenestipos/ipad.webp", note: "Movilidad y creatividad." },
+  { key: "watch", label: "Watch", href: "/c/watch", icon: "/imagenestipos/watch.webp", note: "Estilo y ecosistema." },
+  { key: "accesorios", label: "Accesorios", href: "/c/accesorios", icon: "/imagenestipos/accesorios.webp", note: "Complementos clave." },
 ] as const;
 
-function getRowPrice(row: any): number {
-  if (row?.product?.status === "sold") return 0;
-  try {
-    const notes =
-      row?.staged?.notes && typeof row.staged.notes === "string"
-        ? JSON.parse(row.staged.notes)
-        : row?.staged?.notes || {};
-    const saleType = String(row?.product?.sale_type || row?.staged?.sale_type || notes?.saleType || "").toUpperCase();
-    const salePrice = Number(row?.product?.price ?? row?.staged?.price ?? 0);
-    const discount = Number(row?.product?.discount ?? row?.staged?.discount ?? notes?.discount ?? notes?.descuentoPorc ?? 0);
-    const finalPrice = row?.product?.final_price ?? row?.staged?.final_price ?? notes?.finalPrice ?? null;
-    let price = salePrice;
-    if (saleType === "PROMOCION") {
-      const computed = finalPrice !== null ? Number(finalPrice) : +(salePrice * (1 - discount / 100)).toFixed(2);
-      if (isFinite(computed) && computed > 0) price = computed;
-      return price || 0;
-    }
-    if (!saleType && typeof notes?.precioLista !== "undefined") {
-      const p = Number(notes?.precioLista || 0);
-      const d = Number(notes?.descuentoPorc || 0);
-      const f = +(p * (1 - d / 100)).toFixed(2);
-      if (isFinite(f) && f > 0) price = f;
-    }
-    return isFinite(price) ? price : 0;
-  } catch {
-    return Number(row?.product?.price ?? row?.staged?.price ?? 0) || 0;
-  }
-}
+type CategorySummary = {
+  key: string;
+  total: number;
+  minPrice: number | null;
+};
 
-export default async function CategoryStripHome() {
-  const data = await Promise.all(
-    CATS.map(async (cat) => {
-      const { items } = await listCatalog({ category: cat.key }).catch(() => ({ items: [] as any[] }));
-      const available = (items || []).filter((row: any) => row?.product?.status !== "sold");
-      const minPrice = available.reduce((min: number | null, row: any) => {
-        const p = getRowPrice(row);
-        if (!p || p <= 0) return min;
-        if (min === null || p < min) return p;
-        return min;
-      }, null);
-      return { ...cat, minPrice, total: available.length };
-    })
-  );
+export default function CategoryStripHome({ categories }: { categories: CategorySummary[] }) {
+  const summaryByKey = new Map((categories || []).map((cat) => [cat.key, cat]));
+  const data = CATS.map((cat) => {
+      const summary = summaryByKey.get(cat.key);
+      return { ...cat, minPrice: summary?.minPrice ?? null, total: summary?.total ?? 0 };
+    });
 
   return (
     <section className="px-3 sm:px-4">
@@ -76,8 +45,14 @@ export default async function CategoryStripHome() {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="rounded-[20px] bg-[rgba(243,246,250,0.95)] p-3">
-                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[18px]">
-                      <img src={cat.icon} alt={cat.label} className="h-full w-full object-contain" />
+                    <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-[18px]">
+                      <Image
+                        src={cat.icon}
+                        alt={cat.label}
+                        fill
+                        sizes="64px"
+                        className="h-full w-full object-contain"
+                      />
                     </div>
                   </div>
                   <span className="text-xs font-medium text-[color:var(--foreground-soft)]">

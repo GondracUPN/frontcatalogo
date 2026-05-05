@@ -3,7 +3,7 @@ import AddToCartClient from "@/app/components/AddToCartClient";
 import ProductViewTracker from "@/app/components/ProductViewTracker";
 import { getCatalogItem } from "@/app/actions";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 function parseNotes(notes: any) {
   try {

@@ -19,6 +19,7 @@ async function getClientImages(): Promise<string[]> {
     );
     return withTimes
       .sort((a, b) => b.mtime - a.mtime)
+      .slice(0, 8)
       .map((f) => `/clientes/${f.name}`);
   } catch {
     return [];

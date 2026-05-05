@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import React from "react";
 
 type Row = any;
@@ -359,8 +360,14 @@ export default function CategoryBrowser({ initialItems }: { initialItems: Row[] 
                           </span>
                         )}
                       </div>
-                      <div className="aspect-[4/3] p-5">
-                        <img src={img} alt={title} className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.03]" />
+                      <div className="relative aspect-[4/3] p-5">
+                        <Image
+                          src={img}
+                          alt={title}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                          className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.03]"
+                        />
                       </div>
                     </div>
 
