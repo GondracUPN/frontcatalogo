@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidateTag } from "next/cache";
 
 // Base URL de la API Nest (sin secretos)
 function apiBase() {
@@ -27,8 +28,14 @@ async function apiFetch<T>(path: string, init: ApiInit = {}) {
     cache: init.cache ?? "no-store",
   });
   if (!res.ok) {
-    await res.text().catch(() => "");
-    throw new Error(`API ${path} ${res.status}`);
+    const text = await res.text().catch(() => "");
+    let detail = text.trim();
+    try {
+      const json = detail ? JSON.parse(detail) : null;
+      const message = Array.isArray(json?.message) ? json.message.join("; ") : json?.message;
+      detail = String(message || json?.error || detail || "").trim();
+    } catch {}
+    throw new Error(`API ${path} ${res.status}${detail ? `: ${detail}` : ""}`);
   }
   return (await res.json()) as T;
 }
@@ -196,6 +203,7 @@ export async function updateStaged(id: string, patch: any) {
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(patch),
   });
+  revalidateTag("catalog-products");
   return { ok: true };
 }
 
@@ -219,6 +227,7 @@ export async function publishStaged(id: string, data: { slug?: string }) {
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(data || {}),
   });
+  revalidateTag("catalog-products");
   return { ok: true };
 }
 
@@ -231,6 +240,7 @@ export async function bulkStaged(ids: string[], action: string) {
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ ids, action }),
   });
+  revalidateTag("catalog-products");
   return { ok: true };
 }
 
@@ -243,6 +253,16 @@ export async function listCatalog(params: { category?: string } = {}) {
     method: "GET",
     cache: "force-cache",
     next: { revalidate: 300, tags: ["catalog-products"] },
+  });
+}
+
+export async function listAdminCatalog() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) return { items: [] as any[] };
+  return apiFetch<{ items: any[] }>(`/admin/catalog`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
   });
 }
 
@@ -271,8 +291,7 @@ export async function getHomeCatalog() {
 export async function getCatalogItem(slug: string) {
   return apiFetch<{ item: any }>(`/catalog/${encodeURIComponent(slug)}`, {
     method: "GET",
-    cache: "force-cache",
-    next: { revalidate: 300, tags: ["catalog-products"] },
+    cache: "no-store",
   });
 }
 
@@ -285,6 +304,7 @@ export async function unpublishProduct(productId: string) {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   });
+  revalidateTag("catalog-products");
   return { ok: true };
 }
 
@@ -298,6 +318,7 @@ export async function markProductSold(productId: string, saleDate?: string, sale
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ saleDate: saleDate || null, salePrice: salePrice ?? undefined }),
   });
+  revalidateTag("catalog-products");
   return { ok: true };
 }
 
@@ -310,6 +331,7 @@ export async function unsellProduct(productId: string) {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   });
+  revalidateTag("catalog-products");
   return { ok: true };
 }
 

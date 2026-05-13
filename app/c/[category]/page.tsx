@@ -37,12 +37,9 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
             <h1 className="mt-5 text-4xl font-semibold tracking-[-0.06em] text-[color:var(--foreground)] sm:text-5xl lg:text-6xl">
               {toTitle(category)}
             </h1>
-            <p className="mt-4 text-base leading-7 text-[color:var(--foreground-soft)]">
-              El listado ahora prioriza comparacion visual, estado del producto y precio con una jerarquia mucho mas clara.
-            </p>
           </div>
 
-          <CategoryBrowser initialItems={items} />
+          <CategoryBrowser initialItems={items} category={category} />
         </div>
       </div>
     </div>

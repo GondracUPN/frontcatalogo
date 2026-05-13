@@ -1,5 +1,5 @@
 ﻿import { redirect } from "next/navigation";
-import { getSessionUser, logoutAction, listStaged, listCatalog, listSales, listContactRequests } from "../../actions";
+import { getSessionUser, logoutAction, listStaged, listAdminCatalog, listSales, listContactRequests } from "../../actions";
 export const dynamic = "force-dynamic";
 import React from "react";
 import StagedManager from "./StagedManager";
@@ -30,7 +30,7 @@ export default async function ServiciosPage() {
   const me = await getSessionUser();
   if (!me || me.role !== "admin") redirect("/servmacso10?next=/servmacso10/servicios");
   const { items } = await listStaged({ pageSize: 50 });
-  const { items: published } = await listCatalog().catch(() => ({ items: [] as any[] }));
+  const { items: published } = await listAdminCatalog().catch(() => ({ items: [] as any[] }));
   const { items: sold } = await listSales().catch(() => ({ items: [] as any[] }));
   const { items: contactAlerts } = await listContactRequests().catch(() => ({ items: [] as any[] }));
 

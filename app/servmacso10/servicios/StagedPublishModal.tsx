@@ -153,6 +153,12 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     if (legacySalePrice > 0) return legacySalePrice;
     return Number(item?.price || 0);
   });
+  const [preventaDateFrom, setPreventaDateFrom] = React.useState<string>(
+    String(notes?.preventaDateFrom || notes?.preventa?.from || "")
+  );
+  const [preventaDateTo, setPreventaDateTo] = React.useState<string>(
+    String(notes?.preventaDateTo || notes?.preventa?.to || "")
+  );
   const [discount, setDiscount] = React.useState<number>(Number(item?.discount || legacyDiscount || 0));
   const [minOfferPrice, setMinOfferPrice] = React.useState<number>(Number(item?.min_offer_price || 0));
   const finalPrice = React.useMemo(() => {
@@ -162,16 +168,17 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     return +(p * (1 - d / 100)).toFixed(2);
   }, [salePrice, discount, saleType]);
   const [saving, setSaving] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState("");
 
   React.useEffect(() => {
     const tipo = specs?.tipo || inferTipoFromTitle(title || item?.title);
     const category = toCategory(tipo);
+    if (titleManual) return;
     if (category === "iphone") {
       const auto = buildIphoneTitle(iphoneNumber, iphoneModel, iphoneStorage, color);
       if (auto) setTitle(auto);
       return;
     }
-    if (titleManual) return;
     if (category === "otros") {
       if (descriptionOther?.trim()) setTitle(capitalize(descriptionOther.trim()));
       return;
@@ -182,7 +189,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
       const withPrefix = saleType === "PREVENTA" && !/^preventa\s+/i.test(base) ? `Preventa ${base}` : base;
       setTitle(capitalize(withPrefix));
     }
-  }, [gama, proc, tam, titleManual, specs?.tipo, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, saleType, title]);
+  }, [gama, proc, tam, titleManual, specs?.tipo, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, saleType, title, item?.title]);
 
   React.useEffect(() => {
     if (productCondition && productCondition !== "Nuevo") {
@@ -211,6 +218,13 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   if (saleType === "OFERTA" && (!minOfferPrice || minOfferPrice <= 0)) errors.push("El precio minimo de oferta es obligatorio");
   if (saleType === "OFERTA" && minOfferPrice && salePrice && Number(minOfferPrice) > Number(salePrice)) {
     errors.push("El minimo de oferta no puede ser mayor al precio de venta");
+  }
+  if (saleType === "PREVENTA") {
+    if (!preventaDateFrom || !preventaDateTo) {
+      errors.push("Ingresa el rango de llegada de la preventa");
+    } else if (preventaDateFrom > preventaDateTo) {
+      errors.push("El rango de llegada de la preventa es invalido");
+    }
   }
   if (isMacbook) {
     if (!proc?.trim()) errors.push("El procesador es obligatorio");
@@ -290,6 +304,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   const onPublish = async () => {
     if (!canPublish) return;
     setSaving(true);
+    setSubmitError("");
     try {
       const tipo = specs?.tipo || inferTipoFromTitle(title || item?.title);
       const includesFlags = {
@@ -330,6 +345,9 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         watchVersion: watchVersion || null,
         watchAccessories: watchAccessories || null,
         watchIncludes: watchIncludes || null,
+        preventaDateFrom: saleType === "PREVENTA" ? preventaDateFrom : null,
+        preventaDateTo: saleType === "PREVENTA" ? preventaDateTo : null,
+        preventa: saleType === "PREVENTA" ? { from: preventaDateFrom, to: preventaDateTo } : null,
         saleType,
         salePrice,
         discount: saleType === "PROMOCION" ? discount : null,
@@ -338,11 +356,11 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         detalle: detalleNew,
       };
       let baseTitle = title;
-      if (category === "iphone") {
+      if (!titleManual && category === "iphone") {
         const auto = buildIphoneTitle(iphoneNumber, iphoneModel, iphoneStorage, color);
         baseTitle = auto || title;
-      } else if (isOtros) baseTitle = descriptionOther.trim();
-      else {
+      } else if (!titleManual && isOtros) baseTitle = descriptionOther.trim();
+      else if (!titleManual) {
         const autoTitle = buildTitle(tipo, gama, proc, tam, iphoneModel);
         baseTitle = autoTitle || title;
       }
@@ -356,7 +374,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         images,
         stock: productCondition === "Nuevo" ? Number(stock || 1) : 1,
         notes: JSON.stringify(newNotes),
-        category: item?.category,
+        category,
         productCondition,
         iphoneModel,
         iphoneNumber: iphoneNumber ? Number(iphoneNumber) : null,
@@ -391,10 +409,13 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         battery_health: salud ? Number(salud) : null,
         color: color || null,
         product_condition: productCondition,
+        category,
         includes: includesValue,
         includes_extra: includesExtra,
         keyboard_layout: keyboardLayout,
       });
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "No se pudo publicar el producto");
     } finally { setSaving(false); }
   };
 
@@ -409,9 +430,9 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         <div className="grid md:grid-cols-2 gap-6 px-4 sm:px-6 pb-6">
           <div className="space-y-3">
             <label className="block text-sm font-medium">Titulo</label>
-            <input value={title} readOnly={isOtros || isIphone} onChange={(e) => { if (isOtros || isIphone) return; setTitle(e.target.value); setTitleManual(true); }} className="w-full border rounded px-3 py-2" />
-            {isOtros && <p className="text-xs text-gray-500">El titulo se genera desde la descripcion.</p>}
-            {isIphone && <p className="text-xs text-gray-500">El titulo se genera automaticamente para iPhone.</p>}
+            <input value={title} onChange={(e) => { setTitle(e.target.value); setTitleManual(true); }} className="w-full border rounded px-3 py-2" />
+            {isOtros && <p className="text-xs text-gray-500">Se autogenera desde la descripcion hasta que lo edites manualmente.</p>}
+            {isIphone && <p className="text-xs text-gray-500">Se autogenera con los datos del iPhone hasta que lo edites manualmente.</p>}
 
             {isOtros && (
               <div>
@@ -633,20 +654,47 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
 
             <div>
               <label className="block text-sm mb-1">Fotos</label>
-              <div className="flex gap-2 flex-wrap mb-2">
+              {images.length > 0 && (
+                <div className="mb-3 overflow-hidden rounded-xl border-2 border-emerald-500 bg-emerald-50">
+                  <div className="relative aspect-[4/3] bg-white">
+                    <img src={images[0]} alt="" className="h-full w-full object-contain" />
+                    <div className="absolute left-2 top-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
+                      Portada
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 mb-2">
                 {images.map((u,i)=> (
-                  <div key={i} className="relative group">
-                    <img src={u} alt="" className="w-20 h-20 object-cover rounded border" />
-                    <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                      <button type="button" className="text-xs bg-white/80 border rounded px-1" onClick={() => setImages(arr => { if (i===0) return arr; const copy=arr.slice(); const [img]=copy.splice(i,1); copy.splice(i-1,0,img); return copy; })} aria-label="Mover a la izquierda">{"<"}</button>
-                      <button type="button" className="text-xs bg-white/80 border rounded px-1" onClick={() => setImages(arr => { if (i===arr.length-1) return arr; const copy=arr.slice(); const [img]=copy.splice(i,1); copy.splice(i+1,0,img); return copy; })} aria-label="Mover a la derecha">{">"}</button>
-                      <button type="button" className="text-xs bg-white/80 border rounded px-1" onClick={() => setImages(arr => arr.filter((_,idx) => idx!==i))} aria-label="Eliminar">X</button>
+                  <div key={i} className={`overflow-hidden rounded-xl border bg-white ${i === 0 ? "border-emerald-500 ring-2 ring-emerald-100" : "border-gray-200"}`}>
+                    <div className="relative aspect-square bg-gray-50">
+                      <img src={u} alt="" className="h-full w-full object-cover" />
+                      <div className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${i === 0 ? "bg-emerald-600 text-white" : "bg-white/90 text-gray-700"}`}>
+                        {i === 0 ? "Portada" : `Foto ${i + 1}`}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 p-1">
+                      <button
+                        type="button"
+                        disabled={i === 0}
+                        className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 disabled:bg-emerald-100 disabled:text-emerald-700"
+                        onClick={() => setImages(arr => { const copy=arr.slice(); const [img]=copy.splice(i,1); copy.unshift(img); return copy; })}
+                      >
+                        {i === 0 ? "Actual" : "Portada"}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700"
+                        onClick={() => setImages(arr => arr.filter((_,idx) => idx!==i))}
+                      >
+                        Quitar
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
               <input type="file" multiple accept="image/jpeg,image/png,image/avif" onChange={(e)=>addFiles(e.target.files)} />
-              <p className="text-xs text-gray-500 mt-1">Arriba puedes reordenar con las flechas; la primera foto se usa como principal.</p>
+              <p className="text-xs text-gray-500 mt-1">La foto marcada como portada será la primera imagen del producto.</p>
             </div>
           </div>
 
@@ -684,9 +732,37 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
               <div className="text-sm text-gray-700">Precio final: <span className="text-lg font-semibold">S/ {Number(finalPrice || 0).toFixed(2)}</span> {salePrice>0 && (<span className="ml-2 line-through text-gray-400">S/ {Number(salePrice||0).toFixed(2)}</span>)}</div>
             )}
 
+            {saleType === "PREVENTA" && (
+              <div className="grid grid-cols-2 gap-3 border border-amber-200 bg-amber-50/60 rounded-lg p-3">
+                <div>
+                  <label className="block text-sm text-gray-700">Llega entre (desde)</label>
+                  <input
+                    type="date"
+                    value={preventaDateFrom}
+                    onChange={(e) => setPreventaDateFrom(e.target.value)}
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700">Llega entre (hasta)</label>
+                  <input
+                    type="date"
+                    value={preventaDateTo}
+                    onChange={(e) => setPreventaDateTo(e.target.value)}
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+              </div>
+            )}
+
             {errors.length > 0 && (
               <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm p-3">
                 {errors.map((e) => (<div key={e}>• {e}</div>))}
+              </div>
+            )}
+            {submitError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm p-3">
+                {submitError}
               </div>
             )}
 

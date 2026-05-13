@@ -7,8 +7,6 @@ type Props = {
   images: string[];
 };
 
-const WATERMARK_SRC = "/clientes/logo.png";
-
 export default function CategoryClientsCarouselClient({ images }: Props) {
   const [index, setIndex] = useState(0);
   const count = images.length;
@@ -56,13 +54,6 @@ export default function CategoryClientsCarouselClient({ images }: Props) {
                 className="h-full w-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/18 via-transparent to-white/14" />
-              <Image
-                src={WATERMARK_SRC}
-                alt=""
-                width={220}
-                height={220}
-                className="pointer-events-none absolute inset-0 m-auto w-[58%] max-w-[220px] select-none opacity-45"
-              />
             </div>
           </div>
         ))}

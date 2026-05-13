@@ -157,7 +157,10 @@ export default function CartPage() {
     (async () => {
       try {
         const cached = getCachedCartItems();
-        if (cached && cached.length) syncCache(cached);
+        if (cached && cached.length) {
+          syncCache(cached);
+          setLoading(false);
+        }
         const res = await listCartItems();
         syncCache(res.items || []);
       } catch (err) {
@@ -212,15 +215,33 @@ export default function CartPage() {
             <h1 className="mt-5 text-4xl font-semibold tracking-[-0.06em] text-[color:var(--foreground)] sm:text-5xl">
               Tu carrito.
             </h1>
-            <p className="mt-4 text-base leading-7 text-[color:var(--foreground-soft)]">
-              Resumen claro y rapido.
-            </p>
           </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <section className="surface-card soft-outline p-4 sm:p-6">
-            {loading && <div className="text-sm text-[color:var(--foreground-soft)]">Cargando...</div>}
+            {loading && !items.length && (
+              <div className="space-y-4">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="flex flex-col gap-4 border-b border-black/6 py-4 last:border-b-0 sm:flex-row sm:items-center">
+                    <div className="h-28 w-full rounded-[22px] bg-[linear-gradient(100deg,#eef2f6_0%,#f8fafc_45%,#eef2f6_90%)] bg-[length:220%_100%] sm:h-24 sm:w-24" />
+                    <div className="min-w-0 flex-1 space-y-3">
+                      <div className="h-5 w-3/4 rounded-full bg-slate-200/80" />
+                      <div className="h-4 w-28 rounded-full bg-slate-100" />
+                      <div className="flex gap-2">
+                        <div className="h-7 w-20 rounded-full bg-slate-100" />
+                        <div className="h-7 w-24 rounded-full bg-slate-100" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 sm:justify-end">
+                      <div className="h-9 w-9 rounded-full bg-slate-100" />
+                      <div className="h-9 w-9 rounded-full bg-slate-100" />
+                      <div className="h-9 w-24 rounded-full bg-red-50" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             {!loading && !items.length && <div className="text-sm text-[color:var(--foreground-soft)]">Tu carrito esta vacio.</div>}
             {items.map((row) => {
               const img = (row?.product?.images && row.product.images[0]) || row?.staged?.images?.[0] || "/placeholder.svg";
@@ -307,11 +328,19 @@ export default function CartPage() {
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
               Resumen
             </div>
-            <div className="mt-5 space-y-3 text-sm text-[color:var(--foreground-soft)]">
-              <div className="flex justify-between"><span>Subtotal</span><span className="font-medium text-[color:var(--foreground)]">S/ {subtotal.toFixed(2)}</span></div>
-              <div className="flex justify-between"><span>Envio</span><span className="font-medium text-[color:var(--foreground)]">S/ 0.00</span></div>
-              <div className="flex justify-between border-t border-black/6 pt-3 text-base font-semibold text-[color:var(--foreground)]"><span>Total</span><span>S/ {total.toFixed(2)}</span></div>
-            </div>
+            {loading && !items.length ? (
+              <div className="mt-5 space-y-3">
+                <div className="flex justify-between"><span className="h-4 w-20 rounded-full bg-slate-100" /><span className="h-4 w-24 rounded-full bg-slate-100" /></div>
+                <div className="flex justify-between"><span className="h-4 w-14 rounded-full bg-slate-100" /><span className="h-4 w-16 rounded-full bg-slate-100" /></div>
+                <div className="flex justify-between border-t border-black/6 pt-3"><span className="h-5 w-16 rounded-full bg-slate-200/80" /><span className="h-5 w-28 rounded-full bg-slate-200/80" /></div>
+              </div>
+            ) : (
+              <div className="mt-5 space-y-3 text-sm text-[color:var(--foreground-soft)]">
+                <div className="flex justify-between"><span>Subtotal</span><span className="font-medium text-[color:var(--foreground)]">S/ {subtotal.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span>Envio</span><span className="font-medium text-[color:var(--foreground)]">S/ 0.00</span></div>
+                <div className="flex justify-between border-t border-black/6 pt-3 text-base font-semibold text-[color:var(--foreground)]"><span>Total</span><span>S/ {total.toFixed(2)}</span></div>
+              </div>
+            )}
             <button
               disabled={!items.length || loading}
               onClick={openContact}

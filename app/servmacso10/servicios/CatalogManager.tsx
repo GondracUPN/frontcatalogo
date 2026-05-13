@@ -1,13 +1,14 @@
 "use client";
 import React from "react";
 import StagedPublishModal from "./PublishModal";
-import { listCatalog, listSales, markProductSold, unpublishProduct, unsellProduct } from "../../actions";
+import { listAdminCatalog, listSales, markProductSold, unpublishProduct, unsellProduct } from "../../actions";
 
 type CatalogRow = {
   id: string;
-  slug: string;
+  slug?: string | null;
+  is_published?: boolean;
   images?: string[];
-  product?: { id: string; sku: string; title: string; price: string; status?: string };
+  product?: { id: string; sku: string; title: string; price: string; status?: string; variant_group?: string | null };
   staged?: any;
 };
 
@@ -37,9 +38,32 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
           notes: row.staged?.notes || null,
           sku: row.product?.sku || "",
           status: "published",
+          variant_group: row.product?.variant_group || row.staged?.variant_group || "",
         };
+    if (!base.variant_group) base.variant_group = row.product?.variant_group || row.staged?.variant_group || "";
     if ((!base.images || base.images.length === 0) && Array.isArray(row.images)) base.images = row.images;
     return base;
+  };
+
+  const variantLabel = (row: CatalogRow) => {
+    const staged = (row.staged || {}) as any;
+    const product = (row.product || {}) as any;
+    const notes = (() => {
+      try {
+        return staged?.notes && typeof staged.notes === "string" ? JSON.parse(staged.notes) : staged?.notes || {};
+      } catch {
+        return {};
+      }
+    })();
+    return [
+      product.variant_group || staged.variant_group ? `Grupo: ${product.variant_group || staged.variant_group}` : "",
+      product.sku || staged.sku ? `SKU: ${product.sku || staged.sku}` : "",
+      product.title || staged.title ? "" : "",
+      product.status === "sold" ? "Vendido" : "",
+      staged.color || notes?.color ? `Color: ${staged.color || notes?.color}` : "",
+      staged.battery_health || notes?.batteryHealth ? `Bateria: ${staged.battery_health || notes?.batteryHealth}%` : "",
+      staged.includes || notes?.includes ? `Incluye: ${staged.includes || notes?.includes}` : "",
+    ].filter(Boolean).join(" · ");
   };
 
   return (
@@ -56,7 +80,10 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
         <tbody>
           {items.map((row) => (
             <tr key={row.id} className="border-t">
-              <td className="p-2 text-gray-900 font-medium">{row.product?.title || row.staged?.title || row.slug}</td>
+              <td className="p-2 text-gray-900 font-medium">
+                <div>{row.product?.title || row.staged?.title || row.slug}</div>
+                {variantLabel(row) && <div className="mt-1 text-xs font-normal text-gray-500">{variantLabel(row)}</div>}
+              </td>
               <td className="p-2 text-gray-900">{row.product?.sku || row.staged?.sku || "-"}</td>
               <td className="p-2 text-gray-900">S/ {Number(row.product?.price || 0).toFixed(2)}</td>
               <td className="p-2 flex gap-2">
@@ -72,6 +99,14 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
                 >
                   Editar
                 </button>
+                {row.slug && row.is_published && (
+                  <a
+                    href={`/product/${row.slug}`}
+                    className="px-3 py-1 rounded bg-gray-900 text-white"
+                  >
+                    Ver
+                  </a>
+                )}
                 <button
                   onClick={() => setSoldModal({ row, date: new Date().toISOString().slice(0, 10), price: String(row.product?.price || 0) })}
                   className="px-3 py-1 rounded bg-amber-600 text-white"
@@ -103,7 +138,7 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
           onClose={() => setOpen(null)}
           onSaved={async () => {
             try {
-              const { items } = await listCatalog();
+              const { items } = await listAdminCatalog();
               setItems(items as any);
             } catch {}
             setOpen(null);
@@ -189,7 +224,7 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
                       try {
                         await unsellProduct(s.product_id);
                         try {
-                          const { items } = await listCatalog();
+                          const { items } = await listAdminCatalog();
                           setItems(items as any);
                         } catch {}
                         try {

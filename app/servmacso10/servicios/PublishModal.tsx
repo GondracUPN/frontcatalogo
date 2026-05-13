@@ -364,6 +364,11 @@ export default function PublishModal({
     return +(p * (1 - d / 100)).toFixed(2);
   }, [salePrice, discount, saleType]);
   const [saving, setSaving] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState("");
+  const [variantGroup, setVariantGroup] = React.useState<string>(
+    String(item?.variant_group || notes?.variantGroup || notes?.variant_group || "")
+  );
+  const [dragImageIndex, setDragImageIndex] = React.useState<number | null>(null);
 
   const keepTypeUnselectedOnManualPreventa = !item?.id && String(item?.category ?? "") === "";
 
@@ -396,12 +401,12 @@ export default function PublishModal({
 
   React.useEffect(() => {
     if (!category) return;
+    if (titleManual) return;
     if (category === "iphone") {
       const auto = buildIphoneTitle(iphoneNumber, iphoneModel, iphoneStorage, color);
       if (auto) setTitle(auto);
       return;
     }
-    if (titleManual) return;
     if (category === "otros") {
       if (descriptionOther?.trim()) setTitle(capitalize(descriptionOther.trim()));
       return;
@@ -541,7 +546,7 @@ export default function PublishModal({
     if (productCondition !== "Nuevo" && !ciclos) errors.push("Los ciclos de batería son obligatorios");
     if (productCondition !== "Nuevo" && !salud) errors.push("La salud de batería es obligatoria");
     if (!color?.trim()) errors.push("El color es obligatorio");
-    if (!includesValue) errors.push("Selecciona que incluye");
+    if (productCondition !== "Nuevo" && !includesValue) errors.push("Selecciona que incluye");
   }
   if (isIpad) {
     if (!gama?.trim()) errors.push("La gama es obligatoria");
@@ -554,7 +559,7 @@ export default function PublishModal({
     if (productCondition !== "Nuevo" && !ciclos) errors.push("Los ciclos de batería son obligatorios");
     if (productCondition !== "Nuevo" && !salud) errors.push("La salud de batería es obligatoria");
     if (!color?.trim()) errors.push("El color es obligatorio");
-    if (!includesValue) errors.push("Selecciona que incluye");
+    if (productCondition !== "Nuevo" && !includesValue) errors.push("Selecciona que incluye");
   }
   if (isIphone) {
     const iphoneStorageParsed = parseIphoneStorageGb(iphoneStorage);
@@ -578,7 +583,7 @@ export default function PublishModal({
       errors.push("La salud de batería es inválida");
     }
     if (!color?.trim()) errors.push("El color es obligatorio");
-    if (!includesValue) errors.push("Selecciona que incluye");
+    if (productCondition !== "Nuevo" && !includesValue) errors.push("Selecciona que incluye");
   }
   if (isWatch) {
     if (!watchType) errors.push("Selecciona el tipo de Watch");
@@ -593,10 +598,10 @@ export default function PublishModal({
   }
   if (isOtros) {
     if (!descriptionOther?.trim()) errors.push("Describe el producto (Otros)");
-    if (!includesValue) errors.push("Selecciona que incluye");
+    if (productCondition !== "Nuevo" && !includesValue) errors.push("Selecciona que incluye");
     if (!color?.trim()) errors.push("El color es obligatorio");
   }
-  if (includesValue === "Otros" && !includesExtra?.trim()) {
+  if (productCondition !== "Nuevo" && includesValue === "Otros" && !includesExtra?.trim()) {
     errors.push("Describe lo que incluye");
   }
   if (productCondition !== "Nuevo" && hasWarranty && !warrantyDate.trim()) {
@@ -626,9 +631,21 @@ export default function PublishModal({
     }
   };
 
+  const moveImage = React.useCallback((from: number, to: number) => {
+    if (from === to || from < 0 || to < 0) return;
+    setImages((arr) => {
+      if (from >= arr.length || to >= arr.length) return arr;
+      const copy = arr.slice();
+      const [moved] = copy.splice(from, 1);
+      copy.splice(to, 0, moved);
+      return copy;
+    });
+  }, []);
+
   const onPublish = async () => {
     if (!canPublish) return;
     setSaving(true);
+    setSubmitError("");
     try {
       const iphoneStorageGbParsed = parseIphoneStorageGb(iphoneStorage);
       const iphoneStorageValue = iphoneStorage ? String(iphoneStorage).trim().toUpperCase() : "";
@@ -660,6 +677,7 @@ export default function PublishModal({
       const newNotes = {
         ...(notes || {}),
         specs: { ...specsNew, estado: productCondition },
+        variantGroup: variantGroup.trim() || null,
         bateria: { ciclos, salud },
         color,
         productCondition,
@@ -693,11 +711,11 @@ export default function PublishModal({
         detalle: detalleNew,
       };
       let baseTitle = title;
-      if (category === "iphone") {
+      if (!titleManual && category === "iphone") {
         const auto = buildIphoneTitle(iphoneNumber, iphoneModel, iphoneStorage, color);
         baseTitle = auto || title;
-      } else if (category === "otros") baseTitle = descriptionOther.trim();
-      else {
+      } else if (!titleManual && category === "otros") baseTitle = descriptionOther.trim();
+      else if (!titleManual) {
         const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel);
         baseTitle = autoTitle || title;
       }
@@ -735,6 +753,7 @@ export default function PublishModal({
         includes: includesValue,
         includesExtra,
         keyboardLayout,
+        variantGroup: variantGroup.trim() || null,
         saleType,
         discount: saleType === "PROMOCION" ? discount : null,
         finalPrice: saleType === "PROMOCION" ? finalPrice : null,
@@ -763,7 +782,10 @@ export default function PublishModal({
         includes: includesValue,
         includes_extra: includesExtra,
         keyboard_layout: keyboardLayout,
+        variant_group: variantGroup.trim() || null,
       });
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "No se pudo publicar el producto");
     } finally {
       setSaving(false);
     }
@@ -782,16 +804,28 @@ export default function PublishModal({
             <label className="block text-sm font-medium text-gray-900">Título</label>
             <input
               value={title}
-              readOnly={isOtros || isIphone}
-              onChange={(e) => { if (isOtros || isIphone) return; setTitle(e.target.value); setTitleManual(true); }}
+              onChange={(e) => { setTitle(e.target.value); setTitleManual(true); }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
             />
             {isOtros && (
-              <p className="text-xs text-gray-500">El titulo se genera desde la descripcion.</p>
+              <p className="text-xs text-gray-500">Se autogenera desde la descripcion hasta que lo edites manualmente.</p>
             )}
             {isIphone && (
-              <p className="text-xs text-gray-500">El titulo se genera automaticamente para iPhone.</p>
+              <p className="text-xs text-gray-500">Se autogenera con los datos del iPhone hasta que lo edites manualmente.</p>
             )}
+
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+              <label className="block text-sm font-medium text-gray-800">Grupo de variantes</label>
+              <input
+                value={variantGroup}
+                onChange={(e) => setVariantGroup(e.target.value)}
+                className="mt-1 w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
+                placeholder="Ej: iphone-15-pro-256"
+              />
+              <p className="mt-1 text-xs text-gray-600">
+                Usa el mismo grupo en productos parecidos para mostrarlos como opciones en la ficha pública.
+              </p>
+            </div>
 
             <div>
               <label className="block text-sm text-gray-700">Tipo</label>
@@ -1193,7 +1227,7 @@ export default function PublishModal({
                 <label className="block text-sm text-gray-700">Color</label>
                 <input value={color} onChange={(e) => setColor(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" placeholder="Midnight / Silver" />
               </div>
-              {!isWatch && (
+              {!isWatch && productCondition !== "Nuevo" && (
                 <div>
                   <label className="block text-sm text-gray-700">Incluye</label>
                   <select
@@ -1256,20 +1290,72 @@ export default function PublishModal({
 
             <div>
               <label className="block text-sm mb-1 text-gray-700">Fotos</label>
-              <div className="flex gap-2 flex-wrap mb-2">
+              {images.length > 0 && (
+                <div className="mb-3 overflow-hidden rounded-xl border-2 border-emerald-500 bg-emerald-50">
+                  <div className="relative aspect-[4/3] bg-white">
+                    <img src={images[0]} alt="" className="h-full w-full object-contain" />
+                    <div className="absolute left-2 top-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
+                      Portada
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 mb-2">
                 {images.map((u, i) => (
-                  <div key={i} className="relative group">
-                    <img src={u} alt="" className="w-20 h-20 object-cover rounded border" />
-                    <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                      <button type="button" className="text-xs bg-white/80 border rounded px-1" onClick={() => setImages(arr => { if (i === 0) return arr; const copy = arr.slice(); const [img] = copy.splice(i, 1); copy.splice(i - 1, 0, img); return copy; })} aria-label="Mover a la izquierda">{"<"}</button>
-                      <button type="button" className="text-xs bg-white/80 border rounded px-1" onClick={() => setImages(arr => { if (i === arr.length - 1) return arr; const copy = arr.slice(); const [img] = copy.splice(i, 1); copy.splice(i + 1, 0, img); return copy; })} aria-label="Mover a la derecha">{">"}</button>
-                      <button type="button" className="text-xs bg-white/80 border rounded px-1" onClick={() => setImages(arr => arr.filter((_, idx) => idx !== i))} aria-label="Eliminar">X</button>
+                  <div
+                    key={`${u}-${i}`}
+                    draggable
+                    onDragStart={(e) => {
+                      setDragImageIndex(i);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", String(i));
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const from = dragImageIndex ?? Number(e.dataTransfer.getData("text/plain"));
+                      moveImage(from, i);
+                      setDragImageIndex(null);
+                    }}
+                    onDragEnd={() => setDragImageIndex(null)}
+                    className={`cursor-grab overflow-hidden rounded-xl border bg-white active:cursor-grabbing ${
+                      dragImageIndex === i ? "scale-[0.98] opacity-55" : ""
+                    } ${i === 0 ? "border-emerald-500 ring-2 ring-emerald-100" : "border-gray-200"}`}
+                  >
+                    <div className="relative aspect-square bg-gray-50">
+                      <img src={u} alt="" className="h-full w-full object-cover" />
+                      <div className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${i === 0 ? "bg-emerald-600 text-white" : "bg-white/90 text-gray-700"}`}>
+                        {i === 0 ? "Portada" : `Foto ${i + 1}`}
+                      </div>
+                      <div className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
+                        Arrastra
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 p-1">
+                      <button
+                        type="button"
+                        disabled={i === 0}
+                        className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 disabled:bg-emerald-100 disabled:text-emerald-700"
+                        onClick={() => setImages(arr => { const copy = arr.slice(); const [img] = copy.splice(i, 1); copy.unshift(img); return copy; })}
+                      >
+                        {i === 0 ? "Actual" : "Portada"}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700"
+                        onClick={() => setImages(arr => arr.filter((_, idx) => idx !== i))}
+                      >
+                        Quitar
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
               <input type="file" multiple accept="image/jpeg,image/png,image/avif" onChange={(e) => addFiles(e.target.files)} />
-              <p className="text-xs text-gray-500 mt-1">Arriba puedes reordenar con las flechas; la primera foto se usa como principal.</p>
+              <p className="text-xs text-gray-500 mt-1">La foto marcada como portada será la primera imagen del producto.</p>
             </div>
           </div>
 
@@ -1328,6 +1414,11 @@ export default function PublishModal({
                 {errors.map((e) => (
                   <div key={e}>• {e}</div>
                 ))}
+              </div>
+            )}
+            {submitError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm p-3">
+                {submitError}
               </div>
             )}
 

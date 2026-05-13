@@ -12,6 +12,11 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
+    linterOptions: {
+      reportUnusedDisableDirectives: false,
+    },
+  },
+  {
     ignores: [
       "node_modules/**",
       ".next/**",
@@ -22,7 +27,8 @@ const eslintConfig = [
   },
   {
     rules: {
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@next/next/no-img-element": "off",
     },
   },
 ];

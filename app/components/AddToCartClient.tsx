@@ -9,9 +9,10 @@ type Props = {
   saleType?: string | null;
   salePrice: number;
   disabled?: boolean;
+  disabledLabel?: string;
 };
 
-export default function AddToCartClient({ productId, saleType, salePrice, disabled }: Props) {
+export default function AddToCartClient({ productId, saleType, salePrice, disabled, disabledLabel }: Props) {
   const router = useRouter();
   const [offer, setOffer] = React.useState<string>("");
   const [saving, setSaving] = React.useState(false);
@@ -156,14 +157,14 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
             onClick={handleBuyOffer}
             className="btn-primary inline-flex w-full justify-center rounded-full bg-[color:var(--foreground)] px-8 py-3 text-base font-medium text-white shadow-lg shadow-black/10 hover:bg-black disabled:opacity-50"
           >
-            Compra ya
+            {disabled && disabledLabel ? disabledLabel : "Compra ya"}
           </button>
           <button
             disabled={disabled || saving}
             onClick={openOfferModal}
             className="btn-secondary inline-flex w-full justify-center rounded-full border border-black/10 bg-white/82 px-8 py-3 text-base font-medium text-[color:var(--foreground)] hover:bg-white disabled:opacity-50"
           >
-            Hacer oferta
+            {disabled && disabledLabel ? "No disponible" : "Hacer oferta"}
           </button>
         </div>
       ) : (
@@ -172,7 +173,7 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
           onClick={handleAdd}
           className="btn-primary inline-flex w-full justify-center rounded-full bg-[color:var(--accent)] px-8 py-3 text-base font-medium text-white shadow-lg shadow-blue-500/20 hover:bg-[color:var(--accent-strong)] disabled:opacity-50"
         >
-          {saving ? "Agregando..." : isPreventa ? "Separalo" : "Agregar al carrito"}
+          {disabled && disabledLabel ? disabledLabel : saving ? "Agregando..." : isPreventa ? "Separalo" : "Agregar al carrito"}
         </button>
       )}
 

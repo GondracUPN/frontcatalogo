@@ -7,17 +7,37 @@ type Point = { x: number; y: number };
 export default function ProductGallery({ images, sold }: { images: string[]; sold?: boolean }) {
   const imgs = Array.isArray(images) && images.length ? images : ["/placeholder.svg"];
   const [active, setActive] = React.useState(0);
+  const [viewerIndex, setViewerIndex] = React.useState(0);
   const [viewerOpen, setViewerOpen] = React.useState(false);
   const [zoom, setZoom] = React.useState(1);
   const [pan, setPan] = React.useState<Point>({ x: 0, y: 0 });
+  const [mainDragOffset, setMainDragOffset] = React.useState(0);
+  const [mainDragging, setMainDragging] = React.useState(false);
+  const [mainTransition, setMainTransition] = React.useState<{
+    target: number;
+    direction: -1 | 1;
+    phase: "start" | "finish";
+  } | null>(null);
   const imageSignature = React.useMemo(() => images?.join("|") || "", [images]);
-  const safeIndex = (i: number) => Math.max(0, Math.min(i, imgs.length - 1));
+  const safeIndex = React.useCallback((i: number) => Math.max(0, Math.min(i, imgs.length - 1)), [imgs.length]);
+  const wrapIndex = React.useCallback((i: number) => {
+    if (!imgs.length) return 0;
+    return ((i % imgs.length) + imgs.length) % imgs.length;
+  }, [imgs.length]);
+  const activeSrc = imgs[safeIndex(active)];
+  const mainImageFitClass = "object-contain";
+  const mainFrameAspect = "aspect-[4/3]";
   const stageRef = React.useRef<HTMLDivElement | null>(null);
+  const thumbRailRef = React.useRef<HTMLDivElement | null>(null);
   const dragRef = React.useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
+  const mainSwipeRef = React.useRef<{ active: boolean; dragging: boolean; x: number; y: number }>({ active: false, dragging: false, x: 0, y: 0 });
+  const suppressOpenRef = React.useRef(false);
   const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
+  const swipeRef = React.useRef<{ active: boolean; x: number; y: number } | null>(null);
 
   React.useEffect(() => {
     setActive(0);
+    setViewerIndex(0);
   }, [imageSignature]);
 
   React.useEffect(() => {
@@ -34,7 +54,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
       setZoom(1);
       setPan({ x: 0, y: 0 });
     }
-  }, [viewerOpen, active]);
+  }, [viewerOpen]);
 
   React.useEffect(() => {
     if (!viewerOpen) return;
@@ -46,6 +66,11 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
   }, [viewerOpen]);
 
   const openViewer = () => {
+    if (suppressOpenRef.current) {
+      suppressOpenRef.current = false;
+      return;
+    }
+    setViewerIndex(active);
     setZoom(1);
     setPan({ x: 0, y: 0 });
     setViewerOpen(true);
@@ -96,16 +121,98 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
     return Math.hypot(dx, dy);
   };
 
-  const nextImage = () => {
-    setActive((current) => safeIndex(current + 1));
+  const goToImage = React.useCallback((index: number) => {
+    setActive(wrapIndex(index));
     setZoom(1);
     setPan({ x: 0, y: 0 });
+  }, [wrapIndex]);
+
+  const nextImage = () => {
+    goToImage(active + 1);
   };
 
   const prevImage = () => {
-    setActive((current) => safeIndex(current - 1));
+    goToImage(active - 1);
+  };
+
+  const handleMainTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (mainTransition || imgs.length <= 1 || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    mainSwipeRef.current = { active: true, dragging: false, x: touch.clientX, y: touch.clientY };
+    setMainDragging(false);
+    setMainDragOffset(0);
+  };
+
+  const handleMainTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!mainSwipeRef.current.active || imgs.length <= 1 || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const dx = touch.clientX - mainSwipeRef.current.x;
+    const dy = touch.clientY - mainSwipeRef.current.y;
+    if (!mainSwipeRef.current.dragging) {
+      if (Math.abs(dx) < 10) return;
+      if (Math.abs(dx) <= Math.abs(dy) * 1.15) return;
+      mainSwipeRef.current.dragging = true;
+      suppressOpenRef.current = true;
+      setMainDragging(true);
+    }
+    event.preventDefault();
+    const resistance = 0.48;
+    const offset = Math.max(-96, Math.min(96, dx * resistance));
+    setMainDragOffset(offset);
+  };
+
+  const handleMainTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const swipe = mainSwipeRef.current;
+    if (swipe.active && swipe.dragging && imgs.length > 1) {
+      const touch = event.changedTouches[0];
+      const dx = touch ? touch.clientX - swipe.x : 0;
+      const shouldGoNext = dx < -54;
+      const shouldGoPrev = dx > 54;
+      if (shouldGoNext || shouldGoPrev) {
+        const target = wrapIndex(shouldGoNext ? active + 1 : active - 1);
+        const direction = shouldGoNext ? -1 : 1;
+        setMainDragging(false);
+        setMainDragOffset(0);
+        setMainTransition({ target, direction, phase: "start" });
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            setMainTransition({ target, direction, phase: "finish" });
+          });
+        });
+        window.setTimeout(() => {
+          goToImage(target);
+          setMainTransition(null);
+          setMainDragOffset(0);
+          suppressOpenRef.current = false;
+        }, 260);
+        mainSwipeRef.current = { active: false, dragging: false, x: 0, y: 0 };
+        return;
+      }
+    }
+    mainSwipeRef.current = { active: false, dragging: false, x: 0, y: 0 };
+    setMainDragging(false);
+    setMainDragOffset(0);
+    window.setTimeout(() => {
+      suppressOpenRef.current = false;
+    }, 80);
+  };
+
+  const goToViewerImage = React.useCallback((index: number) => {
+    setViewerIndex(wrapIndex(index));
     setZoom(1);
     setPan({ x: 0, y: 0 });
+  }, [wrapIndex]);
+
+  const nextViewerImage = React.useCallback(() => {
+    goToViewerImage(viewerIndex + 1);
+  }, [goToViewerImage, viewerIndex]);
+
+  const prevViewerImage = React.useCallback(() => {
+    goToViewerImage(viewerIndex - 1);
+  }, [goToViewerImage, viewerIndex]);
+
+  const scrollThumbs = (direction: -1 | 1) => {
+    thumbRailRef.current?.scrollBy({ left: direction * 260, behavior: "smooth" });
   };
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
@@ -148,6 +255,15 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
         x: event.touches[0].clientX,
         y: event.touches[0].clientY,
       };
+      swipeRef.current = null;
+      return;
+    }
+    if (event.touches.length === 1) {
+      swipeRef.current = {
+        active: true,
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY,
+      };
     }
   };
 
@@ -171,55 +287,142 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (swipeRef.current?.active && zoom <= 1) {
+      const start = swipeRef.current;
+      const touch = event.changedTouches[0];
+      if (touch) {
+        const dx = touch.clientX - start.x;
+        const dy = touch.clientY - start.y;
+        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+          if (dx < 0 && viewerIndex < imgs.length - 1) nextViewerImage();
+          if (dx > 0 && viewerIndex > 0) prevViewerImage();
+        }
+      }
+    }
     dragRef.current.active = false;
     pinchRef.current = null;
+    swipeRef.current = null;
   };
 
   return (
-    <div className="space-y-3">
-      <button
-        type="button"
-        onClick={openViewer}
-        className="surface-card-strong soft-outline relative mx-auto flex aspect-[4/3] min-h-[260px] w-full max-w-[760px] items-center justify-center overflow-hidden rounded-[24px] bg-[linear-gradient(145deg,#f7f9fb,#e8eef5)] p-3 text-left sm:aspect-[5/4] sm:min-h-[320px] sm:rounded-[30px] sm:p-4 lg:aspect-[4/3] lg:min-h-0 lg:rounded-[34px]"
-        aria-label="Abrir imagen en grande"
+    <div className="min-w-0 max-w-full overflow-hidden space-y-3">
+      <div
+        className={`surface-card-strong soft-outline relative mx-auto flex ${mainFrameAspect} max-h-[68svh] min-h-0 w-full max-w-full items-center justify-center overflow-hidden rounded-[18px] bg-[linear-gradient(145deg,#f8fafc,#edf2f7)] text-left shadow-[0_10px_28px_rgba(15,23,42,0.08)] sm:min-h-[320px] sm:max-w-[760px] sm:rounded-[30px] lg:min-h-0 lg:rounded-[34px]`}
+        onTouchStart={handleMainTouchStart}
+        onTouchMove={handleMainTouchMove}
+        onTouchEnd={handleMainTouchEnd}
+        onTouchCancel={handleMainTouchEnd}
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.84),transparent_42%)]" />
-        <Image
-          src={imgs[safeIndex(active)]}
-          alt=""
-          fill
-          priority
-          sizes="(max-width: 1024px) 100vw, 760px"
-          className="relative z-[1] h-full max-h-full w-full object-contain"
+        <button
+          type="button"
+          onClick={openViewer}
+          className="absolute inset-0 z-[2]"
+          aria-label="Abrir imagen en grande"
         />
-        <div className="absolute bottom-3 right-3 rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[color:var(--foreground-soft)] backdrop-blur-xl sm:bottom-4 sm:right-4 sm:text-xs">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.32),transparent_42%)]" />
+        <img
+          src={activeSrc}
+          alt=""
+          className={`relative z-[1] h-full w-full ${mainImageFitClass} ${
+            mainTransition
+              ? "transition-all duration-[260ms] ease-out"
+              : mainDragging
+                ? "transition-none"
+                : "transition-transform duration-300 ease-out"
+          }`}
+          style={{
+            opacity: mainTransition?.phase === "finish" ? 0 : 1,
+            transform: mainTransition?.phase === "finish"
+              ? `translateX(${mainTransition.direction * 28}px) scale(0.985)`
+              : `translateX(${mainDragOffset}px)`,
+          }}
+        />
+        {mainTransition && (
+          <img
+            src={imgs[safeIndex(mainTransition.target)]}
+            alt=""
+            className={`absolute inset-0 z-[1] h-full w-full ${mainImageFitClass} transition-all duration-[260ms] ease-out`}
+            style={{
+              opacity: mainTransition.phase === "finish" ? 1 : 0,
+              transform: mainTransition.phase === "finish"
+                ? "translateX(0) scale(1)"
+                : `translateX(${-mainTransition.direction * 28}px) scale(1.015)`,
+            }}
+          />
+        )}
+        <div className="absolute bottom-3 right-3 z-[3] rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[color:var(--foreground-soft)] backdrop-blur-xl sm:bottom-4 sm:right-4 sm:text-xs">
           {active + 1} / {imgs.length}
         </div>
+        {imgs.length > 1 && (
+          <button
+            type="button"
+            onClick={prevImage}
+            className="absolute left-2 top-1/2 z-[3] inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/80 bg-white/84 text-xl font-light leading-none text-[color:var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.14)] backdrop-blur-xl hover:-translate-x-0.5 hover:bg-white sm:left-4 sm:h-12 sm:w-12 sm:text-2xl"
+            aria-label="Foto anterior"
+          >
+            {"‹"}
+          </button>
+        )}
+        {imgs.length > 1 && (
+          <button
+            type="button"
+            onClick={nextImage}
+            className="absolute right-2 top-1/2 z-[3] inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/80 bg-white/84 text-xl font-light leading-none text-[color:var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.14)] backdrop-blur-xl hover:translate-x-0.5 hover:bg-white sm:right-4 sm:h-12 sm:w-12 sm:text-2xl"
+            aria-label="Foto siguiente"
+          >
+            {"›"}
+          </button>
+        )}
         {sold && (
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          <div className="absolute inset-0 z-[4] pointer-events-none flex items-center justify-center">
             <div className="absolute h-16 w-[140%] rotate-[-16deg] bg-black/72 md:h-20" />
             <span className="rotate-[-16deg] text-5xl font-extrabold tracking-[0.34em] text-white drop-shadow-lg md:text-7xl">VENDIDO</span>
           </div>
         )}
-      </button>
-      <div className="mx-auto flex w-full max-w-[760px] gap-2 overflow-x-auto pb-1 sm:gap-3">
-        {imgs.map((u, i) => (
+      </div>
+      <div className="mx-auto flex w-full max-w-full items-center gap-1.5 overflow-hidden sm:max-w-[760px] sm:gap-2">
+        {imgs.length > 3 && (
           <button
-            key={i}
-            aria-label={`Foto ${i + 1}`}
-            onClick={() => setActive(i)}
-            className={`overflow-hidden rounded-[20px] border p-1 ${
-              i === active
-                ? "border-[rgba(26,115,232,0.45)] bg-[rgba(26,115,232,0.08)] shadow-[0_16px_30px_rgba(26,115,232,0.12)]"
-                : "border-black/8 bg-white/82 hover:border-black/15"
-            }`}
+            type="button"
+            onClick={() => scrollThumbs(-1)}
+            className="hidden h-10 w-10 shrink-0 rounded-full border border-black/8 bg-white/86 text-xl font-light leading-none text-[color:var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.1)] backdrop-blur-xl hover:-translate-x-0.5 hover:bg-white sm:inline-flex sm:items-center sm:justify-center"
+            aria-label="Desplazar fotos a la izquierda"
           >
-            <div className="relative h-[3.75rem] w-[3.75rem] overflow-hidden rounded-[14px] bg-[linear-gradient(145deg,#f6f8fb,#e8edf4)] sm:h-[4.5rem] sm:w-[4.5rem] md:h-[5.5rem] md:w-[5.5rem]">
-              <Image src={u} alt="" fill sizes="88px" className="h-full w-full object-cover" />
-            </div>
+            {"‹"}
           </button>
-        ))}
+        )}
+        <div
+          ref={thumbRailRef}
+          className="no-scrollbar flex min-w-0 max-w-full flex-1 snap-x gap-1.5 overflow-x-auto scroll-smooth px-0.5 py-1 sm:gap-3"
+        >
+          {imgs.map((u, i) => (
+            <button
+              key={i}
+              aria-label={`Foto ${i + 1}`}
+              onClick={() => goToImage(i)}
+              className={`shrink-0 snap-start overflow-hidden rounded-[15px] border p-0.5 sm:rounded-[20px] sm:p-1 ${
+                i === active
+                  ? "border-[rgba(26,115,232,0.45)] bg-[rgba(26,115,232,0.08)] shadow-[0_16px_30px_rgba(26,115,232,0.12)]"
+                  : "border-black/8 bg-white/82 hover:border-black/15"
+              }`}
+            >
+              <div className="relative h-14 w-14 overflow-hidden rounded-[11px] bg-[linear-gradient(145deg,#f6f8fb,#e8edf4)] sm:h-[4.5rem] sm:w-[4.5rem] sm:rounded-[14px] md:h-[5.5rem] md:w-[5.5rem]">
+                <Image src={u} alt="" fill sizes="88px" className="h-full w-full object-cover" />
+              </div>
+            </button>
+          ))}
+        </div>
+        {imgs.length > 3 && (
+          <button
+            type="button"
+            onClick={() => scrollThumbs(1)}
+            className="hidden h-10 w-10 shrink-0 rounded-full border border-black/8 bg-white/86 text-xl font-light leading-none text-[color:var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.1)] backdrop-blur-xl hover:translate-x-0.5 hover:bg-white sm:inline-flex sm:items-center sm:justify-center"
+            aria-label="Desplazar fotos a la derecha"
+          >
+            {"›"}
+          </button>
+        )}
       </div>
 
       {viewerOpen && (
@@ -229,7 +432,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
           <div className="relative z-[1] flex h-full flex-col">
             <div className="flex items-center justify-between gap-3 pb-3 text-white">
               <div className="text-sm font-medium">
-                Imagen {active + 1} de {imgs.length}
+                Imagen {viewerIndex + 1} de {imgs.length}
               </div>
               <button
                 type="button"
@@ -241,24 +444,24 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
             </div>
 
             <div className="relative flex-1 overflow-hidden rounded-[24px] border border-white/10 bg-[rgba(17,24,39,0.55)]">
-              {active > 0 && (
+              {imgs.length > 1 && (
                 <button
                   type="button"
-                  onClick={prevImage}
-                  className="absolute left-3 top-1/2 z-[2] -translate-y-1/2 rounded-full border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white"
+                  onClick={prevViewerImage}
+                  className="absolute left-4 top-1/2 z-[2] hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/12 text-3xl font-light leading-none text-white shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl hover:-translate-x-0.5 hover:bg-white/18 sm:inline-flex"
                   aria-label="Imagen anterior"
                 >
-                  Anterior
+                  {"‹"}
                 </button>
               )}
-              {active < imgs.length - 1 && (
+              {imgs.length > 1 && (
                 <button
                   type="button"
-                  onClick={nextImage}
-                  className="absolute right-3 top-1/2 z-[2] -translate-y-1/2 rounded-full border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white"
+                  onClick={nextViewerImage}
+                  className="absolute right-4 top-1/2 z-[2] hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/12 text-3xl font-light leading-none text-white shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl hover:translate-x-0.5 hover:bg-white/18 sm:inline-flex"
                   aria-label="Imagen siguiente"
                 >
-                  Siguiente
+                  {"›"}
                 </button>
               )}
 
@@ -281,7 +484,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
                 onTouchCancel={handleTouchEnd}
               >
                 <img
-                  src={imgs[safeIndex(active)]}
+                  src={imgs[safeIndex(viewerIndex)]}
                   alt=""
                   className="max-h-full w-auto max-w-full object-contain transition-transform duration-150"
                   style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}

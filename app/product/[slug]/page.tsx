@@ -41,11 +41,23 @@ function formatSpanishDate(dateValue?: string | null) {
 
 function toneForCondition(condition: string, sold?: boolean) {
   if (sold) return "bg-[rgba(15,23,42,0.92)] text-white";
+  if (condition.toLowerCase().includes("agotado")) return "bg-[rgba(255,235,235,0.96)] text-[#9f1d1d]";
   const value = condition.toLowerCase();
   if (value.includes("nuevo")) return "bg-[rgba(230,245,236,0.94)] text-[#1f6c43]";
   if (value.includes("open")) return "bg-[rgba(255,242,214,0.96)] text-[#8a5b11]";
   if (value.includes("usad")) return "bg-[rgba(231,239,255,0.96)] text-[#305fbe]";
   return "bg-white/88 text-[color:var(--foreground-soft)]";
+}
+
+function variantOptionLabel(variant: any) {
+  const batteryHealth = variant?.batteryHealth ?? variant?.battery_health ?? variant?.bateria?.salud;
+  const includes = String(variant?.includes || "").trim();
+  const pieces = [
+    variant?.color,
+    batteryHealth ? `${batteryHealth}% bateria` : "",
+    includes && includes !== "Ninguno" ? includes : "",
+  ].filter(Boolean);
+  return String(variant?.variantLabel || pieces.join(" · ") || variant?.title || "Opcion");
 }
 
 export default async function ProductPage({
@@ -149,6 +161,7 @@ export default async function ProductPage({
   const watchConnection = notes?.watchConnection || "";
   const watchAccessories = notes?.watchAccessories || "";
   const productCondition = product?.product_condition || staged?.product_condition || notes?.productCondition || notes?.estado || notes?.specs?.estado || "";
+  const isSealed = String(productCondition || "").toLowerCase().includes("nuevo");
 
   const especs: Array<{ label: string; value: any }> = [];
   if (productCondition) especs.push({ label: "Estado", value: productCondition });
@@ -202,37 +215,49 @@ export default async function ProductPage({
 
   const includesValue = product?.includes || staged?.includes || notes?.includes || notes?.watchIncludes || null;
   const includesExtra = product?.includes_extra || staged?.includes_extra || notes?.includesExtra || "";
-  const includesDisplay = includesValue ? (includesValue === "Otros" ? includesExtra || "Otros" : includesValue) : "";
+  const includesDisplay = includesValue
+    ? includesValue === "Ninguno"
+      ? "-"
+      : includesValue === "Otros"
+        ? includesExtra || "Otros"
+        : includesValue
+    : "";
   const incluyeLegacy = notes?.incluye || {};
   const sold = item.product?.status === "sold";
+  const stock = Number(product?.stock ?? staged?.stock ?? 1);
+  const outOfStock = !sold && Number.isFinite(stock) && stock <= 0;
+  const unavailable = sold || outOfStock;
   const visibleSpecs = especs.filter((item) => item.value);
-  const includeItems = includesDisplay
-    ? [includesDisplay]
-    : [
-        incluyeLegacy?.caja ? "Caja" : "",
-        incluyeLegacy?.cubo ? "Cubo" : "",
-        incluyeLegacy?.cable ? "Cable" : "",
-      ].filter(Boolean);
+  const includeItems = isSealed
+    ? []
+    : includesDisplay
+      ? [includesDisplay]
+      : [
+          incluyeLegacy?.caja ? "Caja" : "",
+          incluyeLegacy?.cubo ? "Cubo" : "",
+          incluyeLegacy?.cable ? "Cable" : "",
+        ].filter(Boolean);
+  const variants = Array.isArray(item.variants) ? item.variants : [];
 
   return (
-    <div className="px-3 pb-10 pt-4 sm:px-4 sm:pb-14 sm:pt-6">
-      <div className="mx-auto max-w-7xl">
+    <div className="overflow-x-hidden px-2 pb-10 pt-4 sm:px-4 sm:pb-14 sm:pt-6">
+      <div className="mx-auto min-w-0 max-w-7xl">
         <ProductViewTracker
           productId={productId}
           productSlug={slug}
           productTitle={title}
           category={category}
         />
-        <section className="surface-card-strong soft-outline overflow-hidden px-6 py-8 sm:px-8 sm:py-10">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,0.96fr)_minmax(340px,1.04fr)] lg:items-start lg:gap-8">
-            <section className="order-1">
+        <section className="surface-card-strong soft-outline overflow-hidden px-3 py-5 sm:px-8 sm:py-10">
+          <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.96fr)_minmax(340px,1.04fr)] lg:items-start lg:gap-8">
+            <section className="order-1 min-w-0 overflow-hidden">
               <ProductGallery images={images} sold={sold} />
             </section>
 
-            <aside className="order-2 space-y-4 sm:space-y-5">
+            <aside className="order-2 min-w-0 space-y-4 sm:space-y-5">
               <div className="flex flex-wrap gap-2">
-                <span className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] ${toneForCondition(String(productCondition || "Disponible"), sold)}`}>
-                  {sold ? "Vendido" : productCondition || "Disponible"}
+                <span className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] ${toneForCondition(String(outOfStock ? "Agotado" : productCondition || "Disponible"), sold)}`}>
+                  {sold ? "Vendido" : outOfStock ? "Agotado" : productCondition || "Disponible"}
                 </span>
                 {saleType && saleType !== "VENTA_SIMPLE" && (
                   <span className="rounded-full bg-black/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white">
@@ -245,17 +270,17 @@ export default async function ProductPage({
               </div>
 
               <div>
-                <h1 className="text-3xl font-semibold tracking-[-0.06em] text-[color:var(--foreground)] sm:text-4xl">
+                <h1 className="break-words text-2xl font-semibold text-[color:var(--foreground)] sm:text-4xl sm:tracking-[-0.06em]">
                   {title}
                 </h1>
               </div>
 
-              <div className="rounded-[28px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(239,244,250,0.94))] p-4 shadow-[0_20px_48px_rgba(15,23,42,0.1)] sm:p-6">
+              <div className="min-w-0 rounded-[22px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(239,244,250,0.94))] p-4 shadow-[0_14px_34px_rgba(15,23,42,0.08)] sm:rounded-[28px] sm:p-6 sm:shadow-[0_20px_48px_rgba(15,23,42,0.1)]">
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
                   Precio final
                 </div>
                 <div className="mt-3 flex flex-wrap items-end gap-3">
-                  <div className="text-3xl font-semibold tracking-[-0.05em] text-[color:var(--foreground)] sm:text-4xl">
+                  <div className="text-3xl font-semibold text-[color:var(--foreground)] sm:text-4xl sm:tracking-[-0.05em]">
                     S/ {price.toFixed(2)}
                   </div>
                   {compareAt && compareAt > price && (
@@ -272,13 +297,14 @@ export default async function ProductPage({
                     productId={productId}
                     saleType={saleType}
                     salePrice={salePrice}
-                    disabled={!productId || sold}
+                    disabled={!productId || unavailable}
+                    disabledLabel={sold ? "Producto vendido" : outOfStock ? "Producto agotado" : undefined}
                   />
                 </div>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-                <div className="rounded-[26px] border border-black/6 bg-white/72 p-4 sm:p-5">
+              <div className="grid min-w-0 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+                <div className="order-2 min-w-0 rounded-[22px] border border-black/6 bg-white/72 p-4 sm:rounded-[26px] sm:p-5 xl:order-1">
                   <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
                     Especificaciones
                   </div>
@@ -300,26 +326,88 @@ export default async function ProductPage({
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="rounded-[26px] border border-black/6 bg-white/72 p-4 sm:p-5">
-                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                      Que incluye
-                    </div>
-                    {includeItems.length ? (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {includeItems.map((item) => (
-                          <span
-                            key={item}
-                            className="rounded-full border border-black/8 bg-[rgba(248,250,252,0.95)] px-3 py-2 text-sm font-medium text-[color:var(--foreground)]"
-                          >
-                            {item}
-                          </span>
-                        ))}
+                <div className={`min-w-0 space-y-4 ${variants.length > 1 ? "order-1" : "order-3"} xl:order-2`}>
+                  {variants.length > 1 && (
+                    <div className="rounded-[18px] border border-black/6 bg-white/68 p-3 sm:p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--foreground-soft)]">
+                        Opciones
                       </div>
-                    ) : (
-                      <div className="mt-4 text-sm text-[color:var(--foreground-soft)]">No disponible.</div>
-                    )}
-                  </div>
+                      <div className="mt-3 grid gap-1.5">
+                        {variants.map((variant: any) => {
+                          const activeVariant = String(variant.slug || "") === slug;
+                          const availableVariant = variant?.available !== false;
+                          const statusLabel = String(variant?.availabilityLabel || (availableVariant ? "Disponible" : "No disponible"));
+                          const canOpenVariant = Boolean(variant?.slug) && !activeVariant;
+                          const optionClass = `rounded-[13px] border px-3 py-2 text-xs transition ${
+                            activeVariant
+                              ? "border-[rgba(26,115,232,0.44)] bg-[rgba(26,115,232,0.08)] text-[color:var(--foreground)]"
+                              : availableVariant
+                                ? "border-black/8 bg-[rgba(248,250,252,0.92)] text-[color:var(--foreground-soft)] hover:border-black/15 hover:bg-white"
+                                : "border-black/6 bg-[rgba(248,250,252,0.62)] text-[color:var(--foreground-soft)] opacity-70 hover:border-black/12 hover:bg-white/78"
+                          }`;
+                          const content = (
+                            <>
+                              <div className="flex items-center justify-between gap-3">
+                                <span className={`font-medium ${availableVariant ? "" : "line-through decoration-2"}`}>
+                                  {variantOptionLabel(variant)}
+                                </span>
+                                {!availableVariant && (
+                                  <span className="shrink-0 rounded-full bg-black/8 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--foreground-soft)]">
+                                    {statusLabel}
+                                  </span>
+                                )}
+                              </div>
+                              <div className={`mt-0.5 text-[11px] text-[color:var(--foreground-soft)] ${availableVariant ? "" : "line-through"}`}>
+                                S/ {Number(variant.price || 0).toFixed(2)}
+                              </div>
+                            </>
+                          );
+                          if (!canOpenVariant) {
+                            return (
+                              <div
+                                key={variant.product_id || variant.slug}
+                                className={optionClass}
+                                aria-current={activeVariant ? "true" : undefined}
+                              >
+                                {content}
+                              </div>
+                            );
+                          }
+                          return (
+                            <a
+                              key={variant.product_id || variant.slug}
+                              href={`/product/${variant.slug}`}
+                              className={optionClass}
+                            >
+                              {content}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {!isSealed && (
+                    <div className="rounded-[26px] border border-black/6 bg-white/72 p-4 sm:p-5">
+                      <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
+                        Que incluye
+                      </div>
+                      {includeItems.length ? (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {includeItems.map((item) => (
+                            <span
+                              key={item}
+                              className="rounded-full border border-black/8 bg-[rgba(248,250,252,0.95)] px-3 py-2 text-sm font-medium text-[color:var(--foreground)]"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-4 text-sm text-[color:var(--foreground-soft)]">No disponible.</div>
+                      )}
+                    </div>
+                  )}
 
                   {isPreventa && (
                     <div className="rounded-[26px] border border-amber-200 bg-[linear-gradient(145deg,rgba(255,250,236,0.98),rgba(255,243,216,0.94))] p-4 sm:p-5">

@@ -141,7 +141,7 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
                   <Image src="/logo.png" alt="Macsomenos" fill sizes="122px" className="object-contain" />
                 </div>
                 <p className="mt-4 max-w-xl text-sm leading-6 text-[color:var(--foreground-soft)]">
-                  Tecnologia premium en distintos estados.
+                  Más Apple, menos gasto.
                 </p>
               </div>
 

@@ -10,13 +10,19 @@ function parseNotes(row: Row) {
     const specs = (n?.specs || n) as any;
     const d = (specs?.detalle || {}) as any;
     const size = d["tamaño"] || d.tamanio || d.tamano || "";
+    const title = String(row?.product?.title || row?.staged?.title || row?.title || "");
+    const resolvedSize = size || n?.watchSize || title.match(/\b(4[0-9])\s*mm\b/i)?.[1] || "";
     const proc = d.procesador || "";
     const ram = d.ram || "";
-    const ssd = d.almacenamiento || d.ssd || "";
-    const gama = d.gama || "";
-    return { notes: n, specs, d, size: String(size), proc: String(proc), ram: String(ram), ssd: String(ssd), tipo: String(gama) };
+    const storage = d.almacenamiento || d.ssd || row?.product?.storage_gb || row?.staged?.storage_gb || n?.storageGb || n?.storage || "";
+    const gama = d.gama || row?.product?.iphone_model || row?.staged?.iphone_model || n?.iphoneModel || "";
+    const connectivity = d.conectividad || n?.conectividad || n?.watchConnection || "";
+    const watchType = String(n?.watchType || "").trim();
+    const watchVersion = String(n?.watchVersion || "").trim();
+    const watchSeries = String(n?.watchSeries || "").trim();
+    return { notes: n, specs, d, size: String(resolvedSize), proc: String(proc), ram: String(ram), storage: String(storage), tipo: String(gama), connectivity: String(connectivity), watchType, watchVersion, watchSeries, title };
   } catch {
-    return { notes: {}, specs: {}, d: {}, size: "", proc: "", ram: "", ssd: "", tipo: "" };
+    return { notes: {}, specs: {}, d: {}, size: "", proc: "", ram: "", storage: "", tipo: "", connectivity: "", watchType: "", watchVersion: "", watchSeries: "", title: "" };
   }
 }
 
@@ -65,6 +71,90 @@ function dedupe<T>(arr: T[]) {
   return Array.from(new Set(arr.filter(Boolean)));
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeStorage(value: unknown) {
+  const raw = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+  if (!raw) return "";
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    if (n >= 1024 && n % 1024 === 0) return `${n / 1024}TB`;
+    return `${n}GB`;
+  }
+  return raw;
+}
+
+function normalizeConnectivity(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/wifi.*(cellular|celular)|cellular|celular/i.test(raw)) {
+    return /wifi/i.test(raw) ? "WiFi + Celular" : "GPS + Celular";
+  }
+  if (/wifi/i.test(raw)) return "WiFi";
+  if (/gps/i.test(raw)) return "GPS";
+  return raw;
+}
+
+function normalizeIphoneModel(value: unknown, title: string) {
+  const raw = String(value || "").trim();
+  const source = `${raw} ${title}`;
+  if (/pro\s*max/i.test(source)) return "Pro Max";
+  if (/\bpro\b/i.test(source)) return "Pro";
+  if (/\bplus\b/i.test(source)) return "Plus";
+  if (/\bmini\b/i.test(source)) return "Mini";
+  if (/\bnormal\b/i.test(source)) return "Normal";
+  return raw;
+}
+
+function normalizeWatchSeries(meta: any) {
+  const title = String(meta.title || meta.row?.product?.title || meta.row?.staged?.title || "");
+  const type = String(meta.watchType || "").trim();
+  const version = String(meta.watchVersion || "").trim();
+  const series = String(meta.watchSeries || "").trim();
+  if (/ultra/i.test(type) || /\bultra\b/i.test(title)) {
+    const fromTitle = title.match(/\bultra\s*(\d)?\b/i)?.[1] || "";
+    const v = version || fromTitle;
+    return v && v !== "1" ? `Ultra ${v}` : "Ultra";
+  }
+  const fromTitle = title.match(/\bseries\s*(\d{1,2})\b/i)?.[1] || title.match(/\bserie\s*(\d{1,2})\b/i)?.[1] || "";
+  const value = series || fromTitle;
+  return value ? `Serie ${value}` : "";
+}
+
+function numericRank(value: string) {
+  const n = Number(String(value).match(/\d+(?:\.\d+)?/)?.[0] || Number.POSITIVE_INFINITY);
+  return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
+}
+
+function storageRank(value: string) {
+  const raw = String(value || "").toUpperCase();
+  const n = Number(raw.match(/\d+(?:\.\d+)?/)?.[0] || 0);
+  return /TB/.test(raw) ? n * 1024 : n;
+}
+
+function sortGama(values: string[], category: string) {
+  const iphoneOrder = ["Normal", "Mini", "Plus", "Pro", "Pro Max"];
+  const macbookOrder = ["Air", "Pro"];
+  const ipadOrder = ["Normal", "Mini", "Air", "Pro"];
+  const order = category === "iphone" ? iphoneOrder : category === "macbook" ? macbookOrder : ipadOrder;
+  return [...values].sort((a, b) => {
+    const ai = order.findIndex((v) => v.toLowerCase() === a.toLowerCase());
+    const bi = order.findIndex((v) => v.toLowerCase() === b.toLowerCase());
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a.localeCompare(b);
+  });
+}
+
+function sortSeries(values: string[]) {
+  return [...values].sort((a, b) => {
+    const aUltra = /^ultra/i.test(a);
+    const bUltra = /^ultra/i.test(b);
+    if (aUltra !== bUltra) return aUltra ? 1 : -1;
+    return numericRank(a) - numericRank(b) || a.localeCompare(b);
+  });
+}
+
 function toneForCondition(condition: string) {
   const value = condition.toLowerCase();
   if (value.includes("nuevo")) return "bg-[rgba(230,245,236,0.92)] text-[#1f6c43]";
@@ -88,15 +178,15 @@ function FilterSection({
 }) {
   if (!options.length) return null;
   return (
-    <div className="rounded-[26px] border border-black/6 bg-white/70 p-4 backdrop-blur-xl">
+    <div className="rounded-[22px] border border-black/6 bg-white/70 p-3 backdrop-blur-xl lg:rounded-[26px] lg:p-4">
       <div className="text-sm font-semibold text-[color:var(--foreground)]">{title}</div>
-      <div className="mt-3 max-h-64 space-y-2 overflow-auto">
+      <div className="mt-2 max-h-44 space-y-1.5 overflow-auto lg:mt-3 lg:max-h-64 lg:space-y-2">
         {options.map((option) => {
           const active = selected.includes(option);
           return (
             <label
               key={option}
-              className={`flex cursor-pointer items-center justify-between rounded-[18px] border px-3 py-3 text-sm ${
+              className={`flex cursor-pointer items-center justify-between rounded-[16px] border px-3 py-2.5 text-sm lg:rounded-[18px] lg:py-3 ${
                 active
                   ? "border-[rgba(26,115,232,0.35)] bg-[rgba(26,115,232,0.08)] text-[color:var(--foreground)]"
                   : "border-black/6 bg-white/75 text-[color:var(--foreground-soft)]"
@@ -112,12 +202,19 @@ function FilterSection({
   );
 }
 
-export default function CategoryBrowser({ initialItems }: { initialItems: Row[] }) {
+export default function CategoryBrowser({ initialItems, category }: { initialItems: Row[]; category?: string }) {
+  const normalizedCategory = String(category || initialItems?.[0]?.category || "").toLowerCase();
+  const isMacbook = normalizedCategory === "macbook";
+  const isIpad = normalizedCategory === "ipad";
+  const isIphone = normalizedCategory === "iphone";
+  const isWatch = normalizedCategory === "watch";
   const [tipo, setTipo] = React.useState<string[]>([]);
   const [proc, setProc] = React.useState<string[]>([]);
   const [sizes, setSizes] = React.useState<string[]>([]);
   const [rams, setRams] = React.useState<string[]>([]);
   const [ssds, setSsds] = React.useState<string[]>([]);
+  const [connectivity, setConnectivity] = React.useState<string[]>([]);
+  const [series, setSeries] = React.useState<string[]>([]);
   const [sort, setSort] = React.useState<"price_asc" | "price_desc" | "none">("none");
   const [filtersOpen, setFiltersOpen] = React.useState(false);
 
@@ -141,41 +238,55 @@ export default function CategoryBrowser({ initialItems }: { initialItems: Row[] 
   }, [minGlobal, maxGlobal, minPrice, maxPrice]);
 
   const options = React.useMemo(() => {
+    const titleOf = (m: any) => String(m.row?.product?.title || m.row?.staged?.title || m.title || "");
     return {
-      tipos: dedupe(
+      tipos: sortGama(dedupe(
         meta
-          .map((m) =>
-            (m.tipo || String(m.row?.product?.title || m.row?.staged?.title || "").match(/\b(Air|Pro)\b/i)?.[0] || "")
-              .toString()
-              .replace(/\s+/g, " ")
-              .trim()
-          )
+          .map((m) => {
+            const title = titleOf(m);
+            if (isIphone) return normalizeIphoneModel(m.tipo, title);
+            if (isIpad) return (m.tipo || title.match(/\biPad\s+(Mini|Air|Pro)\b/i)?.[1] || "").toString();
+            if (isMacbook) return (m.tipo || title.match(/\b(Air|Pro)\b/i)?.[1] || "").toString();
+            return String(m.tipo || "").trim();
+          })
           .map((s) => s.replace(/\bmac\s*book\s*/i, ""))
           .filter(Boolean)
-      ),
-      procs: dedupe(meta.map((m) => String(m.proc || String(m.row?.product?.title || "").match(/\bM[0-9a-z]+\b/i)?.[0] || ""))),
-      sizes: dedupe(meta.map((m) => String(m.size || String(m.row?.product?.title || "").match(/\b(1[0-9](?:\.[0-9])?)\b/)?.[1] || ""))),
+      ), normalizedCategory),
+      procs: dedupe(meta.map((m) => String(m.proc || titleOf(m).match(/\bM[0-9a-z]+\b/i)?.[0] || ""))),
+      sizes: dedupe(meta.map((m) => String(m.size || titleOf(m).match(/\b(1[0-9](?:\.[0-9])?|4[0-9])\b/)?.[1] || "").replace(/\s*mm$/i, ""))).sort((a, b) => numericRank(a) - numericRank(b)),
       rams: dedupe(meta.map((m) => String(m.ram))).map((s) => s.replace(/\s*GB/i, "GB")).filter(Boolean),
-      ssds: dedupe(meta.map((m) => String(m.ssd))).map((s) => s.replace(/\s*GB|\s*TB/i, (match) => match)).filter(Boolean),
+      ssds: dedupe(meta.map((m) => normalizeStorage(m.storage || titleOf(m).match(/\b(\d+\s*(?:GB|TB))\b/i)?.[1] || ""))).filter(Boolean).sort((a, b) => storageRank(a) - storageRank(b)),
+      connectivity: dedupe(meta.map((m) => normalizeConnectivity(m.connectivity || titleOf(m)))),
+      series: sortSeries(dedupe(meta.map((m) => normalizeWatchSeries(m)))),
     };
-  }, [meta]);
+  }, [isIpad, isIphone, isMacbook, meta, normalizedCategory]);
 
-  const minV = Number(minPrice || minGlobal || 0);
-  const maxV = Number(maxPrice || maxGlobal || 0);
+  const rawMinV = Number(minPrice || minGlobal || 0);
+  const rawMaxV = Number(maxPrice || maxGlobal || 0);
+  const minV = Math.min(rawMinV, rawMaxV);
+  const maxV = Math.max(rawMinV, rawMaxV);
 
   const filteredMeta = React.useMemo(() => {
     let arr = meta.filter((m) => m.price >= minV && m.price <= maxV);
-    if (tipo.length) arr = arr.filter((m) => tipo.some((t) => new RegExp(t, "i").test(String(m.tipo || m.row?.product?.title || ""))));
-    if (proc.length) arr = arr.filter((m) => proc.some((p) => new RegExp(p, "i").test(m.proc || m.row?.product?.title || "")));
+    if (tipo.length) {
+      arr = arr.filter((m) => {
+        const title = String(m.row?.product?.title || m.row?.staged?.title || m.title || "");
+        const value = isIphone ? normalizeIphoneModel(m.tipo, title) : String(m.tipo || title);
+        return tipo.some((t) => new RegExp(escapeRegExp(t), "i").test(value));
+      });
+    }
+    if (proc.length) arr = arr.filter((m) => proc.some((p) => new RegExp(escapeRegExp(p), "i").test(m.proc || m.row?.product?.title || "")));
     if (sizes.length) arr = arr.filter((m) => sizes.includes(String(m.size)));
     if (rams.length) arr = arr.filter((m) => rams.includes(String(m.ram)));
-    if (ssds.length) arr = arr.filter((m) => ssds.includes(String(m.ssd)));
+    if (ssds.length) arr = arr.filter((m) => ssds.includes(normalizeStorage(m.storage)));
+    if (connectivity.length) arr = arr.filter((m) => connectivity.includes(normalizeConnectivity(m.connectivity || m.title)));
+    if (series.length) arr = arr.filter((m) => series.includes(normalizeWatchSeries(m)));
     if (sort === "price_asc") arr = [...arr].sort((a, b) => a.price - b.price);
     if (sort === "price_desc") arr = [...arr].sort((a, b) => b.price - a.price);
     return arr;
-  }, [meta, minV, maxV, tipo, proc, sizes, rams, ssds, sort]);
+  }, [connectivity, isIphone, meta, minV, maxV, tipo, proc, sizes, rams, ssds, series, sort]);
 
-  const activeFilters = [...tipo, ...proc, ...sizes.map((s) => `${s}"`), ...rams, ...ssds];
+  const activeFilters = [...tipo, ...proc, ...sizes.map((s) => `${s}${isWatch ? "mm" : "\""}`), ...rams, ...ssds, ...connectivity, ...series];
   const toggle = (list: string[], setList: (value: string[]) => void, value: string) => {
     setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
   };
@@ -206,65 +317,93 @@ export default function CategoryBrowser({ initialItems }: { initialItems: Row[] 
     return Math.round(min + (pct / 100) * (max - min));
   };
 
+  const setMinFromPercent = (pct: number) => {
+    setMinPrice(String(Math.min(fromPercent(pct), maxV)));
+  };
+
+  const setMaxFromPercent = (pct: number) => {
+    setMaxPrice(String(Math.max(fromPercent(pct), minV)));
+  };
+
   const resetFilters = () => {
     setTipo([]);
     setProc([]);
     setSizes([]);
     setRams([]);
     setSsds([]);
+    setConnectivity([]);
+    setSeries([]);
     setSort("none");
     setMinPrice(String(minGlobal));
     setMaxPrice(String(maxGlobal));
   };
 
+  const priceMinPercent = Math.max(0, Math.min(100, toPercent(minV)));
+  const priceMaxPercent = Math.max(0, Math.min(100, toPercent(maxV)));
+
   return (
     <div className="mt-8 grid gap-6 lg:grid-cols-[300px_1fr]">
-      <aside className="order-2 lg:order-1">
-        <div className={`${filtersOpen ? "block" : "hidden"} space-y-4 lg:block`}>
-          <div className="surface-card soft-outline p-5">
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-              Filtrar
-            </div>
-            <div className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
-              Refina por precio y especificacion.
+      <aside className={`${filtersOpen ? "fixed inset-x-4 top-20 z-[60] block max-h-[72svh] overflow-y-auto sm:left-auto sm:right-4 sm:w-[360px]" : "hidden"} lg:static lg:order-1 lg:block lg:max-h-none lg:w-auto lg:overflow-visible`}>
+        <div className="space-y-4">
+          <div className="surface-card soft-outline p-4 lg:p-5">
+            <div className="sticky -top-4 z-10 -mx-4 -mt-4 flex items-start justify-between gap-3 rounded-t-[28px] bg-white/95 px-4 pb-3 pt-4 shadow-sm lg:static lg:mx-0 lg:mt-0 lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
+                  Filtros
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(false)}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white/80 text-lg leading-none text-[color:var(--foreground)] lg:hidden"
+                aria-label="Cerrar filtros"
+              >
+                ×
+              </button>
             </div>
 
-            <div className="mt-5 rounded-[24px] border border-black/6 bg-white/70 p-4">
+            <div className="mt-4 rounded-[22px] border border-black/6 bg-white/70 p-3 lg:mt-5 lg:rounded-[24px] lg:p-4">
               <div className="text-sm font-semibold text-[color:var(--foreground)]">Precio</div>
-              <div className="mt-4 flex h-20 items-end gap-1">
+              <div className="mt-3 flex h-14 items-end gap-1 lg:mt-4 lg:h-20">
                 {bins.map((h, i) => (
-                  <div key={i} className="flex-1 rounded-t-full bg-[linear-gradient(180deg,rgba(26,115,232,0.72),rgba(26,115,232,0.18))]" style={{ height: `${Math.max(8, h)}px` }} />
+                  <div key={i} className="flex-1 rounded-t-full bg-[linear-gradient(180deg,rgba(26,115,232,0.72),rgba(26,115,232,0.18))]" style={{ height: `${Math.max(6, Math.round(h * 0.72))}px` }} />
                 ))}
               </div>
 
-              <div className="mt-4 relative h-8">
+              <div className="mt-4 relative h-9">
                 <div className="absolute inset-x-2 top-1/2 h-1 -translate-y-1/2 rounded-full bg-slate-200" />
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={toPercent(minV)}
-                  onChange={(e) => setMinPrice(String(fromPercent(Number(e.target.value))))}
-                  className="absolute inset-x-2 w-[calc(100%-1rem)] appearance-none bg-transparent"
+                <div
+                  className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[color:var(--accent)]"
+                  style={{ left: `calc(${priceMinPercent}% + 0.5rem)`, right: `calc(${100 - priceMaxPercent}% + 0.5rem)` }}
                 />
                 <input
                   type="range"
                   min={0}
                   max={100}
-                  value={toPercent(maxV)}
-                  onChange={(e) => setMaxPrice(String(fromPercent(Number(e.target.value))))}
-                  className="absolute inset-x-2 w-[calc(100%-1rem)] appearance-none bg-transparent"
+                  value={priceMinPercent}
+                  onChange={(e) => setMinFromPercent(Number(e.target.value))}
+                  className="price-range absolute inset-x-2 top-1/2 z-[2] w-[calc(100%-1rem)] -translate-y-1/2 appearance-none bg-transparent"
+                  aria-label="Precio minimo"
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={priceMaxPercent}
+                  onChange={(e) => setMaxFromPercent(Number(e.target.value))}
+                  className="price-range absolute inset-x-2 top-1/2 z-[3] w-[calc(100%-1rem)] -translate-y-1/2 appearance-none bg-transparent"
+                  aria-label="Precio maximo"
                 />
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-[18px] border border-black/6 bg-white/85 p-3">
+              <div className="mt-3 grid grid-cols-2 gap-2 lg:mt-4 lg:gap-3">
+                <div className="rounded-[16px] border border-black/6 bg-white/85 p-2.5 lg:rounded-[18px] lg:p-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
                     Min
                   </div>
                   <input inputMode="numeric" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="mt-2 w-full border-0 bg-transparent p-0 text-sm text-[color:var(--foreground)] shadow-none focus:shadow-none" />
                 </div>
-                <div className="rounded-[18px] border border-black/6 bg-white/85 p-3">
+                <div className="rounded-[16px] border border-black/6 bg-white/85 p-2.5 lg:rounded-[18px] lg:p-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
                     Max
                   </div>
@@ -273,19 +412,40 @@ export default function CategoryBrowser({ initialItems }: { initialItems: Row[] 
               </div>
 
               <button
-                onClick={() => window?.document?.getElementById("cat-grid")?.scrollIntoView({ behavior: "smooth" })}
-                className="btn-primary mt-4 w-full rounded-full bg-[color:var(--foreground)] py-3 text-sm font-semibold text-white hover:bg-black"
+                onClick={() => {
+                  setFiltersOpen(false);
+                  window?.document?.getElementById("cat-grid")?.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="btn-primary mt-3 w-full rounded-full bg-[color:var(--foreground)] py-2.5 text-sm font-semibold text-white hover:bg-black lg:mt-4 lg:py-3"
               >
                 Ver {filteredMeta.length} productos
               </button>
             </div>
 
-            <div className="mt-4 space-y-4">
-              <FilterSection title="Tipo" options={options.tipos} selected={tipo} onToggle={(value) => toggle(tipo, setTipo, value)} />
-              <FilterSection title="Procesador" options={options.procs} selected={proc} onToggle={(value) => toggle(proc, setProc, value)} />
-              <FilterSection title="Pantalla" options={options.sizes} selected={sizes} onToggle={(value) => toggle(sizes, setSizes, value)} renderLabel={(value) => `${value}"`} />
-              <FilterSection title="RAM" options={options.rams} selected={rams} onToggle={(value) => toggle(rams, setRams, value)} />
-              <FilterSection title="SSD" options={options.ssds} selected={ssds} onToggle={(value) => toggle(ssds, setSsds, value)} />
+            <div className="mt-3 space-y-3 lg:mt-4 lg:space-y-4">
+              {(isMacbook || isIpad || isIphone) && (
+                <FilterSection title="Gama" options={options.tipos} selected={tipo} onToggle={(value) => toggle(tipo, setTipo, value)} />
+              )}
+              {(isMacbook || isIpad) && (
+                <FilterSection title="Procesador" options={options.procs} selected={proc} onToggle={(value) => toggle(proc, setProc, value)} />
+              )}
+              {(isMacbook || isIpad || isWatch) && (
+                <FilterSection
+                  title={isWatch ? "Tamaño" : "Pantalla"}
+                  options={options.sizes}
+                  selected={sizes}
+                  onToggle={(value) => toggle(sizes, setSizes, value)}
+                  renderLabel={(value) => (isWatch ? `${value} mm` : `${value}"`)}
+                />
+              )}
+              {isMacbook && <FilterSection title="RAM" options={options.rams} selected={rams} onToggle={(value) => toggle(rams, setRams, value)} />}
+              {(isMacbook || isIpad || isIphone) && (
+                <FilterSection title="Almacenamiento" options={options.ssds} selected={ssds} onToggle={(value) => toggle(ssds, setSsds, value)} />
+              )}
+              {(isIpad || isWatch) && (
+                <FilterSection title="Conectividad" options={options.connectivity} selected={connectivity} onToggle={(value) => toggle(connectivity, setConnectivity, value)} />
+              )}
+              {isWatch && <FilterSection title="Serie" options={options.series} selected={series} onToggle={(value) => toggle(series, setSeries, value)} />}
             </div>
 
             <button onClick={resetFilters} className="btn-secondary mt-4 w-full rounded-full border border-black/10 bg-white/70 py-3 text-sm font-medium text-[color:var(--foreground)]">

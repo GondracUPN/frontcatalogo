@@ -1,6 +1,8 @@
 node_modules/
 .next/
+.next-dev/
 out/
+storage/
 
 .env
 .env.local
@@ -13,3 +15,4 @@ out/
 .dev-out.log
 
 tsconfig.tsbuildinfo
+

@@ -198,6 +198,42 @@ textarea:focus {
   scrollbar-width: none;
 }
 
+.price-range {
+  pointer-events: none;
+}
+
+.price-range::-webkit-slider-runnable-track {
+  height: 2.25rem;
+  background: transparent;
+}
+
+.price-range::-webkit-slider-thumb {
+  pointer-events: auto;
+  appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.5rem;
+  border-radius: 999px;
+  border: 3px solid #ffffff;
+  background: var(--accent);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.2);
+}
+
+.price-range::-moz-range-track {
+  height: 2.25rem;
+  background: transparent;
+}
+
+.price-range::-moz-range-thumb {
+  pointer-events: auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  border: 3px solid #ffffff;
+  background: var(--accent);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.2);
+}
+
 .deferred-section {
   content-visibility: auto;
   contain-intrinsic-size: 1px 760px;
@@ -210,6 +246,7 @@ textarea:focus {
 
   body {
     background-image: linear-gradient(180deg, #fbfaf7 0%, #f3f2ee 42%, #eef1f5 100%);
+    overflow-x: hidden;
   }
 
   body::before,
