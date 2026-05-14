@@ -40,8 +40,12 @@ function configureCloudinary() {
 }
 
 function getCloudinaryUrl() {
-  const raw = String(process.env.CLOUDINARY_URL || "").trim();
-  const value = raw.startsWith("CLOUDINARY_URL=") ? raw.slice("CLOUDINARY_URL=".length).trim() : raw;
+  let value = String(process.env.CLOUDINARY_URL || "").trim();
+  for (let i = 0; i < 3; i += 1) {
+    value = value.trim().replace(/^['"]|['"]$/g, "").trim();
+    if (!value.startsWith("CLOUDINARY_URL=")) break;
+    value = value.slice("CLOUDINARY_URL=".length).trim();
+  }
   return value.startsWith("cloudinary://") ? value : "";
 }
 

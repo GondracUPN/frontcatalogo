@@ -1,8 +1,11 @@
 "use client";
 
 function apiBase() {
-  const raw = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "http://127.0.0.1:3101";
-  return raw.trim().replace(/\/+$/, "");
+  const raw = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  const base = raw.trim().replace(/\/+$/, "");
+  if (base) return base;
+  if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:3101";
+  throw new Error("NEXT_PUBLIC_API_BASE_URL no está configurado");
 }
 
 function getCookie(name: string) {

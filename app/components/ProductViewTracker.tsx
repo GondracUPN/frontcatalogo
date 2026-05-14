@@ -14,8 +14,11 @@ const VIEW_PREFIX = "catalog_view_seen_";
 const VIEW_TTL_MS = 30 * 60 * 1000;
 
 function apiBase() {
-  const raw = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "http://127.0.0.1:3101";
-  return raw.trim().replace(/\/+$/, "");
+  const raw = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  const base = raw.trim().replace(/\/+$/, "");
+  if (base) return base;
+  if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:3101";
+  return "";
 }
 
 function getSessionId() {
@@ -47,7 +50,10 @@ export default function ProductViewTracker({ productId, productSlug, productTitl
 
     window.localStorage.setItem(key, String(Date.now()));
 
-    fetch(`${apiBase()}/catalog/views`, {
+    const base = apiBase();
+    if (!base) return;
+
+    fetch(`${base}/catalog/views`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: payload,
