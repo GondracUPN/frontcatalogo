@@ -34,6 +34,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, url: uploaded.secure_url });
     }
 
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { ok: false, message: "Cloudinary no está configurado en producción. Revisa la variable CLOUDINARY_URL." },
+        { status: 500 }
+      );
+    }
+
     const uploadDir = path.join(process.cwd(), "public", "clientes");
     const originalsDir = privateOriginalsDir("clientes");
     await fs.mkdir(uploadDir, { recursive: true });

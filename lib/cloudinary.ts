@@ -14,18 +14,35 @@ type CloudinaryResource = {
 
 export function isCloudinaryConfigured() {
   return Boolean(
-    process.env.CLOUDINARY_URL ||
+    getCloudinaryUrl() ||
       (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
   );
 }
 
 function configureCloudinary() {
-  if (process.env.CLOUDINARY_URL) return;
+  const cloudinaryUrl = getCloudinaryUrl();
+  if (cloudinaryUrl) {
+    const parsed = new URL(cloudinaryUrl);
+    cloudinary.config({
+      cloud_name: parsed.hostname,
+      api_key: decodeURIComponent(parsed.username),
+      api_secret: decodeURIComponent(parsed.password),
+      secure: true,
+    });
+    return;
+  }
   cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
   });
+}
+
+function getCloudinaryUrl() {
+  const raw = String(process.env.CLOUDINARY_URL || "").trim();
+  const value = raw.startsWith("CLOUDINARY_URL=") ? raw.slice("CLOUDINARY_URL=".length).trim() : raw;
+  return value.startsWith("cloudinary://") ? value : "";
 }
 
 export async function uploadImageToCloudinary(
