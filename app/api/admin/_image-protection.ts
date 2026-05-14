@@ -64,9 +64,8 @@ async function withOpacity(input: Buffer, opacity: number) {
   return sharp(data, { raw: { width, height, channels } }).png().toBuffer();
 }
 
-export async function applyWatermark(
+export async function watermarkBuffer(
   input: Buffer,
-  outputPath: string,
   options: { scale?: number; opacity?: number; logo?: "product" | "client" } = {}
 ) {
   const scale = options.scale ?? 0.72;
@@ -85,8 +84,16 @@ export async function applyWatermark(
     .toBuffer();
   const logo = await withOpacity(logoBase, opacity);
 
-  const out = await source
+  return source
     .composite([{ input: logo, gravity: "center", blend: "over" }])
     .toBuffer();
+}
+
+export async function applyWatermark(
+  input: Buffer,
+  outputPath: string,
+  options: { scale?: number; opacity?: number; logo?: "product" | "client" } = {}
+) {
+  const out = await watermarkBuffer(input, options);
   await fs.writeFile(outputPath, out);
 }

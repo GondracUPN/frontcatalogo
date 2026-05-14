@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { ALLOWED_IMAGE_MIME, EXT_BY_MIME, applyWatermark, privateOriginalsDir } from "../../_image-protection";
+import { isCloudinaryConfigured, uploadImageToCloudinary } from "@/lib/cloudinary";
+import { ALLOWED_IMAGE_MIME, EXT_BY_MIME, applyWatermark, privateOriginalsDir, watermarkBuffer } from "../../_image-protection";
 import { requireAdmin } from "../../_admin-auth";
 
 export const dynamic = "force-dynamic";
@@ -19,14 +20,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, message: "Tipo de imagen no permitido" }, { status: 415 });
     }
 
-    const uploadDir = path.join(process.cwd(), "public", "clientes");
-    const originalsDir = privateOriginalsDir("clientes");
-    await fs.mkdir(uploadDir, { recursive: true });
-    await fs.mkdir(originalsDir, { recursive: true });
     const arrayBuffer = await file.arrayBuffer();
     const buf = Buffer.from(arrayBuffer);
     const ext = EXT_BY_MIME[file.type] || path.extname(file.name) || ".bin";
     const name = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+
+    if (isCloudinaryConfigured()) {
+      const watermarked = await watermarkBuffer(buf, { scale: 0.94, opacity: 0.18, logo: "client" });
+      const uploaded = await uploadImageToCloudinary(watermarked, {
+        scope: "clients",
+        publicId: path.basename(name, ext),
+      });
+      return NextResponse.json({ ok: true, url: uploaded.secure_url });
+    }
+
+    const uploadDir = path.join(process.cwd(), "public", "clientes");
+    const originalsDir = privateOriginalsDir("clientes");
+    await fs.mkdir(uploadDir, { recursive: true });
+    await fs.mkdir(originalsDir, { recursive: true });
+
     await fs.writeFile(path.join(originalsDir, name), buf);
     const dest = path.join(uploadDir, name);
     await applyWatermark(buf, dest, { scale: 0.94, opacity: 0.18, logo: "client" });

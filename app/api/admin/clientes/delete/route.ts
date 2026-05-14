@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { deleteCloudinaryImageByUrl, isCloudinaryConfigured } from "@/lib/cloudinary";
 import { privateOriginalsDir } from "../../_image-protection";
 import { requireAdmin } from "../../_admin-auth";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 type DeleteBody = {
   url?: string;
@@ -17,6 +19,12 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as DeleteBody;
     const url = String(body?.url || "");
+    if (isCloudinaryConfigured() && url.startsWith("https://")) {
+      const deleted = await deleteCloudinaryImageByUrl(url);
+      if (!deleted) return NextResponse.json({ ok: false, message: "Invalid url" }, { status: 400 });
+      return NextResponse.json({ ok: true });
+    }
+
     if (!url.startsWith("/clientes/")) {
       return NextResponse.json({ ok: false, message: "Invalid url" }, { status: 400 });
     }

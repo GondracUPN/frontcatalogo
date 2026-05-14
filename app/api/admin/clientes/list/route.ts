@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { isCloudinaryConfigured, listCloudinaryImages } from "@/lib/cloudinary";
 import { requireAdmin } from "../../_admin-auth";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   const authError = await requireAdmin(req);
   if (authError) return authError;
 
   try {
+    if (isCloudinaryConfigured()) {
+      const urls = await listCloudinaryImages("clients");
+      return NextResponse.json({ ok: true, urls });
+    }
+
     const dir = path.join(process.cwd(), "public", "clientes");
     const entries = await fs.readdir(dir, { withFileTypes: true });
     const files = entries
