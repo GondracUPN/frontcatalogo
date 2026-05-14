@@ -60,8 +60,14 @@ async function uploadFile(file: File): Promise<string> {
   const fd = new FormData();
   fd.set("file", file);
   const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
-  const json = await res.json();
-  if (!json?.ok) throw new Error(json?.message || "upload failed");
+  const contentType = res.headers.get("content-type") || "";
+  const json = contentType.includes("application/json") ? await res.json() : null;
+  if (!res.ok || !json?.ok) {
+    const fallback = res.status === 413
+      ? "La imagen es demasiado pesada para producción. Prueba con una foto comprimida."
+      : `No se pudo subir la imagen (${res.status || "sin respuesta"})`;
+    throw new Error(json?.message || fallback);
+  }
   return json.url as string;
 }
 
@@ -168,6 +174,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     return +(p * (1 - d / 100)).toFixed(2);
   }, [salePrice, discount, saleType]);
   const [saving, setSaving] = React.useState(false);
+  const [uploadingPhotos, setUploadingPhotos] = React.useState(false);
   const [submitError, setSubmitError] = React.useState("");
 
   React.useEffect(() => {
@@ -286,11 +293,12 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     errors.push("El stock debe ser 1 para Usado/Open Box/Arreglado");
   }
 
-  const canPublish = errors.length === 0 && !saving;
+  const canPublish = errors.length === 0 && !saving && !uploadingPhotos;
 
   const addFiles = async (files: FileList | null) => {
     if (!files || !files.length) return;
-    setSaving(true);
+    setUploadingPhotos(true);
+    setSubmitError("");
     try {
       const urls: string[] = [];
       for (const f of Array.from(files)) {
@@ -298,7 +306,9 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         urls.push(url);
       }
       setImages((arr) => [...arr, ...urls]);
-    } finally { setSaving(false); }
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "No se pudieron subir las fotos");
+    } finally { setUploadingPhotos(false); }
   };
 
   const onPublish = async () => {
@@ -693,7 +703,8 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
                   </div>
                 ))}
               </div>
-              <input type="file" multiple accept="image/jpeg,image/png,image/avif" onChange={(e)=>addFiles(e.target.files)} />
+              <input type="file" multiple accept="image/jpeg,image/png,image/avif" disabled={uploadingPhotos || saving} onChange={(e)=>addFiles(e.target.files)} />
+              {uploadingPhotos && <p className="text-xs text-blue-600 mt-1">Subiendo fotos...</p>}
               <p className="text-xs text-gray-500 mt-1">La foto marcada como portada será la primera imagen del producto.</p>
             </div>
           </div>
