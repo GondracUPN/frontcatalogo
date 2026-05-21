@@ -98,8 +98,8 @@ export default async function Home() {
                               {isSold ? "Vendido" : condition || "Disponible"}
                             </span>
                             {saleType && saleType !== "VENTA_SIMPLE" && (
-                              <span className="rounded-full bg-black/85 px-3 py-1 text-[11px] font-semibold text-white">
-                                {saleType.toLowerCase()}
+                              <span className={`rounded-full px-3 py-1 text-[11px] font-semibold text-white ${saleType === "PROMOCION" ? "bg-rose-600 shadow-[0_8px_18px_rgba(225,29,72,0.28)]" : "bg-black/85"}`}>
+                                {saleType === "PROMOCION" ? "promocion" : saleType.toLowerCase()}
                               </span>
                             )}
                           </div>

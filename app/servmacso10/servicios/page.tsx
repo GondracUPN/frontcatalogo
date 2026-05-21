@@ -29,7 +29,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 export default async function ServiciosPage() {
   const me = await getSessionUser();
   if (!me || me.role !== "admin") redirect("/servmacso10?next=/servmacso10/servicios");
-  const { items } = await listStaged({ pageSize: 50 });
+  const { items } = await listStaged({ pageSize: "all" });
   const { items: published } = await listAdminCatalog().catch(() => ({ items: [] as any[] }));
   const { items: sold } = await listSales().catch(() => ({ items: [] as any[] }));
   const { items: contactAlerts } = await listContactRequests().catch(() => ({ items: [] as any[] }));

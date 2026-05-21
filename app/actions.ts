@@ -150,7 +150,15 @@ export async function createProductAction(formData: FormData) {
 
 
 // ----- Catalog admin (staging) -----
-export async function listStaged(params: { q?: string; status?: string; page?: number; pageSize?: number } = {}) {
+export async function listStaged(params: {
+  q?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number | "all";
+  pawnMode?: "sync" | "saved";
+  soloTiendasPawn?: boolean;
+  savedPawnOnly?: boolean;
+} = {}) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   const qs = new URLSearchParams(
@@ -159,6 +167,9 @@ export async function listStaged(params: { q?: string; status?: string; page?: n
       status: params.status || "",
       page: String(params.page || 1),
       pageSize: String(params.pageSize || 20),
+      pawnMode: params.pawnMode || "",
+      soloTiendasPawn: params.soloTiendasPawn ? "1" : "",
+      savedPawnOnly: params.savedPawnOnly ? "1" : "",
     }).filter(([, v]) => String(v)) as any
   ).toString();
   return apiFetch<{ items: any[]; total: number }>(`/admin/staged${qs ? `?${qs}` : ""}`, {

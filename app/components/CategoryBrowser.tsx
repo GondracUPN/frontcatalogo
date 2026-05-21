@@ -44,7 +44,10 @@ function priceMeta(row: Row) {
     let price = salePrice;
     let compareAt: number | null = null;
     if (saleType === "PROMOCION") {
-      const computed = finalPrice !== null ? Number(finalPrice) : +(salePrice * (1 - discount / 100)).toFixed(2);
+      const mode = String(n?.discountMode || n?.discountType || "percent").toLowerCase();
+      const computed = finalPrice !== null
+        ? Number(finalPrice)
+        : +(mode === "amount" ? Math.max(0, salePrice - discount) : salePrice * (1 - discount / 100)).toFixed(2);
       if (isFinite(computed) && computed > 0) price = computed;
       compareAt = salePrice || null;
       return { price: price || 0, compareAt, condition, saleType };
@@ -515,8 +518,8 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                           {item.condition || "Disponible"}
                         </span>
                         {item.saleType && item.saleType !== "VENTA_SIMPLE" && (
-                          <span className="rounded-full bg-black/85 px-3 py-1 text-[11px] font-semibold text-white">
-                            {item.saleType.toLowerCase()}
+                          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold text-white ${item.saleType === "PROMOCION" ? "bg-rose-600 shadow-[0_8px_18px_rgba(225,29,72,0.28)]" : "bg-black/85"}`}>
+                            {item.saleType === "PROMOCION" ? "promocion" : item.saleType.toLowerCase()}
                           </span>
                         )}
                       </div>

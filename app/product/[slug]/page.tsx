@@ -39,6 +39,19 @@ function formatSpanishDate(dateValue?: string | null) {
   return `${day} de ${month} del ${year}`.trim();
 }
 
+function parseWarrantyFlag(value: any) {
+  if (typeof value === "boolean") return value;
+  if (value === undefined || value === null || value === "") return null;
+  return ["1", "true", "si", "sí", "yes", "on"].includes(String(value).trim().toLowerCase());
+}
+
+function formatWarrantyValue(value?: string | null) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return `Hasta ${formatSpanishDate(raw)}`;
+  return raw;
+}
+
 function toneForCondition(condition: string, sold?: boolean) {
   if (sold) return "bg-[rgba(15,23,42,0.92)] text-white";
   if (condition.toLowerCase().includes("agotado")) return "bg-[rgba(255,235,235,0.96)] text-[#9f1d1d]";
@@ -107,7 +120,10 @@ export default async function ProductPage({
   })();
 
   if (saleType === "PROMOCION") {
-    const computed = finalPrice !== null ? Number(finalPrice) : +(salePrice * (1 - discount / 100)).toFixed(2);
+    const mode = String(notes?.discountMode || notes?.discountType || "percent").toLowerCase();
+    const computed = finalPrice !== null
+      ? Number(finalPrice)
+      : +(mode === "amount" ? Math.max(0, salePrice - discount) : salePrice * (1 - discount / 100)).toFixed(2);
     if (isFinite(computed) && computed > 0) price = computed;
     compareAt = salePrice || null;
   } else if (!saleType && typeof notes?.precioLista !== "undefined") {
@@ -143,8 +159,29 @@ export default async function ProductPage({
   const storageGb = product?.storage_gb ?? staged?.storage_gb ?? notes?.storageGb ?? notes?.storage;
   const batteryCycles = product?.battery_cycles ?? staged?.battery_cycles ?? notes?.batteryCycles ?? notes?.bateria?.ciclos;
   const batteryHealth = product?.battery_health ?? staged?.battery_health ?? notes?.batteryHealth ?? notes?.bateria?.salud;
+  const formatSimType = (value: any) => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const normalized = raw.toLowerCase().normalize("NFD").replace(/\p{Diacritic}+/gu, "");
+    if (["si", "yes", "true", "esim"].includes(normalized)) return "eSIM";
+    if (["no", "false"].includes(normalized)) return "Chip físico";
+    return raw;
+  };
+  const iphoneSimType = formatSimType(notes?.iphoneSimType || notes?.simType || notes?.chipType || det?.esim || det?.sim || specsAny?.sim);
   const iphoneTitle = category === "iphone" ? buildIphoneTitle(iphoneNumber, iphoneModel, storageGb, colorCap) : "";
   const isPreventa = saleType === "PREVENTA";
+  const isPromocion = saleType === "PROMOCION";
+  const promoMode = String(notes?.discountMode || notes?.discountType || "percent").toLowerCase();
+  const promoSavings = compareAt && compareAt > price ? compareAt - price : 0;
+  const promoLabel = isPromocion
+    ? promoMode === "amount" && promoSavings > 0
+      ? `Ahorra S/ ${promoSavings.toFixed(2)}`
+      : discount > 0
+        ? `${discount}% OFF`
+        : promoSavings > 0
+          ? `Ahorra S/ ${promoSavings.toFixed(2)}`
+          : "Promocion"
+    : "";
   const preventaFromRaw = notes?.preventaDateFrom || notes?.preventa?.from || "";
   const preventaToRaw = notes?.preventaDateTo || notes?.preventa?.to || "";
   const preventaFromLabel = formatSpanishDate(preventaFromRaw);
@@ -162,6 +199,12 @@ export default async function ProductPage({
   const watchAccessories = notes?.watchAccessories || "";
   const productCondition = product?.product_condition || staged?.product_condition || notes?.productCondition || notes?.estado || notes?.specs?.estado || "";
   const isSealed = String(productCondition || "").toLowerCase().includes("nuevo");
+  const rawWarrantyValue = notes?.warrantyDate ?? notes?.garantiaFecha ?? notes?.garantia ?? "";
+  const warrantyFlag = parseWarrantyFlag(notes?.warrantyEnabled ?? notes?.garantiaActiva);
+  const hasWarranty = isSealed ? true : warrantyFlag ?? Boolean(String(rawWarrantyValue || "").trim());
+  const warrantyDisplay = hasWarranty
+    ? formatWarrantyValue(isSealed ? (rawWarrantyValue || "1 año de garantía") : rawWarrantyValue)
+    : "";
 
   const especs: Array<{ label: string; value: any }> = [];
   if (productCondition) especs.push({ label: "Estado", value: productCondition });
@@ -189,6 +232,7 @@ export default async function ProductPage({
     );
   } else if (category === "iphone") {
     especs.push(
+      { label: "SIM", value: iphoneSimType },
       { label: "Modelo", value: iphoneModel },
       { label: "Numero", value: iphoneNumber },
       { label: "Almacenamiento", value: storageGb ? `${storageGb} GB` : "" },
@@ -260,8 +304,8 @@ export default async function ProductPage({
                   {sold ? "Vendido" : outOfStock ? "Agotado" : productCondition || "Disponible"}
                 </span>
                 {saleType && saleType !== "VENTA_SIMPLE" && (
-                  <span className="rounded-full bg-black/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white">
-                    {saleType.toLowerCase()}
+                  <span className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white ${isPromocion ? "bg-rose-600 shadow-[0_10px_26px_rgba(225,29,72,0.28)]" : "bg-black/90"}`}>
+                    {isPromocion ? "promocion" : saleType.toLowerCase()}
                   </span>
                 )}
                 <span className="rounded-full bg-white/78 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
@@ -277,7 +321,7 @@ export default async function ProductPage({
 
               <div className="min-w-0 rounded-[22px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(239,244,250,0.94))] p-4 shadow-[0_14px_34px_rgba(15,23,42,0.08)] sm:rounded-[28px] sm:p-6 sm:shadow-[0_20px_48px_rgba(15,23,42,0.1)]">
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                  Precio final
+                  {isPromocion ? "Precio en promocion" : "Precio final"}
                 </div>
                 <div className="mt-3 flex flex-wrap items-end gap-3">
                   <div className="text-3xl font-semibold text-[color:var(--foreground)] sm:text-4xl sm:tracking-[-0.05em]">
@@ -290,6 +334,14 @@ export default async function ProductPage({
                 {offerApplied && isFinite(offerPrice) && (
                   <div className="mt-3 inline-flex rounded-full bg-[rgba(230,245,236,0.94)] px-3 py-1 text-sm font-medium text-[#1f6c43]">
                     Oferta aplicada
+                  </div>
+                )}
+                {isPromocion && (
+                  <div className="mt-4 rounded-[18px] border border-rose-200 bg-[linear-gradient(135deg,#fff1f2,#ffe4e6)] px-4 py-3 text-rose-950 shadow-[0_14px_34px_rgba(225,29,72,0.12)]">
+                    <div className="text-xs font-bold uppercase tracking-[0.22em] text-rose-700">Promocion activa</div>
+                    <div className="mt-1 text-sm font-semibold">
+                      {promoLabel}. {compareAt && compareAt > price ? `Precio regular S/ ${compareAt.toFixed(2)}.` : "Precio especial por tiempo limitado."}
+                    </div>
                   </div>
                 )}
                 <div className="mt-5">
@@ -406,6 +458,17 @@ export default async function ProductPage({
                       ) : (
                         <div className="mt-4 text-sm text-[color:var(--foreground-soft)]">No disponible.</div>
                       )}
+                    </div>
+                  )}
+
+                  {hasWarranty && (
+                    <div className="rounded-[26px] border border-emerald-200 bg-[linear-gradient(145deg,rgba(240,253,244,0.98),rgba(220,252,231,0.92))] p-4 sm:p-5">
+                      <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">
+                        Garantía
+                      </div>
+                      <div className="mt-3 text-sm font-medium leading-6 text-emerald-950/80">
+                        {warrantyDisplay || "Con garantía"}
+                      </div>
                     </div>
                   )}
 

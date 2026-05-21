@@ -3,6 +3,7 @@ import React from "react";
 import { createManualPreventaDraft, updateStaged, publishStaged } from "../../actions";
 
 type SaleType = "PREVENTA" | "VENTA_SIMPLE" | "PROMOCION" | "OFERTA";
+type DiscountMode = "percent" | "amount";
 
 function toSlug(s: string) {
   return String(s || "")
@@ -33,9 +34,11 @@ function categoryLabel(cat: string) {
   }
 }
 
-function buildTitle(tipo: string, gama: string, proc: string, tam: string, iphoneModel?: string) {
+function buildTitle(tipo: string, gama: string, proc: string, tam: string, iphoneModel?: string, ipadConnectivity?: string) {
   const isIphone = String(tipo || "").toLowerCase().includes("iphone");
+  const isIpad = String(tipo || "").toLowerCase().includes("ipad");
   if (isIphone) return [tipo, proc, iphoneModel].filter(Boolean).join(" ").trim();
+  if (isIpad) return [tipo, gama, proc, tam, ipadConnectivity].filter(Boolean).join(" ").trim();
   return [tipo, gama, proc, tam].filter(Boolean).join(" ").trim();
 }
 
@@ -265,7 +268,8 @@ export default function PublishModal({
       const auto = buildIphoneTitle(item?.iphone_number ?? notes?.iphoneNumber, item?.iphone_model || notes?.iphoneModel, item?.storage_gb ?? notes?.storageGb ?? notes?.storage, notes?.color || "");
       if (auto) return auto;
     }
-    const raw = buildTitle(tipo, gama0, proc0, tam0, item?.iphone_model || notes?.iphoneModel);
+    const connectivity0 = detalle?.conectividad || notes?.conectividad || "";
+    const raw = buildTitle(tipo, gama0, proc0, tam0, item?.iphone_model || notes?.iphoneModel, connectivity0);
     return raw ? capitalize(raw) : "";
   });
   const [titleManual, setTitleManual] = React.useState(false);
@@ -331,6 +335,9 @@ export default function PublishModal({
   const [iphoneStorage, setIphoneStorage] = React.useState<string>(
     normalizeIphoneStorageInput(item?.storage_gb ?? notes?.storageGb ?? notes?.storage ?? "")
   );
+  const [iphoneSimType, setIphoneSimType] = React.useState<string>(
+    String(notes?.iphoneSimType || notes?.simType || notes?.chipType || detalle?.esim || detalle?.sim || "")
+  );
   const [watchType, setWatchType] = React.useState<string>(String(notes?.watchType || ""));
   const [watchSeries, setWatchSeries] = React.useState<string>(String(notes?.watchSeries || ""));
   const [watchConnection, setWatchConnection] = React.useState<string>(() => {
@@ -362,13 +369,18 @@ export default function PublishModal({
     String(notes?.preventaDateTo || notes?.preventa?.to || "")
   );
   const [discount, setDiscount] = React.useState<number>(Number(item?.discount || legacyDiscount || 0));
+  const [discountMode, setDiscountMode] = React.useState<DiscountMode>(() => {
+    const raw = String(notes?.discountMode || notes?.discountType || "percent").toLowerCase();
+    return raw === "amount" || raw === "flat" || raw === "soles" ? "amount" : "percent";
+  });
   const [minOfferPrice, setMinOfferPrice] = React.useState<number>(Number(item?.min_offer_price || 0));
   const finalPrice = React.useMemo(() => {
     if (saleType !== "PROMOCION") return null;
     const p = Number(salePrice || 0);
     const d = Number(discount || 0);
-    return +(p * (1 - d / 100)).toFixed(2);
-  }, [salePrice, discount, saleType]);
+    const computed = discountMode === "amount" ? p - d : p * (1 - d / 100);
+    return +Math.max(0, computed).toFixed(2);
+  }, [salePrice, discount, discountMode, saleType]);
   const [saving, setSaving] = React.useState(false);
   const [uploadingPhotos, setUploadingPhotos] = React.useState(false);
   const [submitError, setSubmitError] = React.useState("");
@@ -418,13 +430,13 @@ export default function PublishModal({
       if (descriptionOther?.trim()) setTitle(capitalize(descriptionOther.trim()));
       return;
     }
-    const auto = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel);
+    const auto = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity);
     const base = auto || title;
     if (base) {
       const withPrefix = saleType === "PREVENTA" && !/^preventa\\s+/i.test(base) ? `Preventa ${base}` : base;
       setTitle(capitalize(withPrefix));
     }
-  }, [category, gama, proc, tam, titleManual, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, saleType, title]);
+  }, [category, gama, proc, tam, ipadConnectivity, titleManual, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, saleType, title]);
 
   const isMacbook = category === "macbook";
   const isIpad = category === "ipad";
@@ -526,12 +538,17 @@ export default function PublishModal({
   }, [isIphone, includesValue, iphoneIncludesOptions]);
 
   const errors: string[] = [];
+  const requiresBatteryInfo = saleType !== "PREVENTA" && productCondition !== "Nuevo";
   if (!category) errors.push("Selecciona el tipo de producto");
   if (!saleType) errors.push("Selecciona el tipo de venta");
   if (!salePrice || salePrice <= 0) errors.push("El precio de venta es obligatorio");
   if (!images.length) errors.push("Sube al menos una imagen");
   if (!productCondition) errors.push("Selecciona el estado del producto");
-  if (saleType === "PROMOCION" && (!discount || discount <= 0)) errors.push("El descuento es obligatorio");
+  if (saleType === "PROMOCION") {
+    if (!discount || discount <= 0) errors.push("El descuento es obligatorio");
+    if (discountMode === "percent" && discount > 100) errors.push("El descuento no puede pasar 100%");
+    if (discountMode === "amount" && salePrice > 0 && discount > salePrice) errors.push("El descuento plano no puede ser mayor al precio");
+  }
   if (saleType === "OFERTA" && (!minOfferPrice || minOfferPrice <= 0)) errors.push("El precio minimo de oferta es obligatorio");
   if (saleType === "OFERTA" && minOfferPrice && salePrice && Number(minOfferPrice) > Number(salePrice)) {
     errors.push("El minimo de oferta no puede ser mayor al precio de venta");
@@ -550,8 +567,8 @@ export default function PublishModal({
     if (!alm?.trim()) errors.push("El SSD es obligatorio");
     if (!tam?.trim()) errors.push("El tamaño de pantalla es obligatorio");
     if (tam && macbookConfig.sizes.length && !macbookConfig.sizes.includes(String(tam))) errors.push("Tamaño inválido para el procesador");
-    if (productCondition !== "Nuevo" && !ciclos) errors.push("Los ciclos de batería son obligatorios");
-    if (productCondition !== "Nuevo" && !salud) errors.push("La salud de batería es obligatoria");
+    if (requiresBatteryInfo && !ciclos) errors.push("Los ciclos de batería son obligatorios");
+    if (requiresBatteryInfo && !salud) errors.push("La salud de batería es obligatoria");
     if (!color?.trim()) errors.push("El color es obligatorio");
     if (productCondition !== "Nuevo" && !includesValue) errors.push("Selecciona que incluye");
   }
@@ -563,8 +580,8 @@ export default function PublishModal({
     if (tam && ipadSizeBase.length > 0 && !ipadSizeBase.includes(String(tam))) errors.push("Tamaño inválido para la configuración");
     if (ipadStorageBase.length > 0 && !alm?.trim()) errors.push("El almacenamiento es obligatorio");
     if (!ipadConnectivity?.trim()) errors.push("La conectividad es obligatoria");
-    if (productCondition !== "Nuevo" && !ciclos) errors.push("Los ciclos de batería son obligatorios");
-    if (productCondition !== "Nuevo" && !salud) errors.push("La salud de batería es obligatoria");
+    if (requiresBatteryInfo && !ciclos) errors.push("Los ciclos de batería son obligatorios");
+    if (requiresBatteryInfo && !salud) errors.push("La salud de batería es obligatoria");
     if (!color?.trim()) errors.push("El color es obligatorio");
     if (productCondition !== "Nuevo" && !includesValue) errors.push("Selecciona que incluye");
   }
@@ -575,16 +592,17 @@ export default function PublishModal({
     if (iphoneNumber && !IPHONE_NUMBER_OPTIONS.includes(iphoneNumber)) errors.push("El número de iPhone es inválido");
     if (iphoneModel && iphoneModelBase.length && !iphoneModelBase.includes(iphoneModel)) errors.push("El modelo no aplica para ese número de iPhone");
     if (!iphoneStorage) errors.push("El almacenamiento es obligatorio");
+    if (!iphoneSimType) errors.push("Selecciona si el iPhone usa chip físico o eSIM");
     if (iphoneStorage && (Number.isNaN(iphoneStorageParsed) || iphoneStorageParsed <= 0)) {
       errors.push("El almacenamiento es inválido");
     }
     if (iphoneStorage && iphoneStorageBase.length && !iphoneStorageBase.includes(iphoneStorage)) {
       errors.push("El almacenamiento no aplica para ese modelo");
     }
-    if (productCondition !== "Nuevo" && iphoneNum >= 15 && !ciclos) {
+    if (requiresBatteryInfo && iphoneNum >= 15 && !ciclos) {
       errors.push("Los ciclos de batería son obligatorios desde iPhone 15");
     }
-    if (productCondition !== "Nuevo" && !salud) errors.push("La salud de batería es obligatoria");
+    if (requiresBatteryInfo && !salud) errors.push("La salud de batería es obligatoria");
     if (iphoneNumber && Number(iphoneNumber) <= 0) errors.push("El número de iPhone es inválido");
     if (productCondition !== "Nuevo" && salud && (Number(salud) < 1 || Number(salud) > 100)) {
       errors.push("La salud de batería es inválida");
@@ -681,6 +699,8 @@ export default function PublishModal({
         almacenamiento: almacenamientoVal,
         conectividad: ipadConnectivity,
         teclado: keyboardLayout,
+        esim: isIphone ? (iphoneSimType || null) : (detalle as any)?.esim,
+        sim: isIphone ? (iphoneSimType || null) : (detalle as any)?.sim,
         descripcionOtro: descriptionOther,
       };
       const specsNew = { ...(specs || {}), tipo: categoryLabel(category), detalle: detalleNew } as any;
@@ -705,6 +725,8 @@ export default function PublishModal({
         iphoneModel,
         iphoneNumber: iphoneNumber ? Number(iphoneNumber) : null,
         storageGb: iphoneStorage ? iphoneStorageGb : null,
+        iphoneSimType: iphoneSimType || null,
+        simType: iphoneSimType || null,
         batteryCycles: ciclos ? Number(ciclos) : null,
         batteryHealth: salud ? Number(salud) : null,
         watchType: watchType || null,
@@ -716,6 +738,7 @@ export default function PublishModal({
         saleType,
         salePrice,
         discount: saleType === "PROMOCION" ? discount : null,
+        discountMode: saleType === "PROMOCION" ? discountMode : null,
         finalPrice: saleType === "PROMOCION" ? finalPrice : null,
         minOfferPrice: saleType === "OFERTA" ? minOfferPrice : null,
         detalle: detalleNew,
@@ -726,7 +749,7 @@ export default function PublishModal({
         baseTitle = auto || title;
       } else if (!titleManual && category === "otros") baseTitle = descriptionOther.trim();
       else if (!titleManual) {
-        const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel);
+        const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity);
         baseTitle = autoTitle || title;
       }
       if (saleType === "PREVENTA" && baseTitle && !/^preventa\\s+/i.test(baseTitle)) {
@@ -766,6 +789,7 @@ export default function PublishModal({
         variantGroup: variantGroup.trim() || null,
         saleType,
         discount: saleType === "PROMOCION" ? discount : null,
+        discountMode: saleType === "PROMOCION" ? discountMode : null,
         finalPrice: saleType === "PROMOCION" ? finalPrice : null,
         minOfferPrice: saleType === "OFERTA" ? minOfferPrice : null,
       });
@@ -1106,6 +1130,18 @@ export default function PublishModal({
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm text-gray-700">SIM</label>
+                  <select
+                    value={iphoneSimType}
+                    onChange={(e) => setIphoneSimType(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
+                  >
+                    <option value="">Seleccione</option>
+                    <option value="Chip físico">Chip físico</option>
+                    <option value="eSIM">eSIM</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm text-gray-700">Ciclos de batería (desde iPhone 15)</label>
                   <input
                     type="number"
@@ -1398,9 +1434,24 @@ export default function PublishModal({
                 <input type="number" value={salePrice} onChange={(e) => setSalePrice(Number(e.target.value))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" />
               </div>
               {saleType === "PROMOCION" && (
-                <div>
-                  <label className="block text-sm">Descuento (%)</label>
-                  <input type="number" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" />
+                <div className="space-y-2">
+                  <label className="block text-sm">Descuento</label>
+                  <div className="grid grid-cols-[minmax(0,1fr)_108px] gap-2">
+                    <input
+                      type="number"
+                      value={discount}
+                      onChange={(e) => setDiscount(Number(e.target.value))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
+                    />
+                    <select
+                      value={discountMode}
+                      onChange={(e) => setDiscountMode(e.target.value as DiscountMode)}
+                      className="w-full border border-gray-300 rounded-lg px-2 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
+                    >
+                      <option value="percent">%</option>
+                      <option value="amount">S/</option>
+                    </select>
+                  </div>
                 </div>
               )}
               {saleType === "OFERTA" && (
@@ -1412,11 +1463,14 @@ export default function PublishModal({
             </div>
 
             {saleType === "PROMOCION" && finalPrice !== null && (
-              <div className="text-sm text-gray-700">
-                Precio final: <span className="text-lg font-semibold">S/ {Number(finalPrice || 0).toFixed(2)}</span>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
+                Precio promocional: <span className="text-lg font-semibold">S/ {Number(finalPrice || 0).toFixed(2)}</span>
                 {salePrice > 0 && (
-                  <span className="ml-2 line-through text-gray-400">S/ {Number(salePrice || 0).toFixed(2)}</span>
+                  <span className="ml-2 line-through text-rose-400">S/ {Number(salePrice || 0).toFixed(2)}</span>
                 )}
+                <span className="ml-2 text-xs font-semibold uppercase tracking-[0.16em]">
+                  {discountMode === "amount" ? `Ahorra S/ ${Number(discount || 0).toFixed(2)}` : `${Number(discount || 0)}% OFF`}
+                </span>
               </div>
             )}
 
