@@ -5,7 +5,10 @@ import React from "react";
 type Point = { x: number; y: number };
 
 export default function ProductGallery({ images, sold }: { images: string[]; sold?: boolean }) {
-  const imgs = Array.isArray(images) && images.length ? images : ["/placeholder.svg"];
+  const imgs = React.useMemo(
+    () => (Array.isArray(images) && images.length ? images : ["/placeholder.svg"]),
+    [images]
+  );
   const [active, setActive] = React.useState(0);
   const [viewerIndex, setViewerIndex] = React.useState(0);
   const [viewerOpen, setViewerOpen] = React.useState(false);
@@ -13,24 +16,25 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
   const [pan, setPan] = React.useState<Point>({ x: 0, y: 0 });
   const [mainDragOffset, setMainDragOffset] = React.useState(0);
   const [mainDragging, setMainDragging] = React.useState(false);
-  const [mainTransition, setMainTransition] = React.useState<{
-    target: number;
-    direction: -1 | 1;
-    phase: "start" | "finish";
-  } | null>(null);
+  const [mainTrackIndex, setMainTrackIndex] = React.useState(imgs.length > 1 ? 1 : 0);
+  const [mainAnimating, setMainAnimating] = React.useState(false);
   const imageSignature = React.useMemo(() => images?.join("|") || "", [images]);
   const safeIndex = React.useCallback((i: number) => Math.max(0, Math.min(i, imgs.length - 1)), [imgs.length]);
   const wrapIndex = React.useCallback((i: number) => {
     if (!imgs.length) return 0;
     return ((i % imgs.length) + imgs.length) % imgs.length;
   }, [imgs.length]);
-  const activeSrc = imgs[safeIndex(active)];
+  const carouselImages = React.useMemo(
+    () => (imgs.length > 1 ? [imgs[imgs.length - 1], ...imgs, imgs[0]] : imgs),
+    [imgs]
+  );
   const mainImageFitClass = "object-contain";
   const mainFrameAspect = "aspect-[4/3]";
   const stageRef = React.useRef<HTMLDivElement | null>(null);
   const thumbRailRef = React.useRef<HTMLDivElement | null>(null);
   const dragRef = React.useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
   const mainSwipeRef = React.useRef<{ active: boolean; dragging: boolean; x: number; y: number }>({ active: false, dragging: false, x: 0, y: 0 });
+  const mainAnimationTimerRef = React.useRef<number | null>(null);
   const suppressOpenRef = React.useRef(false);
   const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
   const swipeRef = React.useRef<{ active: boolean; x: number; y: number } | null>(null);
@@ -38,7 +42,17 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
   React.useEffect(() => {
     setActive(0);
     setViewerIndex(0);
-  }, [imageSignature]);
+    setMainTrackIndex(imgs.length > 1 ? 1 : 0);
+    setMainAnimating(false);
+    setMainDragging(false);
+    setMainDragOffset(0);
+  }, [imageSignature, imgs.length]);
+
+  React.useEffect(() => {
+    return () => {
+      if (mainAnimationTimerRef.current !== null) window.clearTimeout(mainAnimationTimerRef.current);
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!viewerOpen || typeof document === "undefined") return;
@@ -122,23 +136,53 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
   };
 
   const goToImage = React.useCallback((index: number) => {
-    setActive(wrapIndex(index));
+    const target = wrapIndex(index);
+    setActive(target);
+    setMainTrackIndex(imgs.length > 1 ? target + 1 : 0);
+    setMainAnimating(imgs.length > 1);
+    setMainDragging(false);
+    setMainDragOffset(0);
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  }, [wrapIndex]);
+  }, [imgs.length, wrapIndex]);
+
+  const slideMainImage = React.useCallback((direction: -1 | 1) => {
+    if (imgs.length <= 1) return;
+    if (mainAnimationTimerRef.current !== null) window.clearTimeout(mainAnimationTimerRef.current);
+    setActive((current) => wrapIndex(current + direction));
+    setMainAnimating(true);
+    setMainDragging(false);
+    setMainDragOffset(0);
+    setMainTrackIndex((current) => current + direction);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    mainAnimationTimerRef.current = window.setTimeout(() => {
+      setMainAnimating(false);
+      setMainTrackIndex((current) => {
+        if (current === 0) return imgs.length;
+        if (current === imgs.length + 1) return 1;
+        return current;
+      });
+      setMainDragOffset(0);
+      suppressOpenRef.current = false;
+      mainAnimationTimerRef.current = null;
+    }, 460);
+  }, [imgs.length, wrapIndex]);
 
   const nextImage = () => {
-    goToImage(active + 1);
+    slideMainImage(1);
   };
 
   const prevImage = () => {
-    goToImage(active - 1);
+    slideMainImage(-1);
   };
 
   const handleMainTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (mainTransition || imgs.length <= 1 || event.touches.length !== 1) return;
+    if (mainAnimating || imgs.length <= 1 || event.touches.length !== 1) return;
     const touch = event.touches[0];
     mainSwipeRef.current = { active: true, dragging: false, x: touch.clientX, y: touch.clientY };
+    setMainTrackIndex(active + 1);
+    setMainAnimating(false);
     setMainDragging(false);
     setMainDragOffset(0);
   };
@@ -156,45 +200,53 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
       setMainDragging(true);
     }
     event.preventDefault();
-    const resistance = 0.48;
-    const offset = Math.max(-96, Math.min(96, dx * resistance));
+    const width = event.currentTarget.getBoundingClientRect().width || 1;
+    const offset = Math.max(-width, Math.min(width, dx));
     setMainDragOffset(offset);
   };
 
   const handleMainTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
     const swipe = mainSwipeRef.current;
+    const wasDragging = swipe.active && swipe.dragging;
     if (swipe.active && swipe.dragging && imgs.length > 1) {
       const touch = event.changedTouches[0];
       const dx = touch ? touch.clientX - swipe.x : 0;
-      const shouldGoNext = dx < -54;
-      const shouldGoPrev = dx > 54;
+      const width = event.currentTarget.getBoundingClientRect().width || 1;
+      const threshold = Math.max(54, width * 0.16);
+      const shouldGoNext = dx < -threshold;
+      const shouldGoPrev = dx > threshold;
       if (shouldGoNext || shouldGoPrev) {
-        const target = wrapIndex(shouldGoNext ? active + 1 : active - 1);
-        const direction = shouldGoNext ? -1 : 1;
-        setMainDragging(false);
-        setMainDragOffset(0);
-        setMainTransition({ target, direction, phase: "start" });
-        window.requestAnimationFrame(() => {
-          window.requestAnimationFrame(() => {
-            setMainTransition({ target, direction, phase: "finish" });
-          });
-        });
-        window.setTimeout(() => {
-          goToImage(target);
-          setMainTransition(null);
-          setMainDragOffset(0);
-          suppressOpenRef.current = false;
-        }, 260);
+        slideMainImage(shouldGoNext ? 1 : -1);
         mainSwipeRef.current = { active: false, dragging: false, x: 0, y: 0 };
         return;
       }
     }
     mainSwipeRef.current = { active: false, dragging: false, x: 0, y: 0 };
     setMainDragging(false);
+    setMainAnimating(wasDragging);
     setMainDragOffset(0);
     window.setTimeout(() => {
       suppressOpenRef.current = false;
     }, 80);
+  };
+
+  const handleMainTransitionEnd = (event: React.TransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== "transform") return;
+    if (mainAnimationTimerRef.current !== null) {
+      window.clearTimeout(mainAnimationTimerRef.current);
+      mainAnimationTimerRef.current = null;
+    }
+    if (imgs.length > 1 && mainTrackIndex === 0) {
+      setMainAnimating(false);
+      setMainTrackIndex(imgs.length);
+    } else if (imgs.length > 1 && mainTrackIndex === imgs.length + 1) {
+      setMainAnimating(false);
+      setMainTrackIndex(1);
+    } else {
+      setMainAnimating(false);
+    }
+    setMainDragOffset(0);
+    suppressOpenRef.current = false;
   };
 
   const goToViewerImage = React.useCallback((index: number) => {
@@ -313,6 +365,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
         onTouchMove={handleMainTouchMove}
         onTouchEnd={handleMainTouchEnd}
         onTouchCancel={handleMainTouchEnd}
+        style={{ touchAction: "pan-y" }}
       >
         <button
           type="button"
@@ -321,36 +374,21 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
           aria-label="Abrir imagen en grande"
         />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.32),transparent_42%)]" />
-        <img
-          src={activeSrc}
-          alt=""
-          className={`relative z-[1] h-full w-full ${mainImageFitClass} ${
-            mainTransition
-              ? "transition-all duration-[260ms] ease-out"
-              : mainDragging
-                ? "transition-none"
-                : "transition-transform duration-300 ease-out"
+        <div
+          className={`relative z-[1] flex h-full w-full will-change-transform ${
+            mainDragging ? "transition-none" : mainAnimating ? "transition-transform duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)]" : "transition-none"
           }`}
           style={{
-            opacity: mainTransition?.phase === "finish" ? 0 : 1,
-            transform: mainTransition?.phase === "finish"
-              ? `translateX(${mainTransition.direction * 28}px) scale(0.985)`
-              : `translateX(${mainDragOffset}px)`,
+            transform: `translate3d(calc(${-mainTrackIndex * 100}% + ${mainDragOffset}px), 0, 0)`,
           }}
-        />
-        {mainTransition && (
-          <img
-            src={imgs[safeIndex(mainTransition.target)]}
-            alt=""
-            className={`absolute inset-0 z-[1] h-full w-full ${mainImageFitClass} transition-all duration-[260ms] ease-out`}
-            style={{
-              opacity: mainTransition.phase === "finish" ? 1 : 0,
-              transform: mainTransition.phase === "finish"
-                ? "translateX(0) scale(1)"
-                : `translateX(${-mainTransition.direction * 28}px) scale(1.015)`,
-            }}
-          />
-        )}
+          onTransitionEnd={handleMainTransitionEnd}
+        >
+          {carouselImages.map((src, index) => (
+            <div key={`${src}-${index}`} className="relative h-full w-full shrink-0">
+              <img src={src} alt="" className={`h-full w-full ${mainImageFitClass}`} draggable={false} />
+            </div>
+          ))}
+        </div>
         <div className="absolute bottom-3 right-3 z-[3] rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[color:var(--foreground-soft)] backdrop-blur-xl sm:bottom-4 sm:right-4 sm:text-xs">
           {active + 1} / {imgs.length}
         </div>
@@ -426,29 +464,29 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
       </div>
 
       {viewerOpen && (
-        <div className="fixed inset-0 z-[80] bg-[rgba(8,12,20,0.94)] p-3 sm:p-5">
+        <div className="fixed inset-0 z-[80] bg-white/45 p-3 backdrop-blur-md sm:p-5">
           <button className="absolute inset-0" aria-label="Cerrar imagen" onClick={closeViewer} />
 
           <div className="relative z-[1] flex h-full flex-col">
-            <div className="flex items-center justify-between gap-3 pb-3 text-white">
-              <div className="text-sm font-medium">
+            <div className="flex items-center justify-between gap-3 pb-3 text-neutral-700">
+              <div className="rounded-full border border-black/8 bg-white/78 px-3 py-2 text-sm font-medium shadow-[0_10px_26px_rgba(0,0,0,0.08)] backdrop-blur-xl">
                 Imagen {viewerIndex + 1} de {imgs.length}
               </div>
               <button
                 type="button"
                 onClick={closeViewer}
-                className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium"
+                className="rounded-full border border-black/8 bg-neutral-950 px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(0,0,0,0.18)] backdrop-blur-xl hover:bg-black"
               >
                 Cerrar
               </button>
             </div>
 
-            <div className="relative flex-1 overflow-hidden rounded-[24px] border border-white/10 bg-[rgba(17,24,39,0.55)]">
+            <div className="relative flex-1 overflow-hidden rounded-[28px] border border-black/6 bg-transparent">
               {imgs.length > 1 && (
                 <button
                   type="button"
                   onClick={prevViewerImage}
-                  className="absolute left-4 top-1/2 z-[2] hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/12 text-3xl font-light leading-none text-white shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl hover:-translate-x-0.5 hover:bg-white/18 sm:inline-flex"
+                  className="absolute left-4 top-1/2 z-[2] hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-black/8 bg-white/86 text-3xl font-light leading-none text-neutral-950 shadow-[0_16px_38px_rgba(0,0,0,0.16)] backdrop-blur-xl hover:-translate-x-0.5 hover:bg-white sm:inline-flex"
                   aria-label="Imagen anterior"
                 >
                   {"‹"}
@@ -458,7 +496,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
                 <button
                   type="button"
                   onClick={nextViewerImage}
-                  className="absolute right-4 top-1/2 z-[2] hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/12 text-3xl font-light leading-none text-white shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl hover:translate-x-0.5 hover:bg-white/18 sm:inline-flex"
+                  className="absolute right-4 top-1/2 z-[2] hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-black/8 bg-white/86 text-3xl font-light leading-none text-neutral-950 shadow-[0_16px_38px_rgba(0,0,0,0.16)] backdrop-blur-xl hover:translate-x-0.5 hover:bg-white sm:inline-flex"
                   aria-label="Imagen siguiente"
                 >
                   {"›"}

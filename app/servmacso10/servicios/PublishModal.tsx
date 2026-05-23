@@ -203,6 +203,10 @@ function normalizeIphoneStorageInput(value: unknown) {
   return s;
 }
 
+function uniqueStrings(values: unknown[]) {
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
+}
+
 function withCurrentOption(options: string[], current: string) {
   const value = String(current || "").trim();
   if (!value) return options;
@@ -350,7 +354,15 @@ export default function PublishModal({
   const [includesValue, setIncludesValue] = React.useState<string>(item?.includes || notes?.includes || "");
   const [includesExtra, setIncludesExtra] = React.useState<string>(item?.includes_extra || notes?.includesExtra || "");
   const [descriptionOther, setDescriptionOther] = React.useState<string>(detalle?.descripcionOtro || notes?.descripcionOtro || "");
+  const [productDetails, setProductDetails] = React.useState<string>(
+    String(detalle?.detalles || detalle?.productDetails || notes?.productDetails || notes?.detalles || "")
+  );
   const [images, setImages] = React.useState<string[]>(Array.isArray(item?.images) ? item.images : []);
+  const [detailImages, setDetailImages] = React.useState<string[]>(() => {
+    const fromNotes = Array.isArray(notes?.detailImages) ? notes.detailImages : Array.isArray(notes?.detailPhotos) ? notes.detailPhotos : [];
+    const fromDetail = Array.isArray(detalle?.detailImages) ? detalle.detailImages : [];
+    return uniqueStrings([...fromNotes, ...fromDetail]);
+  });
   const [saleType, setSaleType] = React.useState<string>(() => {
     if (forceSaleType) return forceSaleType;
     const st = String(item?.sale_type || notes?.saleType || "").toUpperCase();
@@ -383,11 +395,13 @@ export default function PublishModal({
   }, [salePrice, discount, discountMode, saleType]);
   const [saving, setSaving] = React.useState(false);
   const [uploadingPhotos, setUploadingPhotos] = React.useState(false);
+  const [uploadingDetailPhotos, setUploadingDetailPhotos] = React.useState(false);
   const [submitError, setSubmitError] = React.useState("");
   const [variantGroup, setVariantGroup] = React.useState<string>(
     String(item?.variant_group || notes?.variantGroup || notes?.variant_group || "")
   );
   const [dragImageIndex, setDragImageIndex] = React.useState<number | null>(null);
+  const detailUploadInFlightRef = React.useRef(false);
 
   const keepTypeUnselectedOnManualPreventa = !item?.id && String(item?.category ?? "") === "";
 
@@ -639,7 +653,7 @@ export default function PublishModal({
     errors.push("El stock debe ser 1 para Usado/Open Box/Arreglado");
   }
 
-  const canPublish = errors.length === 0 && !saving && !uploadingPhotos;
+  const canPublish = errors.length === 0 && !saving && !uploadingPhotos && !uploadingDetailPhotos;
 
   const addFiles = async (files: FileList | null) => {
     if (!files || !files.length) return;
@@ -656,6 +670,27 @@ export default function PublishModal({
       setSubmitError(err instanceof Error ? err.message : "No se pudieron subir las fotos");
     } finally {
       setUploadingPhotos(false);
+    }
+  };
+
+  const addDetailFiles = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+    if (detailUploadInFlightRef.current) return;
+    detailUploadInFlightRef.current = true;
+    setUploadingDetailPhotos(true);
+    setSubmitError("");
+    try {
+      const urls: string[] = [];
+      for (const f of Array.from(files)) {
+        const url = await uploadFile(f);
+        urls.push(url);
+      }
+      setDetailImages((arr) => uniqueStrings([...arr, ...urls]));
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "No se pudieron subir las fotos de detalles");
+    } finally {
+      detailUploadInFlightRef.current = false;
+      setUploadingDetailPhotos(false);
     }
   };
 
@@ -702,6 +737,10 @@ export default function PublishModal({
         esim: isIphone ? (iphoneSimType || null) : (detalle as any)?.esim,
         sim: isIphone ? (iphoneSimType || null) : (detalle as any)?.sim,
         descripcionOtro: descriptionOther,
+        detalles: productDetails.trim() || null,
+        productDetails: productDetails.trim() || null,
+        detailImages: null,
+        detailPhotos: null,
       };
       const specsNew = { ...(specs || {}), tipo: categoryLabel(category), detalle: detalleNew } as any;
       const newNotes = {
@@ -714,6 +753,10 @@ export default function PublishModal({
         incluye: includesFlags,
         includes: includesValue,
         includesExtra,
+        productDetails: productDetails.trim() || null,
+        detalles: productDetails.trim() || null,
+        detailImages: uniqueStrings(detailImages),
+        detailPhotos: null,
         preventaDateFrom: saleType === "PREVENTA" ? preventaDateFrom : null,
         preventaDateTo: saleType === "PREVENTA" ? preventaDateTo : null,
         preventa: saleType === "PREVENTA" ? { from: preventaDateFrom, to: preventaDateTo } : null,
@@ -877,6 +920,72 @@ export default function PublishModal({
                 <option value="otros">Otros</option>
               </select>
               <p className="text-xs text-gray-500 mt-1">Se autocompleta desde el titulo; puedes ajustarlo.</p>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-700">Detalles del producto</label>
+              <textarea
+                value={productDetails}
+                onChange={(e) => setProductDetails(e.target.value)}
+                rows={4}
+                className="w-full resize-y border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
+                placeholder="Ej: Detalles esteticos, observaciones o informacion adicional para la ficha publica."
+              />
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+              <label className="block text-sm font-medium text-gray-700">Fotos de detalles</label>
+              {detailImages.length > 0 && (
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {detailImages.map((u, i) => (
+                    <div key={`${u}-${i}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                      <div className="relative aspect-square bg-gray-50">
+                        <img src={u} alt="" className="h-full w-full object-cover" />
+                        <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-gray-700">
+                          Detalle {i + 1}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="w-full bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700"
+                        onClick={() => setDetailImages((arr) => arr.filter((_, idx) => idx !== i))}
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <label
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "copy";
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (uploadingDetailPhotos || saving) return;
+                  addDetailFiles(e.dataTransfer.files);
+                }}
+                className={`mt-3 flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-5 text-center transition ${
+                  uploadingDetailPhotos || saving
+                    ? "border-gray-200 bg-gray-50 text-gray-400"
+                    : "border-emerald-200 bg-emerald-50/55 text-gray-700 hover:border-emerald-300 hover:bg-emerald-50"
+                }`}
+              >
+                <input
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/avif"
+                  disabled={uploadingDetailPhotos || saving}
+                  onChange={(e) => {
+                    addDetailFiles(e.target.files);
+                    e.currentTarget.value = "";
+                  }}
+                  className="sr-only"
+                />
+                <span className="text-sm font-semibold">{uploadingDetailPhotos ? "Subiendo detalles..." : "Elegir o arrastrar fotos de detalles"}</span>
+                <span className="mt-1 text-xs text-gray-500">Estas fotos apareceran en el boton publico Ver fotos de detalles.</span>
+              </label>
             </div>
 
             {isOtros && (
@@ -1400,7 +1509,36 @@ export default function PublishModal({
                   </div>
                 ))}
               </div>
-              <input type="file" multiple accept="image/jpeg,image/png,image/avif" disabled={uploadingPhotos || saving} onChange={(e) => addFiles(e.target.files)} />
+              <label
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "copy";
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (uploadingPhotos || saving) return;
+                  addFiles(e.dataTransfer.files);
+                }}
+                className={`mt-3 flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-6 text-center transition ${
+                  uploadingPhotos || saving
+                    ? "border-gray-200 bg-gray-50 text-gray-400"
+                    : "border-blue-200 bg-blue-50/55 text-gray-700 hover:border-blue-300 hover:bg-blue-50"
+                }`}
+              >
+                <input
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/avif"
+                  disabled={uploadingPhotos || saving}
+                  onChange={(e) => {
+                    addFiles(e.target.files);
+                    e.currentTarget.value = "";
+                  }}
+                  className="sr-only"
+                />
+                <span className="text-sm font-semibold">{uploadingPhotos ? "Subiendo fotos..." : "Elegir o arrastrar fotos"}</span>
+                <span className="mt-1 text-xs text-gray-500">JPG, PNG o AVIF. Puedes seleccionar varias imágenes.</span>
+              </label>
               {uploadingPhotos && <p className="text-xs text-blue-600 mt-1">Subiendo fotos...</p>}
               <p className="text-xs text-gray-500 mt-1">La foto marcada como portada será la primera imagen del producto.</p>
             </div>

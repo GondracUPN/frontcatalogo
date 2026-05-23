@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import React from "react";
+import PriceWithIgv from "./PriceWithIgv";
 
 type Row = any;
 
@@ -538,16 +539,7 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                       <div className="text-lg font-semibold leading-6 tracking-[-0.03em] text-[color:var(--foreground)] line-clamp-2">
                         {title}
                       </div>
-                      <div className="mt-3 flex items-end gap-2">
-                        <span className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
-                          S/ {Number(item.price).toFixed(2)}
-                        </span>
-                        {item.compareAt && item.compareAt > item.price && (
-                          <span className="text-sm text-[color:var(--foreground-soft)] line-through">
-                            S/ {item.compareAt.toFixed(2)}
-                          </span>
-                        )}
-                      </div>
+                      <PriceWithIgv price={Number(item.price)} compareAt={item.compareAt} wrapperClassName="mt-3" />
                     </div>
                   </a>
                 );

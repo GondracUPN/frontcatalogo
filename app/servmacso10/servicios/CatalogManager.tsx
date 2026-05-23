@@ -6,14 +6,37 @@ import { listAdminCatalog, listSales, markProductSold, unpublishProduct, unsellP
 type CatalogRow = {
   id: string;
   slug?: string | null;
+  category?: string | null;
   is_published?: boolean;
   images?: string[];
   product?: { id: string; sku: string; title: string; price: string; status?: string; variant_group?: string | null };
   staged?: any;
 };
 
+const CATEGORY_OPTIONS = [
+  { value: "all", label: "Todos" },
+  { value: "macbook", label: "MacBooks" },
+  { value: "ipad", label: "iPads" },
+  { value: "iphone", label: "iPhones" },
+  { value: "watch", label: "Apple Watch" },
+  { value: "accesorios", label: "Accesorios" },
+  { value: "otros", label: "Otros" },
+];
+
+function normalizeCategory(value: unknown) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return "";
+  if (raw.includes("mac")) return "macbook";
+  if (raw.includes("ipad")) return "ipad";
+  if (raw.includes("iphone")) return "iphone";
+  if (raw.includes("watch")) return "watch";
+  if (raw.includes("accesorio") || raw.includes("airpod")) return "accesorios";
+  return raw;
+}
+
 export default function CatalogManager({ initialItems }: { initialItems: CatalogRow[] }) {
   const [items, setItems] = React.useState<CatalogRow[]>(initialItems || []);
+  const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [open, setOpen] = React.useState<any | null>(null);
   const [soldModal, setSoldModal] = React.useState<{ row: CatalogRow; date: string; price: string } | null>(null);
   const [sales, setSales] = React.useState<Array<{ id: string; product_id: string; sku: string; sale_price: string; sold_at: string; title?: string }>>([]);
@@ -45,6 +68,31 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
     return base;
   };
 
+  const rowCategory = (row: CatalogRow) => {
+    const staged = row.staged || {};
+    const notes = (() => {
+      try {
+        return staged?.notes && typeof staged.notes === "string" ? JSON.parse(staged.notes) : staged?.notes || {};
+      } catch {
+        return {};
+      }
+    })();
+    const title = row.product?.title || staged.title || row.slug || "";
+    return normalizeCategory(
+      row.category ||
+        staged.category ||
+        notes?.category ||
+        notes?.specs?.tipo ||
+        notes?.tipo ||
+        title
+    );
+  };
+
+  const filteredItems = React.useMemo(
+    () => items.filter((row) => categoryFilter === "all" || rowCategory(row) === categoryFilter),
+    [categoryFilter, items]
+  );
+
   const variantLabel = (row: CatalogRow) => {
     const staged = (row.staged || {}) as any;
     const product = (row.product || {}) as any;
@@ -68,6 +116,26 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
 
   return (
     <div className="overflow-auto">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Filtrar por tipo</label>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="mt-1 w-full min-w-[220px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+          >
+            {CATEGORY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="text-sm text-gray-600">
+          {filteredItems.length} de {items.length} productos
+        </div>
+      </div>
+
       <table className="min-w-full text-sm">
         <thead>
           <tr className="text-left text-gray-700">
@@ -78,7 +146,7 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
           </tr>
         </thead>
         <tbody>
-          {items.map((row) => (
+          {filteredItems.map((row) => (
             <tr key={row.id} className="border-t">
               <td className="p-2 text-gray-900 font-medium">
                 <div>{row.product?.title || row.staged?.title || row.slug}</div>
@@ -129,6 +197,13 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
               </td>
             </tr>
           ))}
+          {!filteredItems.length && (
+            <tr>
+              <td className="p-3 text-gray-500" colSpan={4}>
+                No hay productos publicados para este tipo.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 

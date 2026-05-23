@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { listCatalog } from "@/app/actions";
+import PriceWithIgv from "@/app/components/PriceWithIgv";
 
 export const revalidate = 300;
 
@@ -49,9 +50,13 @@ export default async function AccesoriosPage() {
                 />
               </div>
               <div className="mt-3 text-sm font-medium text-gray-900 line-clamp-2">{title}</div>
-              <div className="mt-2 text-sm text-gray-900 flex items-center gap-2">
-                <span className="font-semibold">S/ {price.toFixed(2)}</span>
-              </div>
+              <PriceWithIgv
+                price={price}
+                wrapperClassName="mt-2"
+                priceClassName="text-sm font-semibold text-gray-900"
+                labelClassName="text-[10px] font-semibold uppercase tracking-[0.12em] text-rose-400"
+                igvClassName="mt-1 text-xs font-medium text-emerald-500"
+              />
             </a>
           );
         }) : (

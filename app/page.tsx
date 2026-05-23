@@ -1,6 +1,7 @@
 import Image from "next/image";
 import CategoryStripHome from "./components/CategoryStripHome";
 import CategoryClientsCarousel from "./components/CategoryClientsCarousel";
+import PriceWithIgv from "./components/PriceWithIgv";
 import { getHomeCatalog } from "./actions";
 
 export const revalidate = 300;
@@ -119,16 +120,12 @@ export default async function Home() {
                           <div className="text-[15px] font-semibold leading-6 text-[color:var(--foreground)] line-clamp-2">
                             {title}
                           </div>
-                          <div className="mt-3 flex items-end gap-2">
-                            <span className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
-                              S/ {price.toFixed(2)}
-                            </span>
-                            {compareAt && compareAt > price && (
-                              <span className="text-sm text-[color:var(--foreground-soft)] line-through">
-                                S/ {compareAt.toFixed(2)}
-                              </span>
-                            )}
-                          </div>
+                          <PriceWithIgv
+                            price={price}
+                            compareAt={compareAt}
+                            wrapperClassName="mt-3"
+                            priceClassName="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]"
+                          />
                         </div>
                       </a>
                     );

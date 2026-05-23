@@ -1,6 +1,8 @@
 import ProductGallery from "@/app/components/ProductGallery";
 import AddToCartClient from "@/app/components/AddToCartClient";
 import ProductViewTracker from "@/app/components/ProductViewTracker";
+import PriceWithIgv from "@/app/components/PriceWithIgv";
+import ProductDetailPhotos from "@/app/components/ProductDetailPhotos";
 import { getCatalogItem } from "@/app/actions";
 
 export const revalidate = 300;
@@ -73,6 +75,10 @@ function variantOptionLabel(variant: any) {
   return String(variant?.variantLabel || pieces.join(" · ") || variant?.title || "Opcion");
 }
 
+function uniqueStrings(values: unknown[]) {
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
+}
+
 export default async function ProductPage({
   params,
   searchParams,
@@ -103,6 +109,7 @@ export default async function ProductPage({
   const offerPrice = offerApplied ? Number(rawOffer) : NaN;
   const specsAny: any = notes?.specs || notes || {};
   const det: any = specsAny?.detalle || notes?.detalle || {};
+  const productDetails = String(det?.detalles || det?.productDetails || notes?.productDetails || notes?.detalles || "").trim();
   const proc: string = det?.procesador || "";
   const teclado: string = product?.keyboard_layout || staged?.keyboard_layout || det?.teclado || "";
   const tamPantalla: string = (() => {
@@ -250,9 +257,7 @@ export default async function ProductPage({
       { label: "Color", value: colorCap },
     );
   } else {
-    const desc = det?.descripcionOtro || notes?.descripcionOtro || "";
     especs.push(
-      { label: "Descripcion", value: desc },
       { label: "Color", value: colorCap }
     );
   }
@@ -272,6 +277,12 @@ export default async function ProductPage({
   const outOfStock = !sold && Number.isFinite(stock) && stock <= 0;
   const unavailable = sold || outOfStock;
   const visibleSpecs = especs.filter((item) => item.value);
+  const productDescription = productDetails || (category === "otros" ? String(det?.descripcionOtro || notes?.descripcionOtro || "").trim() : "");
+  const detailImages = uniqueStrings([
+    ...(Array.isArray(notes?.detailImages) ? notes.detailImages : []),
+    ...(Array.isArray(notes?.detailPhotos) ? notes.detailPhotos : []),
+    ...(Array.isArray(det?.detailImages) ? det.detailImages : []),
+  ]);
   const includeItems = isSealed
     ? []
     : includesDisplay
@@ -323,14 +334,16 @@ export default async function ProductPage({
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
                   {isPromocion ? "Precio en promocion" : "Precio final"}
                 </div>
-                <div className="mt-3 flex flex-wrap items-end gap-3">
-                  <div className="text-3xl font-semibold text-[color:var(--foreground)] sm:text-4xl sm:tracking-[-0.05em]">
-                    S/ {price.toFixed(2)}
-                  </div>
-                  {compareAt && compareAt > price && (
-                    <div className="pb-1 text-lg text-[color:var(--foreground-soft)] line-through">S/ {compareAt.toFixed(2)}</div>
-                  )}
-                </div>
+                <PriceWithIgv
+                  price={price}
+                  compareAt={compareAt}
+                  wrapperClassName="mt-3"
+                  rowClassName="flex flex-wrap items-center gap-3"
+                  priceClassName="text-3xl font-semibold text-[color:var(--foreground)] sm:text-4xl sm:tracking-[-0.05em]"
+                  labelClassName="text-xs font-semibold uppercase tracking-[0.18em] text-rose-400"
+                  compareAtClassName="text-lg text-[color:var(--foreground-soft)] line-through"
+                  igvClassName="mt-2 text-base font-medium text-emerald-500"
+                />
                 {offerApplied && isFinite(offerPrice) && (
                   <div className="mt-3 inline-flex rounded-full bg-[rgba(230,245,236,0.94)] px-3 py-1 text-sm font-medium text-[#1f6c43]">
                     Oferta aplicada
@@ -354,6 +367,20 @@ export default async function ProductPage({
                   />
                 </div>
               </div>
+
+              {(productDescription || detailImages.length > 0) && (
+                <div className="min-w-0 rounded-[22px] border border-black/6 bg-white/72 p-4 sm:rounded-[26px] sm:p-5">
+                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
+                    Descripcion
+                  </div>
+                  {productDescription && (
+                    <div className="mt-3 whitespace-pre-line text-sm font-medium leading-6 text-[color:var(--foreground)]">
+                      {productDescription}
+                    </div>
+                  )}
+                  <ProductDetailPhotos images={detailImages} />
+                </div>
+              )}
 
               <div className="grid min-w-0 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
                 <div className="order-2 min-w-0 rounded-[22px] border border-black/6 bg-white/72 p-4 sm:rounded-[26px] sm:p-5 xl:order-1">
@@ -409,9 +436,14 @@ export default async function ProductPage({
                                   </span>
                                 )}
                               </div>
-                              <div className={`mt-0.5 text-[11px] text-[color:var(--foreground-soft)] ${availableVariant ? "" : "line-through"}`}>
-                                S/ {Number(variant.price || 0).toFixed(2)}
-                              </div>
+                              <PriceWithIgv
+                                price={Number(variant.price || 0)}
+                                wrapperClassName={`mt-1 ${availableVariant ? "" : "line-through"}`}
+                                rowClassName="flex flex-wrap items-center gap-1.5"
+                                priceClassName="text-[11px] font-medium text-[color:var(--foreground-soft)]"
+                                labelClassName="text-[9px] font-semibold uppercase tracking-[0.1em] text-rose-400"
+                                igvClassName="mt-0.5 text-[10px] text-emerald-500"
+                              />
                             </>
                           );
                           if (!canOpenVariant) {
