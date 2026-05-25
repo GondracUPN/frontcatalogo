@@ -1,27 +1,50 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Props = {
   images: string[];
 };
 
 export default function CategoryClientsCarouselClient({ images }: Props) {
+  const [currentImages, setCurrentImages] = useState(images);
   const [index, setIndex] = useState(0);
-  const count = images.length;
+  const count = currentImages.length;
   const canLoop = count > 0;
+
+  useEffect(() => {
+    setCurrentImages(images);
+  }, [images]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/clientes/list", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled || !json?.ok || !Array.isArray(json.urls)) return;
+        const next = json.urls.map((url: unknown) => String(url || "").trim()).filter(Boolean);
+        if (next.length) {
+          setCurrentImages(next);
+          setIndex(0);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const visible = useMemo(() => {
     if (!canLoop) return ["", "", ""];
     const getAt = (offset: number) => {
       const i = (index + offset + count) % count;
-      return images[i];
+      return currentImages[i];
     };
     return [getAt(0), getAt(1), getAt(2)];
-  }, [canLoop, count, images, index]);
+  }, [canLoop, count, currentImages, index]);
 
-  if (!images.length) {
+  if (!currentImages.length) {
     return (
       <div className="rounded-[26px] border border-dashed border-black/10 bg-white/70 p-6 text-center text-sm text-[color:var(--foreground-soft)]">
         No hay clientes disponibles.

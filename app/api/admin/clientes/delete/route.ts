@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { revalidatePath } from "next/cache";
 import { deleteCloudinaryImageByUrl, isCloudinaryConfigured } from "@/lib/cloudinary";
 import { privateOriginalsDir } from "../../_image-protection";
 import { requireAdmin } from "../../_admin-auth";
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
     if (isCloudinaryConfigured() && url.startsWith("https://")) {
       const deleted = await deleteCloudinaryImageByUrl(url);
       if (!deleted) return NextResponse.json({ ok: false, message: "Invalid url" }, { status: 400 });
+      revalidatePath("/");
       return NextResponse.json({ ok: true });
     }
 
@@ -45,6 +47,7 @@ export async function POST(req: NextRequest) {
     await fs.unlink(path.join(privateOriginalsDir("clientes"), name)).catch((err: unknown) => {
       if ((err as { code?: string })?.code !== "ENOENT") throw err;
     });
+    revalidatePath("/");
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const code = (err as { code?: string })?.code;

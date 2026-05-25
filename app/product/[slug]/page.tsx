@@ -221,6 +221,7 @@ export default async function ProductPage({
   if (productCondition) especs.push({ label: "Estado", value: productCondition });
   if (category === "macbook") {
     especs.push(
+      { label: "Gama", value: gama },
       { label: "Procesador", value: proc },
       { label: "RAM", value: ramVal },
       { label: "SSD", value: almVal },

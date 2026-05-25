@@ -78,13 +78,14 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-const MACBOOK_GAMA_OPTIONS = ["Air", "Pro"];
+const MACBOOK_GAMA_OPTIONS = ["Air", "Pro", "Neo"];
 const MACBOOK_PROCESSORS_AIR = ["M1", "M2", "M3", "M4", "M5"];
 const MACBOOK_PROCESSORS_PRO = [
   "M1", "M2", "M3", "M4", "M5",
   "M1 Pro", "M2 Pro", "M3 Pro", "M4 Pro",
   "M1 Max", "M2 Max", "M3 Max", "M4 Max",
 ];
+const MACBOOK_PROCESSORS_NEO = ["A18 Pro"];
 
 function getMacbookConfig(gama: string, procesador: string) {
   const p = String(procesador || "").trim();
@@ -92,7 +93,9 @@ function getMacbookConfig(gama: string, procesador: string) {
   let rams: string[] = [];
   let ssds: string[] = [];
 
-  if (gama === "Air") {
+  if (gama === "Neo") {
+    if (p === "A18 Pro") { sizes = ["13"]; rams = ["8"]; ssds = ["256", "512"]; }
+  } else if (gama === "Air") {
     if (p === "M1") { sizes = ["13"]; rams = ["8", "16"]; ssds = ["256", "512", "1TB", "2TB"]; }
     else if (p === "M2") { sizes = ["13", "15"]; rams = ["8", "16", "24"]; ssds = ["256", "512", "1TB", "2TB"]; }
     else if (p === "M3") { sizes = ["13", "15"]; rams = ["8", "16", "24"]; ssds = ["256", "512", "1TB", "2TB"]; }
@@ -511,6 +514,7 @@ export default function PublishModal({
   const macbookProcessorBase = React.useMemo(() => {
     if (gama === "Air") return MACBOOK_PROCESSORS_AIR;
     if (gama === "Pro") return MACBOOK_PROCESSORS_PRO;
+    if (gama === "Neo") return MACBOOK_PROCESSORS_NEO;
     return [] as string[];
   }, [gama]);
   const macbookConfig = React.useMemo(() => getMacbookConfig(gama, proc), [gama, proc]);
@@ -538,6 +542,13 @@ export default function PublishModal({
 
   React.useEffect(() => {
     if (!isMacbook) return;
+    if (gama === "Neo") {
+      if (proc !== "A18 Pro") setProc("A18 Pro");
+      if (tam !== "13") setTam("13");
+      if (ram !== "8") setRam("8");
+      if (alm && !["256", "512"].includes(alm)) setAlm("");
+      return;
+    }
     if (gama && !MACBOOK_GAMA_OPTIONS.includes(gama)) setGama("");
     if (proc && !macbookProcessorBase.includes(proc)) {
       setProc("");
@@ -1187,10 +1198,11 @@ export default function PublishModal({
                   <select
                     value={gama}
                     onChange={(e) => {
-                      setGama(e.target.value);
-                      setProc("");
-                      setTam("");
-                      setRam("");
+                      const nextGama = e.target.value;
+                      setGama(nextGama);
+                      setProc(nextGama === "Neo" ? "A18 Pro" : "");
+                      setTam(nextGama === "Neo" ? "13" : "");
+                      setRam(nextGama === "Neo" ? "8" : "");
                       setAlm("");
                     }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
@@ -1209,6 +1221,7 @@ export default function PublishModal({
                       setRam("");
                       setAlm("");
                     }}
+                    disabled={gama === "Neo"}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
                   >
                     <option value="">Seleccione</option>
@@ -1217,14 +1230,14 @@ export default function PublishModal({
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700">Tamaño</label>
-                  <select value={tam} onChange={(e) => setTam(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                  <select value={tam} onChange={(e) => setTam(e.target.value)} disabled={gama === "Neo"} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff] disabled:bg-gray-100 disabled:text-gray-500">
                     <option value="">Seleccione</option>
                     {macbookSizeOptions.map((s) => (<option key={s} value={s}>{s}</option>))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700">RAM</label>
-                  <select value={ram} onChange={(e) => setRam(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                  <select value={ram} onChange={(e) => setRam(e.target.value)} disabled={gama === "Neo"} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff] disabled:bg-gray-100 disabled:text-gray-500">
                     <option value="">Seleccione</option>
                     {macbookRamOptions.map((r) => (<option key={r} value={r}>{r} GB</option>))}
                   </select>

@@ -140,7 +140,7 @@ function storageRank(value: string) {
 
 function sortGama(values: string[], category: string) {
   const iphoneOrder = ["Normal", "Mini", "Plus", "Pro", "Pro Max"];
-  const macbookOrder = ["Air", "Pro"];
+  const macbookOrder = ["Air", "Pro", "Neo"];
   const ipadOrder = ["Normal", "Mini", "Air", "Pro"];
   const order = category === "iphone" ? iphoneOrder : category === "macbook" ? macbookOrder : ipadOrder;
   return [...values].sort((a, b) => {
@@ -254,7 +254,7 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
             const title = titleOf(m);
             if (isIphone) return normalizeIphoneModel(m.tipo, title);
             if (isIpad) return (m.tipo || title.match(/\biPad\s+(Mini|Air|Pro)\b/i)?.[1] || "").toString();
-            if (isMacbook) return (m.tipo || title.match(/\b(Air|Pro)\b/i)?.[1] || "").toString();
+            if (isMacbook) return (m.tipo || title.match(/\b(Air|Pro|Neo)\b/i)?.[1] || "").toString();
             return String(m.tipo || "").trim();
           })
           .map((s) => s.replace(/\bmac\s*book\s*/i, ""))

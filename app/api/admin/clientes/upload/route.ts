@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { revalidatePath } from "next/cache";
 import { isCloudinaryConfigured, uploadImageToCloudinary } from "@/lib/cloudinary";
 import { ALLOWED_IMAGE_MIME, EXT_BY_MIME, applyWatermark, privateOriginalsDir, watermarkBuffer } from "../../_image-protection";
 import { requireAdmin } from "../../_admin-auth";
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
         scope: "clients",
         publicId: path.basename(name, ext),
       });
+      revalidatePath("/");
       return NextResponse.json({ ok: true, url: uploaded.secure_url });
     }
 
@@ -50,6 +52,7 @@ export async function POST(req: NextRequest) {
     const dest = path.join(uploadDir, name);
     await applyWatermark(buf, dest, { scale: 0.94, opacity: 0.18, logo: "client" });
     const url = `/clientes/${name}`;
+    revalidatePath("/");
     return NextResponse.json({ ok: true, url });
   } catch (err) {
     const message = err instanceof Error ? err.message : "No se pudo subir la imagen";
