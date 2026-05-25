@@ -196,6 +196,10 @@ export default function CartPage() {
     setContactError("");
     try {
       await submitContactRequest({ name, phone, locationScope, locationValue });
+      setContactName("");
+      setContactPhone("");
+      setLocationScope("");
+      setLocationValue("");
       setContactOpen(false);
       setConfirmOpen(true);
     } catch (e: any) {

@@ -64,6 +64,10 @@ function toneForCondition(condition: string, sold?: boolean) {
   return "bg-white/88 text-[color:var(--foreground-soft)]";
 }
 
+function isNewCondition(condition: unknown) {
+  return String(condition || "").toLowerCase().includes("nuevo");
+}
+
 function variantOptionLabel(variant: any) {
   const batteryHealth = variant?.batteryHealth ?? variant?.battery_health ?? variant?.bateria?.salud;
   const includes = String(variant?.includes || "").trim();
@@ -276,6 +280,7 @@ export default async function ProductPage({
   const stock = Number(product?.stock ?? staged?.stock ?? 1);
   const outOfStock = !sold && Number.isFinite(stock) && stock <= 0;
   const unavailable = sold || outOfStock;
+  const stockLabel = isNewCondition(productCondition) && Number.isFinite(stock) && stock > 0 ? `Stock: ${stock} ${stock === 1 ? "unidad" : "unidades"}` : "";
   const visibleSpecs = especs.filter((item) => item.value);
   const productDescription = productDetails || (category === "otros" ? String(det?.descripcionOtro || notes?.descripcionOtro || "").trim() : "");
   const detailImages = uniqueStrings([
@@ -322,6 +327,11 @@ export default async function ProductPage({
                 <span className="rounded-full bg-white/78 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
                   {category || "producto"}
                 </span>
+                {stockLabel && !sold && (
+                  <span className="rounded-full bg-[rgba(230,245,236,0.92)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#1f6c43]">
+                    {stockLabel}
+                  </span>
+                )}
               </div>
 
               <div>
@@ -416,6 +426,8 @@ export default async function ProductPage({
                           const activeVariant = String(variant.slug || "") === slug;
                           const availableVariant = variant?.available !== false;
                           const statusLabel = String(variant?.availabilityLabel || (availableVariant ? "Disponible" : "No disponible"));
+                          const variantStock = Number(variant?.stock ?? 0);
+                          const variantStockLabel = isNewCondition(variant?.condition) && Number.isFinite(variantStock) && variantStock > 0 ? `${variantStock} ${variantStock === 1 ? "unidad" : "unidades"}` : "";
                           const canOpenVariant = Boolean(variant?.slug) && !activeVariant;
                           const optionClass = `rounded-[13px] border px-3 py-2 text-xs transition ${
                             activeVariant
@@ -433,6 +445,11 @@ export default async function ProductPage({
                                 {!availableVariant && (
                                   <span className="shrink-0 rounded-full bg-black/8 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--foreground-soft)]">
                                     {statusLabel}
+                                  </span>
+                                )}
+                                {availableVariant && variantStockLabel && (
+                                  <span className="shrink-0 rounded-full bg-[rgba(230,245,236,0.92)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#1f6c43]">
+                                    Stock: {variantStockLabel}
                                   </span>
                                 )}
                               </div>

@@ -229,7 +229,7 @@ export async function deleteStaged(id: string) {
   return { ok: true };
 }
 
-export async function publishStaged(id: string, data: { slug?: string }) {
+export async function publishStaged(id: string, data: { slug?: string; mergeStagedIds?: string[]; mergeStagedSkus?: string[] }) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
@@ -290,6 +290,7 @@ export async function getHomeCatalog() {
       saleType: string;
       price: number;
       compareAt: number | null;
+      stock: number;
     }>;
     categories: Array<{ key: string; total: number; minPrice: number | null }>;
   }>("/catalog/home", {
@@ -320,27 +321,39 @@ export async function unpublishProduct(productId: string) {
 }
 
 // ----- Admin: marcar como vendido -----
-export async function markProductSold(productId: string, saleDate?: string, salePrice?: string | number) {
+export async function markProductSold(
+  productId: string,
+  saleDate?: string,
+  salePrice?: string | number,
+  customer?: {
+    name?: string;
+    phone?: string;
+    customerKind?: string;
+    salePlaceType?: string;
+    saleLocation?: string;
+  }
+) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
   await apiFetch(`/admin/public/${productId}/sold`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ saleDate: saleDate || null, salePrice: salePrice ?? undefined }),
+    body: JSON.stringify({ saleDate: saleDate || null, salePrice: salePrice ?? undefined, ...(customer || {}) }),
   });
   revalidateTag("catalog-products");
   return { ok: true };
 }
 
 // ----- Admin: revertir venta (volver a vender) -----
-export async function unsellProduct(productId: string) {
+export async function unsellProduct(productId: string, saleId?: string) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
   await apiFetch(`/admin/public/${productId}/unsell`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ saleId: saleId || null }),
   });
   revalidateTag("catalog-products");
   return { ok: true };
@@ -359,6 +372,44 @@ export async function listContactRequests() {
   const token = cookieStore.get("token")?.value;
   if (!token) return { items: [] as any[] };
   return apiFetch<{ items: any[] }>(`/admin/contact-requests`, { headers: { Authorization: `Bearer ${token}` } });
+}
+
+export async function markContactRequestAttended(id: string) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) return { ok: false };
+  return apiFetch<{ ok: boolean; item?: any }>(`/admin/contact-requests/${encodeURIComponent(id)}/attended`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function listPossibleClients() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) return { items: [] as any[] };
+  return apiFetch<{ items: any[] }>(`/admin/possible-clients`, { headers: { Authorization: `Bearer ${token}` } });
+}
+
+export async function discardPossibleClient(id: string) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) return { ok: false };
+  return apiFetch<{ ok: boolean }>(`/admin/possible-clients/${encodeURIComponent(id)}/discard`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function markPossibleClientPurchased(id: string, data: { customerKind: string; salePlaceType: string; saleLocation?: string }) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) return { ok: false };
+  return apiFetch<{ ok: boolean; item?: any }>(`/admin/possible-clients/${encodeURIComponent(id)}/purchase`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(data || {}),
+  });
 }
 
 export async function getCatalogAnalytics(days = 30) {

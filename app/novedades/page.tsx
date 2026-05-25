@@ -37,6 +37,19 @@ function priceFromRow(row: any): { price: number; compareAt: number | null } {
   return { price: price || 0, compareAt };
 }
 
+function conditionFromRow(row: any) {
+  try {
+    const notes = row?.staged?.notes && typeof row.staged.notes === "string" ? JSON.parse(row.staged.notes) : row.staged?.notes || {};
+    return String(row?.product?.product_condition || row?.staged?.product_condition || notes?.productCondition || notes?.estado || "");
+  } catch {
+    return String(row?.product?.product_condition || row?.staged?.product_condition || "");
+  }
+}
+
+function isNewCondition(condition: unknown) {
+  return String(condition || "").toLowerCase().includes("nuevo");
+}
+
 export default async function NovedadesPage() {
   const { items } = await listCatalog().catch(() => ({ items: [] as any[] }));
   const availableItems = (items || []).filter((row: any) => row?.product?.status !== "sold");
@@ -68,13 +81,20 @@ export default async function NovedadesPage() {
                 const img = (row.images && row.images[0]) || row.staged?.images?.[0] || "/placeholder.svg";
                 const title: string = row.product?.title || row.staged?.title || row.slug;
                 const { price, compareAt } = priceFromRow(row);
+                const stock = Number(row?.product?.stock ?? row?.staged?.stock ?? 0);
+                const stockLabel = isNewCondition(conditionFromRow(row)) && Number.isFinite(stock) && stock > 0 ? `Stock: ${stock} ${stock === 1 ? "unidad" : "unidades"}` : "";
                 return (
                   <a
                     key={row.id}
                     href={`/product/${row.slug}`}
                     className="group rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.94))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
                   >
-                    <div className="overflow-hidden rounded-[24px] bg-[linear-gradient(145deg,#f5f7fa,#ebf0f6)]">
+                    <div className="relative overflow-hidden rounded-[24px] bg-[linear-gradient(145deg,#f5f7fa,#ebf0f6)]">
+                      {stockLabel && (
+                        <div className="absolute left-3 top-3 z-10 rounded-full bg-[rgba(230,245,236,0.92)] px-3 py-1 text-[11px] font-semibold text-[#1f6c43]">
+                          {stockLabel}
+                        </div>
+                      )}
                       <div className="relative aspect-[4/3] p-5">
                         <Image
                           src={img}

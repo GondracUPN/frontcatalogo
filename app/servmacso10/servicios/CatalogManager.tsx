@@ -9,8 +9,9 @@ type CatalogRow = {
   category?: string | null;
   is_published?: boolean;
   images?: string[];
-  product?: { id: string; sku: string; title: string; price: string; status?: string; variant_group?: string | null };
+  product?: { id: string; sku: string; title: string; price: string; stock?: number; status?: string; variant_group?: string | null };
   staged?: any;
+  linkedStaged?: any[];
 };
 
 const CATEGORY_OPTIONS = [
@@ -34,11 +35,34 @@ function normalizeCategory(value: unknown) {
   return raw;
 }
 
+function linkedSkuRowsFor(row: CatalogRow) {
+  if (Array.isArray(row.linkedStaged)) return row.linkedStaged;
+  const staged = row.staged || {};
+  const notes = (() => {
+    try {
+      return staged?.notes && typeof staged.notes === "string" ? JSON.parse(staged.notes) : staged?.notes || {};
+    } catch {
+      return {};
+    }
+  })();
+  const skus = Array.isArray(notes?.linkedSkus) ? notes.linkedSkus : [];
+  return skus.map((sku: unknown) => ({ sku: String(sku || "").trim() })).filter((linked: any) => linked.sku);
+}
+
 export default function CatalogManager({ initialItems }: { initialItems: CatalogRow[] }) {
   const [items, setItems] = React.useState<CatalogRow[]>(initialItems || []);
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [open, setOpen] = React.useState<any | null>(null);
-  const [soldModal, setSoldModal] = React.useState<{ row: CatalogRow; date: string; price: string } | null>(null);
+  const [soldModal, setSoldModal] = React.useState<{
+    row: CatalogRow;
+    date: string;
+    price: string;
+    customerName: string;
+    customerPhone: string;
+    customerKind: "tranquilo" | "regateador";
+    salePlaceType: "almacen" | "otro";
+    saleLocation: string;
+  } | null>(null);
   const [sales, setSales] = React.useState<Array<{ id: string; product_id: string; sku: string; sale_price: string; sold_at: string; title?: string }>>([]);
 
   React.useEffect(() => {
@@ -51,18 +75,48 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
   }, []);
 
   const toStagedShape = (row: CatalogRow) => {
+    const linkedRows = linkedSkuRowsFor(row);
+    const linkedIds = linkedRows.map((linked: any) => String(linked?.id || "").trim()).filter(Boolean);
+    const linkedSkus = linkedRows.map((linked: any) => String(linked?.sku || "").trim()).filter(Boolean);
+    const productStock = Number(row.product?.stock);
+    const hasProductStock = Number.isFinite(productStock);
+    const fallbackStock = Math.max(1, Number(row.staged?.stock || 0) || linkedRows.length + 1);
+    const currentStock = hasProductStock ? Math.max(0, productStock) : fallbackStock;
     const base = row.staged
       ? { ...row.staged }
       : {
           id: undefined as any,
           title: row.product?.title || "",
           price: row.product?.price || "0",
+          stock: currentStock,
           images: row.images || [],
           notes: row.staged?.notes || null,
           sku: row.product?.sku || "",
           status: "published",
           variant_group: row.product?.variant_group || row.staged?.variant_group || "",
         };
+    base.stock = currentStock;
+    base.__mergeStock = base.stock;
+    base.__mergeCandidates = linkedRows;
+    base.__mergeStagedIds = linkedIds;
+    base.__mergeInitialSkus = linkedSkus;
+    const baseNotes = (() => {
+      try {
+        return base?.notes && typeof base.notes === "string" ? JSON.parse(base.notes) : base?.notes || {};
+      } catch {
+        return {};
+      }
+    })();
+    const noteSkus = Array.isArray(baseNotes?.linkedSkus)
+      ? baseNotes.linkedSkus.map((sku: unknown) => String(sku || "").trim()).filter(Boolean)
+      : [];
+    if (!base.__mergeInitialSkus.length && noteSkus.length) {
+      base.__mergeInitialSkus = noteSkus;
+      if (!hasProductStock) {
+        base.__mergeStock = Math.max(Number(base.__mergeStock || 1), noteSkus.length + 1);
+        base.stock = Math.max(Number(base.stock || 1), noteSkus.length + 1);
+      }
+    }
     if (!base.variant_group) base.variant_group = row.product?.variant_group || row.staged?.variant_group || "";
     if ((!base.images || base.images.length === 0) && Array.isArray(row.images)) base.images = row.images;
     return base;
@@ -107,6 +161,7 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
       product.variant_group || staged.variant_group ? `Grupo: ${product.variant_group || staged.variant_group}` : "",
       product.sku || staged.sku ? `SKU: ${product.sku || staged.sku}` : "",
       product.title || staged.title ? "" : "",
+      product.stock ? `Stock: ${product.stock}` : "",
       product.status === "sold" ? "Vendido" : "",
       staged.color || notes?.color ? `Color: ${staged.color || notes?.color}` : "",
       staged.battery_health || notes?.batteryHealth ? `Bateria: ${staged.battery_health || notes?.batteryHealth}%` : "",
@@ -146,15 +201,25 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
           </tr>
         </thead>
         <tbody>
-          {filteredItems.map((row) => (
-            <tr key={row.id} className="border-t">
-              <td className="p-2 text-gray-900 font-medium">
-                <div>{row.product?.title || row.staged?.title || row.slug}</div>
-                {variantLabel(row) && <div className="mt-1 text-xs font-normal text-gray-500">{variantLabel(row)}</div>}
-              </td>
-              <td className="p-2 text-gray-900">{row.product?.sku || row.staged?.sku || "-"}</td>
-              <td className="p-2 text-gray-900">S/ {Number(row.product?.price || 0).toFixed(2)}</td>
-              <td className="p-2 flex gap-2">
+          {filteredItems.map((row) => {
+            const linkedRows = linkedSkuRowsFor(row);
+            return (
+              <React.Fragment key={row.id}>
+                <tr className="border-t">
+                  <td className="p-2 text-gray-900 font-medium">
+                    <div>{row.product?.title || row.staged?.title || row.slug}</div>
+                    {variantLabel(row) && <div className="mt-1 text-xs font-normal text-gray-500">{variantLabel(row)}</div>}
+                  </td>
+                  <td className="p-2 text-gray-900">
+                    <div>{row.product?.sku || row.staged?.sku || "-"}</div>
+                    {linkedRows.length > 0 && (
+                      <div className="mt-1 text-xs text-gray-500">
+                        +{linkedRows.length} vinculado{linkedRows.length === 1 ? "" : "s"}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-2 text-gray-900">S/ {Number(row.product?.price || 0).toFixed(2)}</td>
+                  <td className="p-2 flex gap-2">
                 <button
                   onClick={() => {
                     if (!row.staged?.id) {
@@ -176,7 +241,16 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
                   </a>
                 )}
                 <button
-                  onClick={() => setSoldModal({ row, date: new Date().toISOString().slice(0, 10), price: String(row.product?.price || 0) })}
+                  onClick={() => setSoldModal({
+                    row,
+                    date: new Date().toISOString().slice(0, 10),
+                    price: String(row.product?.price || 0),
+                    customerName: "",
+                    customerPhone: "",
+                    customerKind: "tranquilo",
+                    salePlaceType: "almacen",
+                    saleLocation: "",
+                  })}
                   className="px-3 py-1 rounded bg-amber-600 text-white"
                 >
                   Vendido
@@ -194,9 +268,22 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
                 >
                   Eliminar
                 </button>
-              </td>
-            </tr>
-          ))}
+                  </td>
+                </tr>
+                {linkedRows.map((linked: any) => (
+                  <tr key={`linked-${row.id}-${linked.id || linked.sku}`} className="border-t bg-emerald-50/40">
+                    <td className="p-2 pl-6 text-gray-900">
+                      <div className="text-sm font-medium">{linked.title || row.product?.title || row.staged?.title || row.slug}</div>
+                      <div className="mt-1 text-xs text-gray-500">Vinculado a {row.product?.sku || row.staged?.sku || "-"}</div>
+                    </td>
+                    <td className="p-2 font-mono text-xs text-gray-900">{linked.sku || "-"}</td>
+                    <td className="p-2 text-gray-900">S/ {Number(linked.price || row.product?.price || 0).toFixed(2)}</td>
+                    <td className="p-2 text-xs text-gray-500">Incluido en stock</td>
+                  </tr>
+                ))}
+              </React.Fragment>
+            );
+          })}
           {!filteredItems.length && (
             <tr>
               <td className="p-3 text-gray-500" colSpan={4}>
@@ -243,8 +330,51 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
               type="number"
               value={soldModal.price}
               onChange={(e) => setSoldModal({ ...soldModal, price: e.target.value })}
-              className="w-full border rounded px-3 py-2 mb-4"
+              className="w-full border rounded px-3 py-2 mb-3"
             />
+            <label className="block text-sm text-gray-700 mb-1">Nombre del cliente</label>
+            <input
+              value={soldModal.customerName}
+              onChange={(e) => setSoldModal({ ...soldModal, customerName: e.target.value })}
+              className="w-full border rounded px-3 py-2 mb-3"
+              placeholder="Nombre"
+            />
+            <label className="block text-sm text-gray-700 mb-1">Numero del cliente</label>
+            <input
+              value={soldModal.customerPhone}
+              onChange={(e) => setSoldModal({ ...soldModal, customerPhone: e.target.value })}
+              className="w-full border rounded px-3 py-2 mb-3"
+              placeholder="Celular"
+            />
+            <label className="block text-sm text-gray-700 mb-1">Tipo de cliente</label>
+            <select
+              value={soldModal.customerKind}
+              onChange={(e) => setSoldModal({ ...soldModal, customerKind: e.target.value as any })}
+              className="w-full border rounded px-3 py-2 mb-3 bg-white"
+            >
+              <option value="tranquilo">Tranquilo</option>
+              <option value="regateador">Regateador</option>
+            </select>
+            <label className="block text-sm text-gray-700 mb-1">Lugar de venta</label>
+            <select
+              value={soldModal.salePlaceType}
+              onChange={(e) => setSoldModal({ ...soldModal, salePlaceType: e.target.value as any, saleLocation: e.target.value === "almacen" ? "" : soldModal.saleLocation })}
+              className="w-full border rounded px-3 py-2 mb-3 bg-white"
+            >
+              <option value="almacen">Almacen</option>
+              <option value="otro">Otro lado</option>
+            </select>
+            {soldModal.salePlaceType === "otro" && (
+              <>
+                <label className="block text-sm text-gray-700 mb-1">Ubicacion de la venta</label>
+                <input
+                  value={soldModal.saleLocation}
+                  onChange={(e) => setSoldModal({ ...soldModal, saleLocation: e.target.value })}
+                  className="w-full border rounded px-3 py-2 mb-4"
+                  placeholder="Ej: Miraflores, Jockey Plaza..."
+                />
+              </>
+            )}
             <div className="flex justify-end gap-2">
               <button onClick={() => setSoldModal(null)} className="px-3 py-1 rounded border">
                 Cancelar
@@ -254,17 +384,26 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
                   onClick={async () => {
                     try {
                       const pid = soldModal.row.product?.id || soldModal.row.id;
-                      await markProductSold(pid, soldModal.date, soldModal.price);
-                      setItems((arr) => arr.filter((r) => r.id !== soldModal.row.id));
+                      await markProductSold(pid, soldModal.date, soldModal.price, {
+                        name: soldModal.customerName,
+                        phone: soldModal.customerPhone,
+                        customerKind: soldModal.customerKind,
+                        salePlaceType: soldModal.salePlaceType,
+                        saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
+                      });
+                      try {
+                        const { items } = await listAdminCatalog();
+                        setItems(items as any);
+                      } catch {}
                       try {
                         const { items } = await listSales();
-                      setSales(items as any);
-                    } catch {}
-                    setSoldModal(null);
-                  } catch {
-                    alert("No se pudo marcar como vendido");
-                  }
-                }}
+                        setSales(items as any);
+                      } catch {}
+                      setSoldModal(null);
+                    } catch {
+                      alert("No se pudo marcar como vendido");
+                    }
+                  }}
               >
                 Listo
               </button>
@@ -297,7 +436,7 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
                     className="px-3 py-1 rounded bg-emerald-600 text-white"
                     onClick={async () => {
                       try {
-                        await unsellProduct(s.product_id);
+                        await unsellProduct(s.product_id, s.id);
                         try {
                           const { items } = await listAdminCatalog();
                           setItems(items as any);

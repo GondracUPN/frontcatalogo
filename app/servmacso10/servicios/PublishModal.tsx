@@ -4,6 +4,7 @@ import { createManualPreventaDraft, updateStaged, publishStaged } from "../../ac
 
 type SaleType = "PREVENTA" | "VENTA_SIMPLE" | "PROMOCION" | "OFERTA";
 type DiscountMode = "percent" | "amount";
+type MergeCandidate = { id: string; sku: string; title: string };
 
 function toSlug(s: string) {
   return String(s || "")
@@ -207,6 +208,10 @@ function uniqueStrings(values: unknown[]) {
   return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
 }
 
+function normalizeSku(value: unknown) {
+  return String(value || "").trim().toUpperCase();
+}
+
 function withCurrentOption(options: string[], current: string) {
   const value = String(current || "").trim();
   if (!value) return options;
@@ -269,7 +274,7 @@ export default function PublishModal({
     const proc0 = detalle?.procesador || "";
     const tam0 = detalle?.["tamaño"] || detalle?.tamanio || detalle?.tamano || "";
     if (String(tipo).toLowerCase().includes("iphone")) {
-      const auto = buildIphoneTitle(item?.iphone_number ?? notes?.iphoneNumber, item?.iphone_model || notes?.iphoneModel, item?.storage_gb ?? notes?.storageGb ?? notes?.storage, notes?.color || "");
+      const auto = buildIphoneTitle(item?.iphone_number ?? notes?.iphoneNumber, item?.iphone_model || notes?.iphoneModel, item?.storage_gb ?? notes?.storageGb ?? notes?.storage, item?.color || notes?.color || "");
       if (auto) return auto;
     }
     const connectivity0 = detalle?.conectividad || notes?.conectividad || "";
@@ -314,7 +319,7 @@ export default function PublishModal({
   });
   const [ciclos, setCiclos] = React.useState<string>(notes?.bateria?.ciclos || "");
   const [salud, setSalud] = React.useState<string>(notes?.bateria?.salud || "");
-  const [color, setColor] = React.useState<string>(notes?.color || "");
+  const [color, setColor] = React.useState<string>(item?.color || notes?.color || "");
   const [productCondition, setProductCondition] = React.useState<string>(item?.product_condition || notes?.productCondition || notes?.estado || "");
   const [hasWarranty, setHasWarranty] = React.useState<boolean>(() => {
     if (productCondition === "Nuevo") return true;
@@ -327,8 +332,32 @@ export default function PublishModal({
     return String(raw || "");
   });
   const [stock, setStock] = React.useState<number>(() => {
-    const initial = Number(item?.stock ?? 1);
+    const initial = Number(item?.__mergeStock ?? item?.stock ?? 1);
     return isFinite(initial) && initial > 0 ? initial : 1;
+  });
+  const mergeCandidates = React.useMemo<MergeCandidate[]>(() => {
+    const candidates = Array.isArray(item?.__mergeCandidates) ? item.__mergeCandidates : [];
+    return candidates
+      .map((candidate: any) => ({
+        id: String(candidate?.id || "").trim(),
+        sku: normalizeSku(candidate?.sku),
+        title: String(candidate?.title || "").trim(),
+      }))
+      .filter((candidate: MergeCandidate) => candidate.id && candidate.sku);
+  }, [item]);
+  const mergeCandidateBySku = React.useMemo(() => {
+    const map = new Map<string, MergeCandidate>();
+    mergeCandidates.forEach((candidate: MergeCandidate) => map.set(candidate.sku, candidate));
+    return map;
+  }, [mergeCandidates]);
+  const [mergeSkuInputs, setMergeSkuInputs] = React.useState<string[]>(() => {
+    const ids = new Set((Array.isArray(item?.__mergeStagedIds) ? item.__mergeStagedIds : []).map((id: unknown) => String(id)));
+    const fromCandidates = mergeCandidates.filter((candidate: MergeCandidate) => ids.has(candidate.id)).map((candidate: MergeCandidate) => candidate.sku);
+    if (fromCandidates.length) return fromCandidates;
+    if (Array.isArray(item?.__mergeInitialSkus) && item.__mergeInitialSkus.length) {
+      return item.__mergeInitialSkus.map(normalizeSku).filter(Boolean);
+    }
+    return Array.isArray(notes?.linkedSkus) ? notes.linkedSkus.map(normalizeSku).filter(Boolean) : [];
   });
   const [iphoneModel, setIphoneModel] = React.useState<string>(
     item?.iphone_model || notes?.iphoneModel || titleIphoneParsed.model || ""
@@ -363,6 +392,7 @@ export default function PublishModal({
     const fromDetail = Array.isArray(detalle?.detailImages) ? detalle.detailImages : [];
     return uniqueStrings([...fromNotes, ...fromDetail]);
   });
+  const [showProductDetails, setShowProductDetails] = React.useState(() => Boolean(productDetails.trim() || detailImages.length));
   const [saleType, setSaleType] = React.useState<string>(() => {
     if (forceSaleType) return forceSaleType;
     const st = String(item?.sale_type || notes?.saleType || "").toUpperCase();
@@ -459,6 +489,21 @@ export default function PublishModal({
   const isOtros = category === "otros";
   const iphoneNum = Number(iphoneNumber || 0);
   const stockNum = Number(stock || 0);
+  const requiredMergeSkuCount = productCondition === "Nuevo" ? Math.max(0, stockNum - 1) : 0;
+  const mergeSkuValues = mergeSkuInputs.map(normalizeSku);
+  const selectedMergeIds = mergeSkuValues
+    .map((sku) => mergeCandidateBySku.get(sku)?.id || "")
+    .filter(Boolean);
+  const selectedMergeSkus = mergeSkuValues.filter(Boolean);
+
+  React.useEffect(() => {
+    setMergeSkuInputs((current) => {
+      const next = current.slice(0, requiredMergeSkuCount);
+      while (next.length < requiredMergeSkuCount) next.push("");
+      return next;
+    });
+  }, [requiredMergeSkuCount]);
+
   const iphoneIncludesOptions = React.useMemo(
     () => ["Caja + Cable", "Caja sola", "Cable solo", "Otros", "Ninguno"],
     []
@@ -649,6 +694,17 @@ export default function PublishModal({
   if (productCondition === "Nuevo" && stockNum < 1) {
     errors.push("El stock debe ser mayor o igual a 1");
   }
+  if (requiredMergeSkuCount > 0) {
+    const filledSkus = mergeSkuValues.filter(Boolean);
+    if (filledSkus.length !== requiredMergeSkuCount) {
+      errors.push(`Agrega ${requiredMergeSkuCount} SKU adicional(es) para este stock`);
+    }
+    const duplicatedSkus = filledSkus.filter((sku, index) => filledSkus.indexOf(sku) !== index);
+    if (duplicatedSkus.length) {
+      errors.push("No repitas el mismo SKU adicional");
+    }
+    if (filledSkus.includes(normalizeSku(item?.sku))) errors.push("No pongas el mismo SKU principal como adicional");
+  }
   if (productCondition && productCondition !== "Nuevo" && stockNum !== 1) {
     errors.push("El stock debe ser 1 para Usado/Open Box/Arreglado");
   }
@@ -723,6 +779,8 @@ export default function PublishModal({
         ? "1 año de garantía"
         : (hasWarranty ? warrantyDate.trim() : null);
       const almacenamientoVal = isIphone ? iphoneStorageValue : normalizeUnit(alm, "GB");
+      const productDetailsValue = showProductDetails ? productDetails.trim() : "";
+      const detailImageValues = showProductDetails ? uniqueStrings(detailImages) : [];
       const detalleNew = {
         ...(detalle || {}),
         gama,
@@ -737,8 +795,8 @@ export default function PublishModal({
         esim: isIphone ? (iphoneSimType || null) : (detalle as any)?.esim,
         sim: isIphone ? (iphoneSimType || null) : (detalle as any)?.sim,
         descripcionOtro: descriptionOther,
-        detalles: productDetails.trim() || null,
-        productDetails: productDetails.trim() || null,
+        detalles: productDetailsValue || null,
+        productDetails: productDetailsValue || null,
         detailImages: null,
         detailPhotos: null,
       };
@@ -753,9 +811,9 @@ export default function PublishModal({
         incluye: includesFlags,
         includes: includesValue,
         includesExtra,
-        productDetails: productDetails.trim() || null,
-        detalles: productDetails.trim() || null,
-        detailImages: uniqueStrings(detailImages),
+        productDetails: productDetailsValue || null,
+        detalles: productDetailsValue || null,
+        detailImages: detailImageValues,
         detailPhotos: null,
         preventaDateFrom: saleType === "PREVENTA" ? preventaDateFrom : null,
         preventaDateTo: saleType === "PREVENTA" ? preventaDateTo : null,
@@ -836,7 +894,13 @@ export default function PublishModal({
         finalPrice: saleType === "PROMOCION" ? finalPrice : null,
         minOfferPrice: saleType === "OFERTA" ? minOfferPrice : null,
       });
-      await publishStaged(stagedId, { slug: toSlug(fixedTitle) });
+      const mergeStagedIds = productCondition === "Nuevo" && Number(stock || 1) > 1
+        ? selectedMergeIds
+        : [];
+      const mergeStagedSkus = productCondition === "Nuevo" && Number(stock || 1) > 1
+        ? selectedMergeSkus
+        : [];
+      await publishStaged(stagedId, { slug: toSlug(fixedTitle), mergeStagedIds, mergeStagedSkus });
       onSaved({
         ...item,
         id: stagedId,
@@ -860,6 +924,7 @@ export default function PublishModal({
         includes_extra: includesExtra,
         keyboard_layout: keyboardLayout,
         variant_group: variantGroup.trim() || null,
+        __mergeStagedIds: mergeStagedIds,
       });
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "No se pudo publicar el producto");
@@ -867,6 +932,108 @@ export default function PublishModal({
       setSaving(false);
     }
   };
+
+  const mainPhotosPanel = (
+    <div>
+      <label className="block text-sm mb-1 text-gray-700">Fotos</label>
+      {images.length > 0 && (
+        <div className="mb-3 overflow-hidden rounded-xl border-2 border-emerald-500 bg-emerald-50">
+          <div className="relative aspect-[4/3] bg-white">
+            <img src={images[0]} alt="" className="h-full w-full object-contain" />
+            <div className="absolute left-2 top-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
+              Portada
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 mb-2">
+        {images.map((u, i) => (
+          <div
+            key={`${u}-${i}`}
+            draggable
+            onDragStart={(e) => {
+              setDragImageIndex(i);
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", String(i));
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const from = dragImageIndex ?? Number(e.dataTransfer.getData("text/plain"));
+              moveImage(from, i);
+              setDragImageIndex(null);
+            }}
+            onDragEnd={() => setDragImageIndex(null)}
+            className={`cursor-grab overflow-hidden rounded-xl border bg-white active:cursor-grabbing ${
+              dragImageIndex === i ? "scale-[0.98] opacity-55" : ""
+            } ${i === 0 ? "border-emerald-500 ring-2 ring-emerald-100" : "border-gray-200"}`}
+          >
+            <div className="relative aspect-square bg-gray-50">
+              <img src={u} alt="" className="h-full w-full object-cover" />
+              <div className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${i === 0 ? "bg-emerald-600 text-white" : "bg-white/90 text-gray-700"}`}>
+                {i === 0 ? "Portada" : `Foto ${i + 1}`}
+              </div>
+              <div className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
+                Arrastra
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1 p-1">
+              <button
+                type="button"
+                disabled={i === 0}
+                className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 disabled:bg-emerald-100 disabled:text-emerald-700"
+                onClick={() => setImages(arr => { const copy = arr.slice(); const [img] = copy.splice(i, 1); copy.unshift(img); return copy; })}
+              >
+                {i === 0 ? "Actual" : "Portada"}
+              </button>
+              <button
+                type="button"
+                className="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700"
+                onClick={() => setImages(arr => arr.filter((_, idx) => idx !== i))}
+              >
+                Quitar
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <label
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (uploadingPhotos || saving) return;
+          addFiles(e.dataTransfer.files);
+        }}
+        className={`mt-3 flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-6 text-center transition ${
+          uploadingPhotos || saving
+            ? "border-gray-200 bg-gray-50 text-gray-400"
+            : "border-blue-200 bg-blue-50/55 text-gray-700 hover:border-blue-300 hover:bg-blue-50"
+        }`}
+      >
+        <input
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/avif"
+          disabled={uploadingPhotos || saving}
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.currentTarget.value = "";
+          }}
+          className="sr-only"
+        />
+        <span className="text-sm font-semibold">{uploadingPhotos ? "Subiendo fotos..." : "Elegir o arrastrar fotos"}</span>
+        <span className="mt-1 text-xs text-gray-500">JPG, PNG o AVIF. Puedes seleccionar varias imágenes.</span>
+      </label>
+      {uploadingPhotos && <p className="text-xs text-blue-600 mt-1">Subiendo fotos...</p>}
+      <p className="text-xs text-gray-500 mt-1">La foto marcada como portada será la primera imagen del producto.</p>
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4">
@@ -922,71 +1089,85 @@ export default function PublishModal({
               <p className="text-xs text-gray-500 mt-1">Se autocompleta desde el titulo; puedes ajustarlo.</p>
             </div>
 
-            <div>
-              <label className="block text-sm text-gray-700">Detalles del producto</label>
-              <textarea
-                value={productDetails}
-                onChange={(e) => setProductDetails(e.target.value)}
-                rows={4}
-                className="w-full resize-y border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
-                placeholder="Ej: Detalles esteticos, observaciones o informacion adicional para la ficha publica."
+            <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm font-medium text-gray-800">
+              <input
+                type="checkbox"
+                checked={showProductDetails}
+                onChange={(e) => setShowProductDetails(e.target.checked)}
+                className="h-4 w-4"
               />
-            </div>
+              Agregar detalles del producto
+            </label>
 
-            <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
-              <label className="block text-sm font-medium text-gray-700">Fotos de detalles</label>
-              {detailImages.length > 0 && (
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {detailImages.map((u, i) => (
-                    <div key={`${u}-${i}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-                      <div className="relative aspect-square bg-gray-50">
-                        <img src={u} alt="" className="h-full w-full object-cover" />
-                        <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-gray-700">
-                          Detalle {i + 1}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="w-full bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700"
-                        onClick={() => setDetailImages((arr) => arr.filter((_, idx) => idx !== i))}
-                      >
-                        Quitar
-                      </button>
-                    </div>
-                  ))}
+            {showProductDetails && (
+              <>
+                <div>
+                  <label className="block text-sm text-gray-700">Detalles del producto</label>
+                  <textarea
+                    value={productDetails}
+                    onChange={(e) => setProductDetails(e.target.value)}
+                    rows={4}
+                    className="w-full resize-y border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
+                    placeholder="Ej: Detalles esteticos, observaciones o informacion adicional para la ficha publica."
+                  />
                 </div>
-              )}
-              <label
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "copy";
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (uploadingDetailPhotos || saving) return;
-                  addDetailFiles(e.dataTransfer.files);
-                }}
-                className={`mt-3 flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-5 text-center transition ${
-                  uploadingDetailPhotos || saving
-                    ? "border-gray-200 bg-gray-50 text-gray-400"
-                    : "border-emerald-200 bg-emerald-50/55 text-gray-700 hover:border-emerald-300 hover:bg-emerald-50"
-                }`}
-              >
-                <input
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/avif"
-                  disabled={uploadingDetailPhotos || saving}
-                  onChange={(e) => {
-                    addDetailFiles(e.target.files);
-                    e.currentTarget.value = "";
-                  }}
-                  className="sr-only"
-                />
-                <span className="text-sm font-semibold">{uploadingDetailPhotos ? "Subiendo detalles..." : "Elegir o arrastrar fotos de detalles"}</span>
-                <span className="mt-1 text-xs text-gray-500">Estas fotos apareceran en el boton publico Ver fotos de detalles.</span>
-              </label>
-            </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+                  <label className="block text-sm font-medium text-gray-700">Fotos de detalles</label>
+                  {detailImages.length > 0 && (
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {detailImages.map((u, i) => (
+                        <div key={`${u}-${i}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                          <div className="relative aspect-square bg-gray-50">
+                            <img src={u} alt="" className="h-full w-full object-cover" />
+                            <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-gray-700">
+                              Detalle {i + 1}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="w-full bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700"
+                            onClick={() => setDetailImages((arr) => arr.filter((_, idx) => idx !== i))}
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <label
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "copy";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (uploadingDetailPhotos || saving) return;
+                      addDetailFiles(e.dataTransfer.files);
+                    }}
+                    className={`mt-3 flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-5 text-center transition ${
+                      uploadingDetailPhotos || saving
+                        ? "border-gray-200 bg-gray-50 text-gray-400"
+                        : "border-emerald-200 bg-emerald-50/55 text-gray-700 hover:border-emerald-300 hover:bg-emerald-50"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/avif"
+                      disabled={uploadingDetailPhotos || saving}
+                      onChange={(e) => {
+                        addDetailFiles(e.target.files);
+                        e.currentTarget.value = "";
+                      }}
+                      className="sr-only"
+                    />
+                    <span className="text-sm font-semibold">{uploadingDetailPhotos ? "Subiendo detalles..." : "Elegir o arrastrar fotos de detalles"}</span>
+                    <span className="mt-1 text-xs text-gray-500">Estas fotos apareceran en el boton publico Ver fotos de detalles.</span>
+                  </label>
+                </div>
+              </>
+            )}
 
             {isOtros && (
               <div>
@@ -1351,6 +1532,39 @@ export default function PublishModal({
                   />
                 </div>
               )}
+              {productCondition === "Nuevo" && requiredMergeSkuCount > 0 && (
+                <div className="col-span-2 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                  <div className="text-sm font-medium text-gray-800">SKU adicionales para este stock</div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {mergeSkuInputs.map((value, index) => (
+                      <input
+                        key={index}
+                        value={value}
+                        list={`merge-skus-${String(item?.id || "nuevo")}`}
+                        onChange={(e) => {
+                          const next = mergeSkuInputs.slice();
+                          next[index] = e.target.value;
+                          setMergeSkuInputs(next);
+                        }}
+                        className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
+                        placeholder={`SKU adicional ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                  <datalist id={`merge-skus-${String(item?.id || "nuevo")}`}>
+                    {mergeCandidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.sku}>
+                        {candidate.title || candidate.sku}
+                      </option>
+                    ))}
+                  </datalist>
+                  {mergeCandidates.length > 0 && (
+                    <p className="mt-2 text-xs text-gray-600">
+                      Disponibles: {mergeCandidates.map((candidate) => candidate.sku).join(", ")}
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="block text-sm text-gray-700">¿Garantía?</label>
                 <label className="inline-flex items-center gap-2 h-10">
@@ -1443,105 +1657,6 @@ export default function PublishModal({
               )}
             </div>
 
-            <div>
-              <label className="block text-sm mb-1 text-gray-700">Fotos</label>
-              {images.length > 0 && (
-                <div className="mb-3 overflow-hidden rounded-xl border-2 border-emerald-500 bg-emerald-50">
-                  <div className="relative aspect-[4/3] bg-white">
-                    <img src={images[0]} alt="" className="h-full w-full object-contain" />
-                    <div className="absolute left-2 top-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
-                      Portada
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 mb-2">
-                {images.map((u, i) => (
-                  <div
-                    key={`${u}-${i}`}
-                    draggable
-                    onDragStart={(e) => {
-                      setDragImageIndex(i);
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData("text/plain", String(i));
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const from = dragImageIndex ?? Number(e.dataTransfer.getData("text/plain"));
-                      moveImage(from, i);
-                      setDragImageIndex(null);
-                    }}
-                    onDragEnd={() => setDragImageIndex(null)}
-                    className={`cursor-grab overflow-hidden rounded-xl border bg-white active:cursor-grabbing ${
-                      dragImageIndex === i ? "scale-[0.98] opacity-55" : ""
-                    } ${i === 0 ? "border-emerald-500 ring-2 ring-emerald-100" : "border-gray-200"}`}
-                  >
-                    <div className="relative aspect-square bg-gray-50">
-                      <img src={u} alt="" className="h-full w-full object-cover" />
-                      <div className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${i === 0 ? "bg-emerald-600 text-white" : "bg-white/90 text-gray-700"}`}>
-                        {i === 0 ? "Portada" : `Foto ${i + 1}`}
-                      </div>
-                      <div className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
-                        Arrastra
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1 p-1">
-                      <button
-                        type="button"
-                        disabled={i === 0}
-                        className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 disabled:bg-emerald-100 disabled:text-emerald-700"
-                        onClick={() => setImages(arr => { const copy = arr.slice(); const [img] = copy.splice(i, 1); copy.unshift(img); return copy; })}
-                      >
-                        {i === 0 ? "Actual" : "Portada"}
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700"
-                        onClick={() => setImages(arr => arr.filter((_, idx) => idx !== i))}
-                      >
-                        Quitar
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <label
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "copy";
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (uploadingPhotos || saving) return;
-                  addFiles(e.dataTransfer.files);
-                }}
-                className={`mt-3 flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-6 text-center transition ${
-                  uploadingPhotos || saving
-                    ? "border-gray-200 bg-gray-50 text-gray-400"
-                    : "border-blue-200 bg-blue-50/55 text-gray-700 hover:border-blue-300 hover:bg-blue-50"
-                }`}
-              >
-                <input
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/avif"
-                  disabled={uploadingPhotos || saving}
-                  onChange={(e) => {
-                    addFiles(e.target.files);
-                    e.currentTarget.value = "";
-                  }}
-                  className="sr-only"
-                />
-                <span className="text-sm font-semibold">{uploadingPhotos ? "Subiendo fotos..." : "Elegir o arrastrar fotos"}</span>
-                <span className="mt-1 text-xs text-gray-500">JPG, PNG o AVIF. Puedes seleccionar varias imágenes.</span>
-              </label>
-              {uploadingPhotos && <p className="text-xs text-blue-600 mt-1">Subiendo fotos...</p>}
-              <p className="text-xs text-gray-500 mt-1">La foto marcada como portada será la primera imagen del producto.</p>
-            </div>
           </div>
 
           <div className="space-y-3">
@@ -1626,6 +1741,8 @@ export default function PublishModal({
             )}
 
             <button disabled={!canPublish} onClick={onPublish} className="mt-4 px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50">{saving ? 'Publicando...' : 'Publicar'}</button>
+
+            {mainPhotosPanel}
           </div>
         </div>
       </div>

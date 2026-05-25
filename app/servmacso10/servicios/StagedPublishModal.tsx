@@ -96,7 +96,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     const tam = (detalle as any)?.["tamaño"] || (detalle as any)?.tamanio || (detalle as any)?.tamano || "";
     const category = toCategory(tipo);
     if (category === "iphone") {
-      const auto = buildIphoneTitle(item?.iphone_number ?? notes?.iphoneNumber, item?.iphone_model || notes?.iphoneModel, item?.storage_gb ?? notes?.storageGb ?? notes?.storage, notes?.color || "");
+      const auto = buildIphoneTitle(item?.iphone_number ?? notes?.iphoneNumber, item?.iphone_model || notes?.iphoneModel, item?.storage_gb ?? notes?.storageGb ?? notes?.storage, item?.color || notes?.color || "");
       if (auto) return auto;
     }
     const connectivity = (detalle as any)?.conectividad || notes?.conectividad || "";
@@ -136,7 +136,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   });
   const [ciclos, setCiclos] = React.useState(notes?.bateria?.ciclos || "");
   const [salud, setSalud] = React.useState(notes?.bateria?.salud || "");
-  const [color, setColor] = React.useState(notes?.color || "");
+  const [color, setColor] = React.useState(item?.color || notes?.color || "");
   const [productCondition, setProductCondition] = React.useState<string>(item?.product_condition || notes?.productCondition || notes?.estado || "");
   const [hasWarranty, setHasWarranty] = React.useState<boolean>(() => {
     if (productCondition === "Nuevo") return true;
@@ -180,6 +180,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     const fromDetail = Array.isArray((detalle as any)?.detailImages) ? (detalle as any).detailImages : [];
     return uniqueStrings([...fromNotes, ...fromDetail]);
   });
+  const [showProductDetails, setShowProductDetails] = React.useState(() => Boolean(productDetails.trim() || detailImages.length));
   const [saleType, setSaleType] = React.useState<string>(() => {
     const st = String(item?.sale_type || notes?.saleType || "").toUpperCase();
     if (st) return st;
@@ -399,6 +400,8 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         cable: includesValue === "Caja + Cubo + Cable" || includesValue === "Cubo + Cable" || includesValue === "Solo Cable",
       };
       const almacenamientoVal = isIphone ? (iphoneStorage ? `${iphoneStorage} GB` : "") : normalizeUnit(alm, "GB");
+      const productDetailsValue = showProductDetails ? productDetails.trim() : "";
+      const detailImageValues = showProductDetails ? uniqueStrings(detailImages) : [];
       const detalleNew = {
         ...(detalle || {}),
         gama,
@@ -412,8 +415,8 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         esim: isIphone ? (iphoneSimType || null) : (detalle as any)?.esim,
         sim: isIphone ? (iphoneSimType || null) : (detalle as any)?.sim,
         descripcionOtro: descriptionOther,
-        detalles: productDetails.trim() || null,
-        productDetails: productDetails.trim() || null,
+        detalles: productDetailsValue || null,
+        productDetails: productDetailsValue || null,
         detailImages: null,
         detailPhotos: null,
       };
@@ -430,9 +433,9 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         incluye: includesFlags,
         includes: includesValue,
         includesExtra,
-        productDetails: productDetails.trim() || null,
-        detalles: productDetails.trim() || null,
-        detailImages: uniqueStrings(detailImages),
+        productDetails: productDetailsValue || null,
+        detalles: productDetailsValue || null,
+        detailImages: detailImageValues,
         detailPhotos: null,
         warrantyEnabled,
         warrantyDate: warrantyValue,
@@ -528,6 +531,83 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     } finally { setSaving(false); }
   };
 
+  const mainPhotosPanel = (
+    <div>
+      <label className="block text-sm mb-1">Fotos</label>
+      {images.length > 0 && (
+        <div className="mb-3 overflow-hidden rounded-xl border-2 border-emerald-500 bg-emerald-50">
+          <div className="relative aspect-[4/3] bg-white">
+            <img src={images[0]} alt="" className="h-full w-full object-contain" />
+            <div className="absolute left-2 top-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
+              Portada
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 mb-2">
+        {images.map((u,i)=> (
+          <div key={i} className={`overflow-hidden rounded-xl border bg-white ${i === 0 ? "border-emerald-500 ring-2 ring-emerald-100" : "border-gray-200"}`}>
+            <div className="relative aspect-square bg-gray-50">
+              <img src={u} alt="" className="h-full w-full object-cover" />
+              <div className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${i === 0 ? "bg-emerald-600 text-white" : "bg-white/90 text-gray-700"}`}>
+                {i === 0 ? "Portada" : `Foto ${i + 1}`}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1 p-1">
+              <button
+                type="button"
+                disabled={i === 0}
+                className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 disabled:bg-emerald-100 disabled:text-emerald-700"
+                onClick={() => setImages(arr => { const copy=arr.slice(); const [img]=copy.splice(i,1); copy.unshift(img); return copy; })}
+              >
+                {i === 0 ? "Actual" : "Portada"}
+              </button>
+              <button
+                type="button"
+                className="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700"
+                onClick={() => setImages(arr => arr.filter((_,idx) => idx!==i))}
+              >
+                Quitar
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <label
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (uploadingPhotos || saving) return;
+          addFiles(e.dataTransfer.files);
+        }}
+        className={`mt-3 flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-6 text-center transition ${
+          uploadingPhotos || saving
+            ? "border-gray-200 bg-gray-50 text-gray-400"
+            : "border-blue-200 bg-blue-50/55 text-gray-700 hover:border-blue-300 hover:bg-blue-50"
+        }`}
+      >
+        <input
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/avif"
+          disabled={uploadingPhotos || saving}
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.currentTarget.value = "";
+          }}
+          className="sr-only"
+        />
+        <span className="text-sm font-semibold">{uploadingPhotos ? "Subiendo fotos..." : "Elegir o arrastrar fotos"}</span>
+        <span className="mt-1 text-xs text-gray-500">JPG, PNG o AVIF. Puedes seleccionar varias imágenes.</span>
+      </label>
+      {uploadingPhotos && <p className="text-xs text-blue-600 mt-1">Subiendo fotos...</p>}
+      <p className="text-xs text-gray-500 mt-1">La foto marcada como portada será la primera imagen del producto.</p>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4">
       <div className="bg-white rounded-2xl w-full max-w-4xl shadow-xl max-h-[90vh] overflow-y-auto">
@@ -543,71 +623,85 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
             {isOtros && <p className="text-xs text-gray-500">Se autogenera desde la descripcion hasta que lo edites manualmente.</p>}
             {isIphone && <p className="text-xs text-gray-500">Se autogenera con los datos del iPhone hasta que lo edites manualmente.</p>}
 
-            <div>
-              <label className="block text-sm">Detalles del producto</label>
-              <textarea
-                value={productDetails}
-                onChange={(e) => setProductDetails(e.target.value)}
-                rows={4}
-                className="w-full resize-y border rounded px-3 py-2"
-                placeholder="Ej: Detalles esteticos, observaciones o informacion adicional para la ficha publica."
+            <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm font-medium text-gray-800">
+              <input
+                type="checkbox"
+                checked={showProductDetails}
+                onChange={(e) => setShowProductDetails(e.target.checked)}
+                className="h-4 w-4"
               />
-            </div>
+              Agregar detalles del producto
+            </label>
 
-            <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
-              <label className="block text-sm font-medium text-gray-700">Fotos de detalles</label>
-              {detailImages.length > 0 && (
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {detailImages.map((u, i) => (
-                    <div key={`${u}-${i}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-                      <div className="relative aspect-square bg-gray-50">
-                        <img src={u} alt="" className="h-full w-full object-cover" />
-                        <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-gray-700">
-                          Detalle {i + 1}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="w-full bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700"
-                        onClick={() => setDetailImages((arr) => arr.filter((_, idx) => idx !== i))}
-                      >
-                        Quitar
-                      </button>
-                    </div>
-                  ))}
+            {showProductDetails && (
+              <>
+                <div>
+                  <label className="block text-sm">Detalles del producto</label>
+                  <textarea
+                    value={productDetails}
+                    onChange={(e) => setProductDetails(e.target.value)}
+                    rows={4}
+                    className="w-full resize-y border rounded px-3 py-2"
+                    placeholder="Ej: Detalles esteticos, observaciones o informacion adicional para la ficha publica."
+                  />
                 </div>
-              )}
-              <label
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "copy";
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (uploadingDetailPhotos || saving) return;
-                  addDetailFiles(e.dataTransfer.files);
-                }}
-                className={`mt-3 flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-5 text-center transition ${
-                  uploadingDetailPhotos || saving
-                    ? "border-gray-200 bg-gray-50 text-gray-400"
-                    : "border-emerald-200 bg-emerald-50/55 text-gray-700 hover:border-emerald-300 hover:bg-emerald-50"
-                }`}
-              >
-                <input
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/avif"
-                  disabled={uploadingDetailPhotos || saving}
-                  onChange={(e) => {
-                    addDetailFiles(e.target.files);
-                    e.currentTarget.value = "";
-                  }}
-                  className="sr-only"
-                />
-                <span className="text-sm font-semibold">{uploadingDetailPhotos ? "Subiendo detalles..." : "Elegir o arrastrar fotos de detalles"}</span>
-                <span className="mt-1 text-xs text-gray-500">Estas fotos apareceran en el boton publico Ver fotos de detalles.</span>
-              </label>
-            </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+                  <label className="block text-sm font-medium text-gray-700">Fotos de detalles</label>
+                  {detailImages.length > 0 && (
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {detailImages.map((u, i) => (
+                        <div key={`${u}-${i}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                          <div className="relative aspect-square bg-gray-50">
+                            <img src={u} alt="" className="h-full w-full object-cover" />
+                            <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-gray-700">
+                              Detalle {i + 1}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="w-full bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700"
+                            onClick={() => setDetailImages((arr) => arr.filter((_, idx) => idx !== i))}
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <label
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "copy";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (uploadingDetailPhotos || saving) return;
+                      addDetailFiles(e.dataTransfer.files);
+                    }}
+                    className={`mt-3 flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-5 text-center transition ${
+                      uploadingDetailPhotos || saving
+                        ? "border-gray-200 bg-gray-50 text-gray-400"
+                        : "border-emerald-200 bg-emerald-50/55 text-gray-700 hover:border-emerald-300 hover:bg-emerald-50"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/avif"
+                      disabled={uploadingDetailPhotos || saving}
+                      onChange={(e) => {
+                        addDetailFiles(e.target.files);
+                        e.currentTarget.value = "";
+                      }}
+                      className="sr-only"
+                    />
+                    <span className="text-sm font-semibold">{uploadingDetailPhotos ? "Subiendo detalles..." : "Elegir o arrastrar fotos de detalles"}</span>
+                    <span className="mt-1 text-xs text-gray-500">Estas fotos apareceran en el boton publico Ver fotos de detalles.</span>
+                  </label>
+                </div>
+              </>
+            )}
 
             {isOtros && (
               <div>
@@ -858,80 +952,6 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm mb-1">Fotos</label>
-              {images.length > 0 && (
-                <div className="mb-3 overflow-hidden rounded-xl border-2 border-emerald-500 bg-emerald-50">
-                  <div className="relative aspect-[4/3] bg-white">
-                    <img src={images[0]} alt="" className="h-full w-full object-contain" />
-                    <div className="absolute left-2 top-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
-                      Portada
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 mb-2">
-                {images.map((u,i)=> (
-                  <div key={i} className={`overflow-hidden rounded-xl border bg-white ${i === 0 ? "border-emerald-500 ring-2 ring-emerald-100" : "border-gray-200"}`}>
-                    <div className="relative aspect-square bg-gray-50">
-                      <img src={u} alt="" className="h-full w-full object-cover" />
-                      <div className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${i === 0 ? "bg-emerald-600 text-white" : "bg-white/90 text-gray-700"}`}>
-                        {i === 0 ? "Portada" : `Foto ${i + 1}`}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1 p-1">
-                      <button
-                        type="button"
-                        disabled={i === 0}
-                        className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 disabled:bg-emerald-100 disabled:text-emerald-700"
-                        onClick={() => setImages(arr => { const copy=arr.slice(); const [img]=copy.splice(i,1); copy.unshift(img); return copy; })}
-                      >
-                        {i === 0 ? "Actual" : "Portada"}
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700"
-                        onClick={() => setImages(arr => arr.filter((_,idx) => idx!==i))}
-                      >
-                        Quitar
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <label
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "copy";
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (uploadingPhotos || saving) return;
-                  addFiles(e.dataTransfer.files);
-                }}
-                className={`mt-3 flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-6 text-center transition ${
-                  uploadingPhotos || saving
-                    ? "border-gray-200 bg-gray-50 text-gray-400"
-                    : "border-blue-200 bg-blue-50/55 text-gray-700 hover:border-blue-300 hover:bg-blue-50"
-                }`}
-              >
-                <input
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/avif"
-                  disabled={uploadingPhotos || saving}
-                  onChange={(e) => {
-                    addFiles(e.target.files);
-                    e.currentTarget.value = "";
-                  }}
-                  className="sr-only"
-                />
-                <span className="text-sm font-semibold">{uploadingPhotos ? "Subiendo fotos..." : "Elegir o arrastrar fotos"}</span>
-                <span className="mt-1 text-xs text-gray-500">JPG, PNG o AVIF. Puedes seleccionar varias imágenes.</span>
-              </label>
-              {uploadingPhotos && <p className="text-xs text-blue-600 mt-1">Subiendo fotos...</p>}
-              <p className="text-xs text-gray-500 mt-1">La foto marcada como portada será la primera imagen del producto.</p>
-            </div>
           </div>
 
           <div className="space-y-3">
@@ -1015,6 +1035,8 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
             )}
 
             <button disabled={!canPublish} onClick={onPublish} className="mt-4 px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50">{saving? 'Publicando...' : 'Publicar'}</button>
+
+            {mainPhotosPanel}
           </div>
         </div>
       </div>

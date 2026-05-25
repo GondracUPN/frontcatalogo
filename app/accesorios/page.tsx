@@ -28,6 +28,19 @@ function priceFromRow(row: any): number {
   return price || 0;
 }
 
+function conditionFromRow(row: any) {
+  try {
+    const notes = row?.staged?.notes && typeof row.staged.notes === "string" ? JSON.parse(row.staged.notes) : row.staged?.notes || {};
+    return String(row?.product?.product_condition || row?.staged?.product_condition || notes?.productCondition || notes?.estado || "");
+  } catch {
+    return String(row?.product?.product_condition || row?.staged?.product_condition || "");
+  }
+}
+
+function isNewCondition(condition: unknown) {
+  return String(condition || "").toLowerCase().includes("nuevo");
+}
+
 export default async function AccesoriosPage() {
   const { items } = await listCatalog({ category: 'accesorios' }).catch(() => ({ items: [] as any[] }));
   return (
@@ -38,9 +51,16 @@ export default async function AccesoriosPage() {
           const img = (row.images && row.images[0]) || row.staged?.images?.[0] || "/placeholder.svg";
           const title: string = row.product?.title || row.staged?.title || row.slug;
           const price: number = priceFromRow(row);
+          const stock = Number(row?.product?.stock ?? row?.staged?.stock ?? 0);
+          const stockLabel = isNewCondition(conditionFromRow(row)) && Number.isFinite(stock) && stock > 0 ? `Stock: ${stock} ${stock === 1 ? "unidad" : "unidades"}` : "";
           return (
             <a key={row.id} href={`/product/${row.slug}`} className="rounded-xl bg-white shadow-sm border border-gray-200 p-3 block">
               <div className="relative aspect-square rounded-lg bg-gray-50 overflow-hidden">
+                {stockLabel && (
+                  <div className="absolute left-2 top-2 z-10 rounded-full bg-[rgba(230,245,236,0.92)] px-2.5 py-1 text-[10px] font-semibold text-[#1f6c43]">
+                    {stockLabel}
+                  </div>
+                )}
                 <Image
                   src={img}
                   alt={title}

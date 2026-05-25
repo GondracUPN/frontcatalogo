@@ -18,6 +18,10 @@ function conditionTone(condition: string, isSold: boolean) {
   return "bg-white/85 text-[color:var(--foreground-soft)]";
 }
 
+function isNewCondition(condition: unknown) {
+  return String(condition || "").toLowerCase().includes("nuevo");
+}
+
 export default async function Home() {
   const { items: available, categories } = await getHomeCatalog().catch(() => ({
     items: [] as Awaited<ReturnType<typeof getHomeCatalog>>["items"],
@@ -86,6 +90,8 @@ export default async function Home() {
                     const price = Number(row.price || 0);
                     const compareAt = row.compareAt;
                     const saleType = row.saleType;
+                    const stock = Number(row.stock ?? 0);
+                    const stockLabel = isNewCondition(condition) && Number.isFinite(stock) && stock > 0 ? `Stock: ${stock} ${stock === 1 ? "unidad" : "unidades"}` : "";
                     return (
                       <a
                         key={row.id}
@@ -101,6 +107,11 @@ export default async function Home() {
                             {saleType && saleType !== "VENTA_SIMPLE" && (
                               <span className={`rounded-full px-3 py-1 text-[11px] font-semibold text-white ${saleType === "PROMOCION" ? "bg-rose-600 shadow-[0_8px_18px_rgba(225,29,72,0.28)]" : "bg-black/85"}`}>
                                 {saleType === "PROMOCION" ? "promocion" : saleType.toLowerCase()}
+                              </span>
+                            )}
+                            {stockLabel && (
+                              <span className="rounded-full bg-[rgba(230,245,236,0.92)] px-3 py-1 text-[11px] font-semibold text-[#1f6c43]">
+                                {stockLabel}
                               </span>
                             )}
                           </div>

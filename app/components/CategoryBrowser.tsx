@@ -167,6 +167,10 @@ function toneForCondition(condition: string) {
   return "bg-white/88 text-[color:var(--foreground-soft)]";
 }
 
+function isNewCondition(condition: unknown) {
+  return String(condition || "").toLowerCase().includes("nuevo");
+}
+
 function FilterSection({
   title,
   options,
@@ -507,6 +511,8 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                 const row = item.row;
                 const img = (row.images && row.images[0]) || row.staged?.images?.[0] || "/placeholder.svg";
                 const title: string = row.product?.title || row.staged?.title || row.slug;
+                const stock = Number(row?.product?.stock ?? row?.staged?.stock ?? 0);
+                const stockLabel = isNewCondition(item.condition) && Number.isFinite(stock) && stock > 0 ? `Stock: ${stock} ${stock === 1 ? "unidad" : "unidades"}` : "";
                 return (
                   <a
                     key={row.id}
@@ -521,6 +527,11 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                         {item.saleType && item.saleType !== "VENTA_SIMPLE" && (
                           <span className={`rounded-full px-3 py-1 text-[11px] font-semibold text-white ${item.saleType === "PROMOCION" ? "bg-rose-600 shadow-[0_8px_18px_rgba(225,29,72,0.28)]" : "bg-black/85"}`}>
                             {item.saleType === "PROMOCION" ? "promocion" : item.saleType.toLowerCase()}
+                          </span>
+                        )}
+                        {stockLabel && (
+                          <span className="rounded-full bg-[rgba(230,245,236,0.92)] px-3 py-1 text-[11px] font-semibold text-[#1f6c43]">
+                            {stockLabel}
                           </span>
                         )}
                       </div>
