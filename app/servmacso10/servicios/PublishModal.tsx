@@ -238,6 +238,31 @@ async function copyTextToClipboard(text: string) {
   document.body.removeChild(area);
 }
 
+function getImageExtension(url: string, contentType?: string | null) {
+  if (contentType?.includes("png")) return "png";
+  if (contentType?.includes("webp")) return "webp";
+  if (contentType?.includes("gif")) return "gif";
+  if (contentType?.includes("jpeg") || contentType?.includes("jpg")) return "jpg";
+  const cleanUrl = url.split("?")[0] || "";
+  const match = cleanUrl.match(/\.([a-z0-9]+)$/i);
+  return match?.[1]?.toLowerCase() || "jpg";
+}
+
+async function downloadImage(url: string, filenameBase: string) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`No se pudo descargar ${filenameBase}`);
+  const blob = await res.blob();
+  const extension = getImageExtension(url, blob.type);
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = `${filenameBase}.${extension}`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
 async function uploadFile(file: File): Promise<string> {
   const fd = new FormData();
   fd.set("file", file);
@@ -447,6 +472,7 @@ export default function PublishModal({
   const [uploadingDetailPhotos, setUploadingDetailPhotos] = React.useState(false);
   const [submitError, setSubmitError] = React.useState("");
   const [copiedText, setCopiedText] = React.useState(false);
+  const [downloadingPhotos, setDownloadingPhotos] = React.useState(false);
   const [variantGroup, setVariantGroup] = React.useState<string>(
     String(item?.variant_group || notes?.variantGroup || notes?.variant_group || "")
   );
@@ -868,6 +894,26 @@ export default function PublishModal({
       window.setTimeout(() => setCopiedText(false), 1800);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "No se pudo copiar el texto");
+    }
+  };
+
+  const onDownloadPhotos = async () => {
+    const allPhotos = [
+      ...images.map((url, index) => ({ url, name: index === 0 ? "producto-portada" : `producto-foto-${index + 1}` })),
+      ...detailImages.map((url, index) => ({ url, name: `producto-detalle-${index + 1}` })),
+    ];
+    if (!allPhotos.length || downloadingPhotos) return;
+    setDownloadingPhotos(true);
+    setSubmitError("");
+    try {
+      const base = toSlug(getCurrentTitle()) || "producto";
+      for (const photo of allPhotos) {
+        await downloadImage(photo.url, `${base}-${photo.name}`);
+      }
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "No se pudieron descargar las fotos");
+    } finally {
+      setDownloadingPhotos(false);
     }
   };
 
@@ -1855,6 +1901,7 @@ export default function PublishModal({
             <div className="mt-4 flex flex-wrap gap-2">
               <button disabled={!canPublish} onClick={onPublish} className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50">{saving ? 'Publicando...' : 'Publicar'}</button>
               <button type="button" onClick={onCopyText} className="px-4 py-2 rounded bg-gray-900 text-white">{copiedText ? "Copiado" : "Copiar texto"}</button>
+              <button type="button" disabled={downloadingPhotos || (!images.length && !detailImages.length)} onClick={onDownloadPhotos} className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50">{downloadingPhotos ? "Descargando..." : "Descargar fotos"}</button>
             </div>
 
             {mainPhotosPanel}
