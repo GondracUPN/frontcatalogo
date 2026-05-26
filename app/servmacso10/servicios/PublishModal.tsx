@@ -222,6 +222,22 @@ function withCurrentOption(options: string[], current: string) {
   return has ? options : [value, ...options];
 }
 
+async function copyTextToClipboard(text: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "true");
+  area.style.position = "fixed";
+  area.style.left = "-9999px";
+  document.body.appendChild(area);
+  area.select();
+  document.execCommand("copy");
+  document.body.removeChild(area);
+}
+
 async function uploadFile(file: File): Promise<string> {
   const fd = new FormData();
   fd.set("file", file);
@@ -430,6 +446,7 @@ export default function PublishModal({
   const [uploadingPhotos, setUploadingPhotos] = React.useState(false);
   const [uploadingDetailPhotos, setUploadingDetailPhotos] = React.useState(false);
   const [submitError, setSubmitError] = React.useState("");
+  const [copiedText, setCopiedText] = React.useState(false);
   const [variantGroup, setVariantGroup] = React.useState<string>(
     String(item?.variant_group || notes?.variantGroup || notes?.variant_group || "")
   );
@@ -771,6 +788,88 @@ export default function PublishModal({
       return copy;
     });
   }, []);
+
+  const getCurrentTitle = () => {
+    let baseTitle = title;
+    if (!titleManual && category === "iphone") {
+      const auto = buildIphoneTitle(iphoneNumber, iphoneModel, iphoneStorage, color);
+      baseTitle = auto || title;
+    } else if (!titleManual && category === "otros") {
+      baseTitle = descriptionOther.trim();
+    } else if (!titleManual) {
+      const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity);
+      baseTitle = autoTitle || title;
+    }
+    if (saleType === "PREVENTA" && baseTitle && !/^preventa\s+/i.test(baseTitle)) {
+      baseTitle = `Preventa ${baseTitle}`;
+    }
+    return capitalize(baseTitle.trim());
+  };
+
+  const buildProductCopyText = () => {
+    const lines: string[] = [];
+    const add = (label: string, value: unknown) => {
+      const text = String(value ?? "").trim();
+      if (text) lines.push(`${label}: ${text}`);
+    };
+    const titleValue = getCurrentTitle();
+    if (titleValue) lines.push(titleValue);
+    add("Tipo", categoryLabel(category));
+    if (isMacbook) {
+      add("Gama", gama);
+      add("Procesador", proc);
+      add("RAM", normalizeUnit(ram, "GB"));
+      add("SSD", normalizeUnit(alm, "GB"));
+      add("Pantalla", tam ? `${tam}"` : "");
+      add("Teclado", keyboardLayout);
+    } else if (isIpad) {
+      add("Gama", gama);
+      add("Generacion", ipadGeneration);
+      add("Procesador", proc);
+      add("Almacenamiento", normalizeUnit(alm, "GB"));
+      add("Pantalla", tam ? `${tam}"` : "");
+      add("Conectividad", ipadConnectivity);
+    } else if (isIphone) {
+      add("Modelo", [iphoneNumber ? `iPhone ${iphoneNumber}` : "", iphoneModel].filter(Boolean).join(" "));
+      add("Almacenamiento", iphoneStorage ? String(iphoneStorage).toUpperCase().replace(/^(\d+)$/, "$1 GB") : "");
+      add("SIM", iphoneSimType);
+    } else if (isWatch) {
+      add("Tipo de Watch", watchType);
+      add("Serie", watchSeries);
+      add("Conexion", watchConnection);
+      add("Version", watchVersion);
+      add("Accesorios", watchAccessories);
+      add("Incluye Watch", watchIncludes);
+    } else if (isOtros) {
+      add("Descripcion", descriptionOther);
+    }
+    add("Color", color);
+    add("Estado", productCondition);
+    if (productCondition === "Nuevo") {
+      lines.push("Bateria: Nueva");
+    } else {
+      add("Salud de bateria", salud ? `${salud}%` : "");
+      add("Ciclos de carga", ciclos);
+    }
+    add("Incluye", includesValue === "Otros" ? includesExtra : includesValue);
+    if (hasWarranty) add("Garantia", warrantyDate);
+    if (showProductDetails) add("Detalles", productDetails);
+    if (salePrice) add("Precio", `S/ ${Number(salePrice || 0).toFixed(2)}`);
+    if (saleType === "PROMOCION" && finalPrice !== null) add("Precio promocional", `S/ ${Number(finalPrice || 0).toFixed(2)}`);
+    if (saleType === "OFERTA") add("Minimo de oferta", `S/ ${Number(minOfferPrice || 0).toFixed(2)}`);
+    return lines.filter(Boolean).join("\n");
+  };
+
+  const onCopyText = async () => {
+    setSubmitError("");
+    try {
+      await copyTextToClipboard(buildProductCopyText());
+      setCopiedText(true);
+      window.setTimeout(() => setCopiedText(false), 1800);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "No se pudo copiar el texto");
+    }
+  };
 
   const onPublish = async () => {
     if (!canPublish) return;
@@ -1753,7 +1852,10 @@ export default function PublishModal({
               </div>
             )}
 
-            <button disabled={!canPublish} onClick={onPublish} className="mt-4 px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50">{saving ? 'Publicando...' : 'Publicar'}</button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button disabled={!canPublish} onClick={onPublish} className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50">{saving ? 'Publicando...' : 'Publicar'}</button>
+              <button type="button" onClick={onCopyText} className="px-4 py-2 rounded bg-gray-900 text-white">{copiedText ? "Copiado" : "Copiar texto"}</button>
+            </div>
 
             {mainPhotosPanel}
           </div>
