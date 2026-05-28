@@ -44,6 +44,7 @@ function priceMeta(row: Row) {
     );
     let price = salePrice;
     let compareAt: number | null = null;
+    let promoLabel = "";
     if (saleType === "PROMOCION") {
       const mode = String(n?.discountMode || n?.discountType || "percent").toLowerCase();
       const computed = finalPrice !== null
@@ -51,7 +52,15 @@ function priceMeta(row: Row) {
         : +(mode === "amount" ? Math.max(0, salePrice - discount) : salePrice * (1 - discount / 100)).toFixed(2);
       if (isFinite(computed) && computed > 0) price = computed;
       compareAt = salePrice || null;
-      return { price: price || 0, compareAt, condition, saleType };
+      const savings = compareAt && compareAt > price ? compareAt - price : 0;
+      promoLabel = mode === "amount" && discount > 0
+        ? `Ahorra S/ ${discount.toFixed(2)}`
+        : discount > 0
+          ? `${discount}% OFF`
+          : savings > 0
+            ? `Ahorra S/ ${savings.toFixed(2)}`
+            : "";
+      return { price: price || 0, compareAt, condition, saleType, promoLabel };
     }
     if (!saleType && typeof n?.precioLista !== "undefined") {
       const p = Number(n?.precioLista || 0);
@@ -60,13 +69,14 @@ function priceMeta(row: Row) {
       compareAt = p || null;
       if (isFinite(f) && f > 0) price = f;
     }
-    return { price: price || 0, compareAt, condition, saleType };
+    return { price: price || 0, compareAt, condition, saleType, promoLabel };
   } catch {
     return {
       price: Number(row.product?.price ?? row.staged?.price ?? 0) || 0,
       compareAt: null,
       condition: "",
       saleType: String(row?.product?.sale_type || row?.staged?.sale_type || "").toUpperCase(),
+      promoLabel: "",
     };
   }
 }
@@ -512,7 +522,7 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                 const img = (row.images && row.images[0]) || row.staged?.images?.[0] || "/placeholder.svg";
                 const title: string = row.product?.title || row.staged?.title || row.slug;
                 const stock = Number(row?.product?.stock ?? row?.staged?.stock ?? 0);
-                const stockLabel = isNewCondition(item.condition) && Number.isFinite(stock) && stock > 0 ? `Stock: ${stock} ${stock === 1 ? "unidad" : "unidades"}` : "";
+                const stockLabel = isNewCondition(item.condition) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
                 return (
                   <a
                     key={row.id}
@@ -524,9 +534,9 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                         <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${toneForCondition(item.condition || "Disponible")}`}>
                           {item.condition || "Disponible"}
                         </span>
-                        {item.saleType && item.saleType !== "VENTA_SIMPLE" && (
+                        {item.saleType && item.saleType !== "VENTA_SIMPLE" && (item.saleType !== "PROMOCION" || item.promoLabel) && (
                           <span className={`rounded-full px-3 py-1 text-[11px] font-semibold text-white ${item.saleType === "PROMOCION" ? "bg-rose-600 shadow-[0_8px_18px_rgba(225,29,72,0.28)]" : "bg-black/85"}`}>
-                            {item.saleType === "PROMOCION" ? "promocion" : item.saleType.toLowerCase()}
+                            {item.saleType === "PROMOCION" ? item.promoLabel : item.saleType.toLowerCase()}
                           </span>
                         )}
                         {stockLabel && (

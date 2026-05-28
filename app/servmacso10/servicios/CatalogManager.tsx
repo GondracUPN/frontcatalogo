@@ -5,6 +5,7 @@ import { listAdminCatalog, listSales, markProductSold, unpublishProduct, unsellP
 
 type CatalogRow = {
   id: string;
+  product_id?: string | null;
   slug?: string | null;
   category?: string | null;
   is_published?: boolean;
@@ -35,21 +36,28 @@ function normalizeCategory(value: unknown) {
   return raw;
 }
 
+function parseNotes(value: any) {
+  try {
+    return value && typeof value === "string" ? JSON.parse(value) : value || {};
+  } catch {
+    return {};
+  }
+}
+
+function saleTypeOf(value: any) {
+  const notes = parseNotes(value?.notes);
+  return String(value?.sale_type || notes?.saleType || "").toUpperCase();
+}
+
 function linkedSkuRowsFor(row: CatalogRow) {
   if (Array.isArray(row.linkedStaged)) return row.linkedStaged;
   const staged = row.staged || {};
-  const notes = (() => {
-    try {
-      return staged?.notes && typeof staged.notes === "string" ? JSON.parse(staged.notes) : staged?.notes || {};
-    } catch {
-      return {};
-    }
-  })();
+  const notes = parseNotes(staged?.notes);
   const skus = Array.isArray(notes?.linkedSkus) ? notes.linkedSkus : [];
   return skus.map((sku: unknown) => ({ sku: String(sku || "").trim() })).filter((linked: any) => linked.sku);
 }
 
-export default function CatalogManager({ initialItems }: { initialItems: CatalogRow[] }) {
+export default function CatalogManager({ initialItems, inventoryItems = [] }: { initialItems: CatalogRow[]; inventoryItems?: any[] }) {
   const [items, setItems] = React.useState<CatalogRow[]>(initialItems || []);
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [open, setOpen] = React.useState<any | null>(null);
@@ -78,6 +86,12 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
     const linkedRows = linkedSkuRowsFor(row);
     const linkedIds = linkedRows.map((linked: any) => String(linked?.id || "").trim()).filter(Boolean);
     const linkedSkus = linkedRows.map((linked: any) => String(linked?.sku || "").trim()).filter(Boolean);
+    const currentSaleType = saleTypeOf(row.staged) || String((row.product as any)?.sale_type || "").toUpperCase();
+    const replacementCandidates = currentSaleType === "PREVENTA"
+      ? inventoryItems
+          .filter((candidate: any) => !["published", "sold"].includes(String(candidate?.status || "").toLowerCase()))
+          .filter((candidate: any) => String(candidate?.id || "") !== String(row.staged?.id || ""))
+      : [];
     const productStock = Number(row.product?.stock);
     const hasProductStock = Number.isFinite(productStock);
     const fallbackStock = Math.max(1, Number(row.staged?.stock || 0) || linkedRows.length + 1);
@@ -100,6 +114,10 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
     base.__mergeCandidates = linkedRows;
     base.__mergeStagedIds = linkedIds;
     base.__mergeInitialSkus = linkedSkus;
+    base.__catalogProductId = row.product_id || row.product?.id || "";
+    base.__catalogSlug = row.slug || "";
+    base.__isPublishedPreventa = currentSaleType === "PREVENTA";
+    base.__replacementCandidates = replacementCandidates;
     const baseNotes = (() => {
       try {
         return base?.notes && typeof base.notes === "string" ? JSON.parse(base.notes) : base?.notes || {};
@@ -124,13 +142,7 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
 
   const rowCategory = (row: CatalogRow) => {
     const staged = row.staged || {};
-    const notes = (() => {
-      try {
-        return staged?.notes && typeof staged.notes === "string" ? JSON.parse(staged.notes) : staged?.notes || {};
-      } catch {
-        return {};
-      }
-    })();
+    const notes = parseNotes(staged?.notes);
     const title = row.product?.title || staged.title || row.slug || "";
     return normalizeCategory(
       row.category ||
@@ -298,7 +310,11 @@ export default function CatalogManager({ initialItems }: { initialItems: Catalog
         <StagedPublishModal
           item={open}
           onClose={() => setOpen(null)}
-          onSaved={async () => {
+          onSaved={async (updated: any) => {
+            if (updated?.__replacedPreventa) {
+              window.location.reload();
+              return;
+            }
             try {
               const { items } = await listAdminCatalog();
               setItems(items as any);

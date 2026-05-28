@@ -91,7 +91,7 @@ export default async function ServiciosPage() {
           <StagedManager initialItems={items} />
         </Section>
         <Section title="Catálogo">
-          <CatalogManager initialItems={published} />
+          <CatalogManager initialItems={published} inventoryItems={items} />
         </Section>
       </div>
     </div>

@@ -22,6 +22,15 @@ function isNewCondition(condition: unknown) {
   return String(condition || "").toLowerCase().includes("nuevo");
 }
 
+function promoBadge(row: { saleType?: string; promoLabel?: string; compareAt?: number | null; price?: number }) {
+  if (String(row.saleType || "").toUpperCase() !== "PROMOCION") return "";
+  if (row.promoLabel) return row.promoLabel;
+  const compareAt = Number(row.compareAt || 0);
+  const price = Number(row.price || 0);
+  const savings = compareAt > price ? compareAt - price : 0;
+  return savings > 0 ? `Ahorra S/ ${savings.toFixed(2)}` : "";
+}
+
 export default async function Home() {
   const { items: available, categories } = await getHomeCatalog().catch(() => ({
     items: [] as Awaited<ReturnType<typeof getHomeCatalog>>["items"],
@@ -91,7 +100,8 @@ export default async function Home() {
                     const compareAt = row.compareAt;
                     const saleType = row.saleType;
                     const stock = Number(row.stock ?? 0);
-                    const stockLabel = isNewCondition(condition) && Number.isFinite(stock) && stock > 0 ? `Stock: ${stock} ${stock === 1 ? "unidad" : "unidades"}` : "";
+                    const stockLabel = isNewCondition(condition) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
+                    const promoLabel = promoBadge(row);
                     return (
                       <a
                         key={row.id}
@@ -104,9 +114,9 @@ export default async function Home() {
                             <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${conditionTone(condition, isSold)}`}>
                               {isSold ? "Vendido" : condition || "Disponible"}
                             </span>
-                            {saleType && saleType !== "VENTA_SIMPLE" && (
+                            {saleType && saleType !== "VENTA_SIMPLE" && (saleType !== "PROMOCION" || promoLabel) && (
                               <span className={`rounded-full px-3 py-1 text-[11px] font-semibold text-white ${saleType === "PROMOCION" ? "bg-rose-600 shadow-[0_8px_18px_rgba(225,29,72,0.28)]" : "bg-black/85"}`}>
-                                {saleType === "PROMOCION" ? "promocion" : saleType.toLowerCase()}
+                                {saleType === "PROMOCION" ? promoLabel : saleType.toLowerCase()}
                               </span>
                             )}
                             {stockLabel && (

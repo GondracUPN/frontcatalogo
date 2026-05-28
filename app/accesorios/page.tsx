@@ -4,10 +4,11 @@ import PriceWithIgv from "@/app/components/PriceWithIgv";
 
 export const revalidate = 300;
 
-function priceFromRow(row: any): number {
+function priceFromRow(row: any): { price: number; promoLabel: string } {
   const saleType = String(row?.product?.sale_type || row?.staged?.sale_type || "").toUpperCase();
   const salePrice = Number(row?.product?.price ?? row?.staged?.price ?? 0);
   let price = salePrice;
+  let promoLabel = "";
   try {
     const notes = row?.staged?.notes && typeof row.staged.notes === "string" ? JSON.parse(row.staged.notes) : (row.staged?.notes || {});
     const discount = Number(row?.product?.discount ?? row?.staged?.discount ?? notes?.discount ?? notes?.descuentoPorc ?? 0);
@@ -16,7 +17,15 @@ function priceFromRow(row: any): number {
       const mode = String(notes?.discountMode || notes?.discountType || "percent").toLowerCase();
       const computed = finalPrice !== null ? Number(finalPrice) : +(mode === "amount" ? Math.max(0, salePrice - discount) : salePrice * (1 - discount / 100)).toFixed(2);
       if (isFinite(computed) && computed > 0) price = computed;
-      return price || 0;
+      const savings = salePrice > price ? salePrice - price : 0;
+      promoLabel = mode === "amount" && discount > 0
+        ? `Ahorra S/ ${discount.toFixed(2)}`
+        : discount > 0
+          ? `${discount}% OFF`
+          : savings > 0
+            ? `Ahorra S/ ${savings.toFixed(2)}`
+            : "";
+      return { price: price || 0, promoLabel };
     }
     if (!saleType && typeof notes?.precioLista !== "undefined") {
       const p = Number(notes?.precioLista || 0);
@@ -25,7 +34,7 @@ function priceFromRow(row: any): number {
       if (isFinite(f) && f > 0) price = f;
     }
   } catch {}
-  return price || 0;
+  return { price: price || 0, promoLabel };
 }
 
 function conditionFromRow(row: any) {
@@ -50,15 +59,21 @@ export default async function AccesoriosPage() {
         {items.length ? items.map((row: any) => {
           const img = (row.images && row.images[0]) || row.staged?.images?.[0] || "/placeholder.svg";
           const title: string = row.product?.title || row.staged?.title || row.slug;
-          const price: number = priceFromRow(row);
+          const saleType = String(row?.product?.sale_type || row?.staged?.sale_type || "").toUpperCase();
+          const { price, promoLabel } = priceFromRow(row);
           const stock = Number(row?.product?.stock ?? row?.staged?.stock ?? 0);
-          const stockLabel = isNewCondition(conditionFromRow(row)) && Number.isFinite(stock) && stock > 0 ? `Stock: ${stock} ${stock === 1 ? "unidad" : "unidades"}` : "";
+          const stockLabel = isNewCondition(conditionFromRow(row)) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
           return (
             <a key={row.id} href={`/product/${row.slug}`} className="rounded-xl bg-white shadow-sm border border-gray-200 p-3 block">
               <div className="relative aspect-square rounded-lg bg-gray-50 overflow-hidden">
                 {stockLabel && (
                   <div className="absolute left-2 top-2 z-10 rounded-full bg-[rgba(230,245,236,0.92)] px-2.5 py-1 text-[10px] font-semibold text-[#1f6c43]">
                     {stockLabel}
+                  </div>
+                )}
+                {saleType === "PROMOCION" && promoLabel && (
+                  <div className={`absolute ${stockLabel ? "left-2 top-9" : "left-2 top-2"} z-10 rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-semibold text-white`}>
+                    {promoLabel}
                   </div>
                 )}
                 <Image

@@ -288,6 +288,9 @@ export async function getHomeCatalog() {
       created_at: string;
       condition: string;
       saleType: string;
+      discount?: number;
+      discountMode?: string;
+      promoLabel?: string;
       price: number;
       compareAt: number | null;
       stock: number;
@@ -315,6 +318,20 @@ export async function unpublishProduct(productId: string) {
   await apiFetch(`/admin/public/${productId}/unpublish`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
+  });
+  revalidateTag("catalog-products");
+  return { ok: true };
+}
+
+// ----- Admin: reemplazar preventa publicada con producto real de inventario -----
+export async function replacePreventaWithInventory(productId: string, stagedId: string) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
+  await apiFetch(`/admin/public/${productId}/replace-preventa`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ stagedId }),
   });
   revalidateTag("catalog-products");
   return { ok: true };

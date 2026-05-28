@@ -191,7 +191,7 @@ export default async function ProductPage({
         ? `${discount}% OFF`
         : promoSavings > 0
           ? `Ahorra S/ ${promoSavings.toFixed(2)}`
-          : "Promocion"
+          : ""
     : "";
   const preventaFromRaw = notes?.preventaDateFrom || notes?.preventa?.from || "";
   const preventaToRaw = notes?.preventaDateTo || notes?.preventa?.to || "";
@@ -281,7 +281,7 @@ export default async function ProductPage({
   const stock = Number(product?.stock ?? staged?.stock ?? 1);
   const outOfStock = !sold && Number.isFinite(stock) && stock <= 0;
   const unavailable = sold || outOfStock;
-  const stockLabel = isNewCondition(productCondition) && Number.isFinite(stock) && stock > 0 ? `Stock: ${stock} ${stock === 1 ? "unidad" : "unidades"}` : "";
+  const stockLabel = isNewCondition(productCondition) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
   const visibleSpecs = especs.filter((item) => item.value);
   const productDescription = productDetails || (category === "otros" ? String(det?.descripcionOtro || notes?.descripcionOtro || "").trim() : "");
   const detailImages = uniqueStrings([
@@ -320,9 +320,9 @@ export default async function ProductPage({
                 <span className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] ${toneForCondition(String(outOfStock ? "Agotado" : productCondition || "Disponible"), sold)}`}>
                   {sold ? "Vendido" : outOfStock ? "Agotado" : productCondition || "Disponible"}
                 </span>
-                {saleType && saleType !== "VENTA_SIMPLE" && (
+                {saleType && saleType !== "VENTA_SIMPLE" && (saleType !== "PROMOCION" || promoLabel) && (
                   <span className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white ${isPromocion ? "bg-rose-600 shadow-[0_10px_26px_rgba(225,29,72,0.28)]" : "bg-black/90"}`}>
-                    {isPromocion ? "promocion" : saleType.toLowerCase()}
+                    {isPromocion ? promoLabel : saleType.toLowerCase()}
                   </span>
                 )}
                 <span className="rounded-full bg-white/78 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
@@ -343,7 +343,7 @@ export default async function ProductPage({
 
               <div className="min-w-0 rounded-[22px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(239,244,250,0.94))] p-4 shadow-[0_14px_34px_rgba(15,23,42,0.08)] sm:rounded-[28px] sm:p-6 sm:shadow-[0_20px_48px_rgba(15,23,42,0.1)]">
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                  {isPromocion ? "Precio en promocion" : "Precio final"}
+                  {isPromocion && promoLabel ? promoLabel : "Precio final"}
                 </div>
                 <PriceWithIgv
                   price={price}
@@ -360,9 +360,9 @@ export default async function ProductPage({
                     Oferta aplicada
                   </div>
                 )}
-                {isPromocion && (
+                {isPromocion && promoLabel && (
                   <div className="mt-4 rounded-[18px] border border-rose-200 bg-[linear-gradient(135deg,#fff1f2,#ffe4e6)] px-4 py-3 text-rose-950 shadow-[0_14px_34px_rgba(225,29,72,0.12)]">
-                    <div className="text-xs font-bold uppercase tracking-[0.22em] text-rose-700">Promocion activa</div>
+                    <div className="text-xs font-bold uppercase tracking-[0.22em] text-rose-700">{promoLabel}</div>
                     <div className="mt-1 text-sm font-semibold">
                       {promoLabel}. {compareAt && compareAt > price ? `Precio regular S/ ${compareAt.toFixed(2)}.` : "Precio especial por tiempo limitado."}
                     </div>
@@ -428,7 +428,7 @@ export default async function ProductPage({
                           const availableVariant = variant?.available !== false;
                           const statusLabel = String(variant?.availabilityLabel || (availableVariant ? "Disponible" : "No disponible"));
                           const variantStock = Number(variant?.stock ?? 0);
-                          const variantStockLabel = isNewCondition(variant?.condition) && Number.isFinite(variantStock) && variantStock > 0 ? `${variantStock} ${variantStock === 1 ? "unidad" : "unidades"}` : "";
+                          const variantStockLabel = isNewCondition(variant?.condition) && Number.isFinite(variantStock) && variantStock >= 2 ? `${variantStock} unidades` : "";
                           const canOpenVariant = Boolean(variant?.slug) && !activeVariant;
                           const optionClass = `rounded-[13px] border px-3 py-2 text-xs transition ${
                             activeVariant

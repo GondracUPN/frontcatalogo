@@ -1,10 +1,11 @@
 ﻿"use client";
 import React from "react";
-import { createManualPreventaDraft, updateStaged, publishStaged } from "../../actions";
+import { createManualPreventaDraft, updateStaged, publishStaged, replacePreventaWithInventory } from "../../actions";
 
 type SaleType = "PREVENTA" | "VENTA_SIMPLE" | "PROMOCION" | "OFERTA";
 type DiscountMode = "percent" | "amount";
 type MergeCandidate = { id: string; sku: string; title: string };
+type ReplacementCandidate = { id: string; sku: string; title: string; price?: string | number; status?: string };
 
 function toSlug(s: string) {
   return String(s || "")
@@ -579,6 +580,21 @@ export default function PublishModal({
   );
   const [dragImageIndex, setDragImageIndex] = React.useState<number | null>(null);
   const detailUploadInFlightRef = React.useRef(false);
+  const replacementCandidates = React.useMemo<ReplacementCandidate[]>(() => {
+    const candidates = Array.isArray(item?.__replacementCandidates) ? item.__replacementCandidates : [];
+    return candidates
+      .map((candidate: any) => ({
+        id: String(candidate?.id || "").trim(),
+        sku: normalizeSku(candidate?.sku),
+        title: String(candidate?.title || "").trim(),
+        price: candidate?.price,
+        status: candidate?.status,
+      }))
+      .filter((candidate: ReplacementCandidate) => candidate.id && candidate.sku);
+  }, [item]);
+  const [replacementStagedId, setReplacementStagedId] = React.useState("");
+  const [replacingPreventa, setReplacingPreventa] = React.useState(false);
+  const canReplacePreventa = Boolean(item?.__isPublishedPreventa && item?.__catalogProductId && replacementCandidates.length);
 
   const keepTypeUnselectedOnManualPreventa = !item?.id && String(item?.category ?? "") === "";
 
@@ -1020,6 +1036,25 @@ export default function PublishModal({
     }
   };
 
+  const onReplacePreventa = async () => {
+    if (!canReplacePreventa || !replacementStagedId || replacingPreventa) return;
+    const selected = replacementCandidates.find((candidate) => candidate.id === replacementStagedId);
+    const ok = window.confirm(
+      `¿Suplantar esta preventa con ${selected?.title || selected?.sku || "el producto seleccionado"}?`
+    );
+    if (!ok) return;
+    setReplacingPreventa(true);
+    setSubmitError("");
+    try {
+      await replacePreventaWithInventory(String(item.__catalogProductId), replacementStagedId);
+      onSaved({ ...item, __replacedPreventa: true });
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "No se pudo suplantar la preventa");
+    } finally {
+      setReplacingPreventa(false);
+    }
+  };
+
   const onPublish = async () => {
     if (!canPublish) return;
     setSaving(true);
@@ -1329,6 +1364,38 @@ export default function PublishModal({
                 Usa el mismo grupo en productos parecidos para mostrarlos como opciones en la ficha pública.
               </p>
             </div>
+
+            {item?.__isPublishedPreventa && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                <div className="text-sm font-semibold text-gray-900">Suplantar preventa</div>
+                {replacementCandidates.length > 0 ? (
+                  <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <select
+                      value={replacementStagedId}
+                      onChange={(e) => setReplacementStagedId(e.target.value)}
+                      className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
+                    >
+                      <option value="">Producto del inventario</option>
+                      {replacementCandidates.map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {candidate.title || candidate.sku} · {candidate.sku}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!replacementStagedId || replacingPreventa}
+                      onClick={onReplacePreventa}
+                      className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+                    >
+                      {replacingPreventa ? "Suplantando..." : "Suplantar"}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-gray-600">No hay productos disponibles en inventario.</p>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="block text-sm text-gray-700">Tipo</label>
