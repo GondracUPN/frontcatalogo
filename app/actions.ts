@@ -418,6 +418,17 @@ export async function discardPossibleClient(id: string) {
   });
 }
 
+export async function updatePossibleClient(id: string, data: Record<string, unknown>) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) return { ok: false };
+  return apiFetch<{ ok: boolean; item?: any }>(`/admin/possible-clients/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(data || {}),
+  });
+}
+
 export async function markPossibleClientPurchased(id: string, data: { customerKind: string; salePlaceType: string; saleLocation?: string }) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;

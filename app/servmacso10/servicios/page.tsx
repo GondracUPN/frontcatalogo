@@ -7,6 +7,7 @@ import CatalogManager from "./CatalogManager";
 import AdminToolbar from "./AdminToolbar";
 import PreventaManualButton from "./PreventaManualButton";
 import ContactAlertsPanel from "./ContactAlertsPanel";
+import SoldProductsPanel from "./SoldProductsPanel";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -55,34 +56,7 @@ export default async function ServiciosPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl border p-5">
-          <h2 className="text-xl font-semibold mb-3 text-gray-900">Vendidos</h2>
-          <div className="overflow-auto max-h-[340px]">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-700">
-                  <th className="p-2">Producto</th>
-                  <th className="p-2">SKU</th>
-                  <th className="p-2">Precio venta</th>
-                  <th className="p-2">Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sold.map((s: any) => (
-                  <tr key={s.id} className="border-t">
-                    <td className="p-2 text-gray-900">{s.title || '-'}</td>
-                    <td className="p-2 text-gray-900">{s.sku}</td>
-                    <td className="p-2 text-gray-900">S/ {Number(s.sale_price || 0).toFixed(2)}</td>
-                    <td className="p-2 text-gray-900">{new Date(s.sold_at).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-                {!sold.length && (
-                  <tr><td className="p-2 text-gray-500" colSpan={4}>Sin registros</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <SoldProductsPanel initialSales={sold as any[]} />
         <ContactAlertsPanel initialItems={contactAlerts as any[]} />
       </div>
 

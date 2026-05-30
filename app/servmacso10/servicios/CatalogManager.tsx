@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import StagedPublishModal from "./PublishModal";
-import { listAdminCatalog, listSales, markProductSold, unpublishProduct, unsellProduct } from "../../actions";
+import { listAdminCatalog, markProductSold, unpublishProduct } from "../../actions";
 
 type CatalogRow = {
   id: string;
@@ -68,18 +68,18 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
     customerName: string;
     customerPhone: string;
     customerKind: "tranquilo" | "regateador";
-    salePlaceType: "almacen" | "otro";
+    salePlaceType: "" | "almacen" | "otro";
     saleLocation: string;
   } | null>(null);
-  const [sales, setSales] = React.useState<Array<{ id: string; product_id: string; sku: string; sale_price: string; sold_at: string; title?: string }>>([]);
-
   React.useEffect(() => {
-    (async () => {
+    const refreshCatalog = async () => {
       try {
-        const { items } = await listSales();
-        setSales(items as any);
+        const { items } = await listAdminCatalog();
+        setItems(items as any);
       } catch {}
-    })();
+    };
+    window.addEventListener("catalog-products-updated", refreshCatalog);
+    return () => window.removeEventListener("catalog-products-updated", refreshCatalog);
   }, []);
 
   const toStagedShape = (row: CatalogRow) => {
@@ -260,7 +260,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
                     customerName: "",
                     customerPhone: "",
                     customerKind: "tranquilo",
-                    salePlaceType: "almacen",
+                    salePlaceType: "",
                     saleLocation: "",
                   })}
                   className="px-3 py-1 rounded bg-amber-600 text-white"
@@ -377,6 +377,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
               onChange={(e) => setSoldModal({ ...soldModal, salePlaceType: e.target.value as any, saleLocation: e.target.value === "almacen" ? "" : soldModal.saleLocation })}
               className="w-full border rounded px-3 py-2 mb-3 bg-white"
             >
+              <option value="">-</option>
               <option value="almacen">Almacen</option>
               <option value="otro">Otro lado</option>
             </select>
@@ -411,10 +412,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
                         const { items } = await listAdminCatalog();
                         setItems(items as any);
                       } catch {}
-                      try {
-                        const { items } = await listSales();
-                        setSales(items as any);
-                      } catch {}
+                      window.dispatchEvent(new Event("sales-updated"));
                       setSoldModal(null);
                     } catch {
                       alert("No se pudo marcar como vendido");
@@ -428,59 +426,6 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
         </div>
       )}
 
-      <div className="mt-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Vendidos</h2>
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="text-left text-gray-700">
-              <th className="p-2">Producto</th>
-              <th className="p-2">SKU</th>
-              <th className="p-2">Precio venta</th>
-              <th className="p-2">Fecha</th>
-              <th className="p-2">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sales.map((s) => (
-              <tr key={s.id} className="border-t">
-                <td className="p-2 text-gray-900">{s.title || "-"}</td>
-                <td className="p-2 text-gray-900">{s.sku}</td>
-                <td className="p-2 text-gray-900">S/ {Number(s.sale_price || 0).toFixed(2)}</td>
-                <td className="p-2 text-gray-900">{new Date(s.sold_at).toLocaleDateString()}</td>
-                <td className="p-2">
-                  <button
-                    className="px-3 py-1 rounded bg-emerald-600 text-white"
-                    onClick={async () => {
-                      try {
-                        await unsellProduct(s.product_id, s.id);
-                        try {
-                          const { items } = await listAdminCatalog();
-                          setItems(items as any);
-                        } catch {}
-                        try {
-                          const { items } = await listSales();
-                          setSales(items as any);
-                        } catch {}
-                      } catch {
-                        alert("No se pudo revertir la venta");
-                      }
-                    }}
-                  >
-                    Volver a vender
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {!sales.length && (
-              <tr>
-                <td className="p-2 text-gray-500" colSpan={5}>
-                  Sin registros
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

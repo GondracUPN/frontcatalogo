@@ -6,6 +6,7 @@ import {
   listPossibleClients,
   markContactRequestAttended,
   markPossibleClientPurchased,
+  updatePossibleClient,
 } from "../../actions";
 
 type ContactRequest = {
@@ -32,6 +33,14 @@ type PossibleClient = ContactRequest & {
   purchased_at?: string | null;
 };
 
+type RequestCartItem = {
+  title: string;
+  color: string;
+  qty: number;
+  price: unknown;
+  lineTotal: unknown;
+};
+
 function formatPrice(value: unknown) {
   const n = Number(value || 0);
   return `S/ ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
@@ -42,6 +51,84 @@ function formatCopyPrice(value: unknown) {
   if (!Number.isFinite(n)) return "0";
   if (Math.abs(n - Math.trunc(n)) < 0.000001) return String(Math.trunc(n));
   return n.toFixed(2);
+}
+
+function parseMetadata(metadata: unknown) {
+  try {
+    if (!metadata) return {};
+    if (typeof metadata === "string") return JSON.parse(metadata);
+    if (typeof metadata === "object") return metadata as Record<string, any>;
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function getRequestItems(item: ContactRequest): RequestCartItem[] {
+  const metadata = parseMetadata(item?.metadata);
+  const rawItems = Array.isArray(metadata?.items) ? metadata.items : [];
+  const normalized = rawItems
+    .map((raw: any) => {
+      const title = String(raw?.title || raw?.product_title || raw?.name || "").trim();
+      const color = String(raw?.color || raw?.product_color || "").trim();
+      const qty = Number(raw?.qty || raw?.quantity || 1);
+      return {
+        title: title || "Producto",
+        color,
+        qty: Number.isFinite(qty) && qty > 0 ? qty : 1,
+        price: raw?.price ?? raw?.product_price ?? 0,
+        lineTotal: raw?.lineTotal ?? raw?.line_total ?? null,
+      };
+    })
+    .filter((row: RequestCartItem) => row.title);
+
+  if (normalized.length) return normalized;
+
+  const title = String(item?.product_title || "Producto").trim();
+  const color = String(item?.product_color || "").trim();
+  return [{ title, color, qty: 1, price: item?.product_price ?? 0, lineTotal: item?.product_price ?? 0 }];
+}
+
+function productName(row: RequestCartItem) {
+  return `${row.title}${row.color ? ` ${row.color}` : ""}`.trim();
+}
+
+function productLine(row: RequestCartItem) {
+  const qty = Number(row.qty || 1);
+  const qtyText = qty > 1 ? `${qty} x ` : "";
+  return `${qtyText}${productName(row)} - ${formatPrice(resolveLineTotal(row))}`;
+}
+
+function copyProductLine(row: RequestCartItem) {
+  const qty = Number(row.qty || 1);
+  const qtyText = qty > 1 ? `${qty} x ` : "";
+  return `${qtyText}${productName(row)} - S/ ${formatCopyPrice(resolveLineTotal(row))}`;
+}
+
+function productSummary(item: ContactRequest) {
+  return getRequestItems(item).map((row) => productName(row)).join(" / ");
+}
+
+function resolveLineTotal(row: RequestCartItem) {
+  const explicit = Number(row.lineTotal);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const price = Number(row.price || 0);
+  const qty = Number(row.qty || 1);
+  return Number.isFinite(price) && Number.isFinite(qty) ? price * Math.max(1, qty) : 0;
+}
+
+function requestTotal(item: ContactRequest) {
+  const total = getRequestItems(item).reduce((sum, row) => sum + Number(resolveLineTotal(row) || 0), 0);
+  if (Number.isFinite(total) && total > 0) return total;
+  return item?.product_price ?? 0;
+}
+
+function salePlaceLabel(item: PossibleClient) {
+  const type = String(item.sale_place_type || "").trim();
+  const location = String(item.sale_location || "").trim();
+  if (type === "otro") return location || "-";
+  if (type === "almacen") return "Almacen";
+  return "-";
 }
 
 function peruHour() {
@@ -63,24 +150,26 @@ function greetingByPeruTime() {
 function composeMessage(item: ContactRequest) {
   const greeting = greetingByPeruTime();
   const name = String(item?.customer_name || "cliente").trim();
-  const title = String(item?.product_title || "producto").trim();
-  const color = String(item?.product_color || "").trim();
-  const productAndColor = `${title}${color ? ` ${color}` : ""}`.trim();
-  const price = formatPrice(item?.product_price);
+  const productsBlock = getRequestItems(item).map((row) => `- ${productLine(row)}`).join("\n");
   const type = String(item?.request_type || "purchase").toLowerCase();
 
   if (type === "offer") {
     return `${greeting} ${name}.
 
-Le confirmo que su oferta por el ${productAndColor} ha sido aceptada por el monto de ${price}
-Cuando guste, podemos coordinar el método de pago y la entrega.
+Le confirmo que recibimos su solicitud por:
+
+${productsBlock}
+
+Cuando guste, podemos coordinar el metodo de pago y la entrega.
 Quedo atento(a). ¡Gracias por su interés!`;
   }
 
   if (type === "preventa") {
     return `${greeting} ${name}.
 
-${productAndColor} se encuentra actualmente en preventa, con un precio de ${price}.
+Su solicitud incluye:
+
+${productsBlock}
 
 Tiene dos opciones:
 1. Esperar a que el producto llegue, sin realizar ningún pago previo.
@@ -94,7 +183,10 @@ Quedo atento(a) para indicarle fechas estimadas o enviarle los datos para la res
 
   return `${greeting} ${name}.
 
-Le escribo desde nuestro catálogo por su interés en ${productAndColor}, disponible a ${price}.
+Le escribo desde nuestro catalogo por su interes en:
+
+${productsBlock}
+
 Quedo atento(a) para brindarle más información o coordinar la compra. ¡Gracias por contactarnos!`;
 }
 
@@ -104,8 +196,10 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
   const [selected, setSelected] = React.useState<ContactRequest | null>(null);
   const [clientsOpen, setClientsOpen] = React.useState(false);
   const [purchaseClient, setPurchaseClient] = React.useState<PossibleClient | null>(null);
+  const [editClient, setEditClient] = React.useState<PossibleClient | null>(null);
+  const [editDraft, setEditDraft] = React.useState<Record<string, string>>({});
   const [customerKind, setCustomerKind] = React.useState<"tranquilo" | "regateador">("tranquilo");
-  const [salePlaceType, setSalePlaceType] = React.useState<"almacen" | "otro">("almacen");
+  const [salePlaceType, setSalePlaceType] = React.useState<"" | "almacen" | "otro">("");
   const [saleLocation, setSaleLocation] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [copiedPhone, setCopiedPhone] = React.useState(false);
@@ -158,7 +252,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
   };
 
   const discardClient = async (client: PossibleClient) => {
-    if (!confirm("Descartar este posible cliente?")) return;
+    if (!confirm("Borrar este cliente?")) return;
     setBusy(true);
     try {
       await discardPossibleClient(client.id);
@@ -171,8 +265,38 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
   const openPurchase = (client: PossibleClient) => {
     setPurchaseClient(client);
     setCustomerKind("tranquilo");
-    setSalePlaceType("almacen");
+    setSalePlaceType("");
     setSaleLocation("");
+  };
+
+  const openEdit = (client: PossibleClient) => {
+    setEditClient(client);
+    setEditDraft({
+      customerName: String(client.customer_name || ""),
+      customerPhone: String(client.customer_phone || "").replace(/\D+/g, ""),
+      productTitle: String(client.product_title || ""),
+      productColor: String(client.product_color || ""),
+      productPrice: String(client.product_price || "0"),
+      locationScope: String(client.location_scope || ""),
+      locationValue: String(client.location_value || ""),
+      requestType: String(client.request_type || ""),
+      customerKind: String(client.customer_kind || ""),
+      salePlaceType: String(client.sale_place_type || ""),
+      saleLocation: String(client.sale_location || ""),
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editClient) return;
+    setBusy(true);
+    try {
+      await updatePossibleClient(editClient.id, editDraft);
+      setEditClient(null);
+      setEditDraft({});
+      await refreshClients();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const savePurchase = async () => {
@@ -194,12 +318,9 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
   const copyPhone = async () => {
     if (!selected) return;
     const phone = String(selected.customer_phone || "").replace(/\D+/g, "");
-    const title = String(selected.product_title || "Producto").trim();
-    const color = String(selected.product_color || "").trim();
-    const product = `${title}${color ? ` ${color}` : ""}`.trim();
-    const price = formatCopyPrice(selected.product_price);
+    const productLines = getRequestItems(selected).map((row) => `- ${copyProductLine(row)}`).join("\n");
     const district = String(selected.location_value || "").trim().toLowerCase();
-    const payload = [`Producto: ${product}`, `Precio : S/ ${price}`, `Distrito : ${district}`, phone].join("\n");
+    const payload = [`Productos:`, productLines, `Distrito : ${district}`, phone].join("\n");
     await navigator.clipboard.writeText(payload);
     setCopiedPhone(true);
     setTimeout(() => setCopiedPhone(false), 1400);
@@ -233,8 +354,9 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
             {items.map((row) => (
               <tr key={row.id} className="border-t">
                 <td className="p-2 text-gray-900">
-                  {row.product_title || "-"}
-                  {row.product_color ? ` ${row.product_color}` : ""}
+                  {getRequestItems(row).map((product, index) => (
+                    <div key={`${row.id}-${index}`}>{productLine(product)}</div>
+                  ))}
                 </td>
                 <td className="p-2 text-gray-900">
                   {String(row.request_type || "purchase").toLowerCase() === "preventa"
@@ -285,15 +407,16 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
 
             <div className="grid sm:grid-cols-2 gap-3 text-sm mb-4">
               <div>
-                <div className="text-gray-500">Producto</div>
-                <div className="font-medium">
-                  {selected.product_title || "-"}
-                  {selected.product_color ? ` ${selected.product_color}` : ""}
+                <div className="text-gray-500">Productos</div>
+                <div className="space-y-1 font-medium">
+                  {getRequestItems(selected).map((product, index) => (
+                    <div key={`${selected.id}-detail-${index}`}>{productLine(product)}</div>
+                  ))}
                 </div>
               </div>
               <div>
-                <div className="text-gray-500">Precio</div>
-                <div className="font-medium">{formatPrice(selected.product_price)}</div>
+                <div className="text-gray-500">Total</div>
+                <div className="font-medium">{formatPrice(requestTotal(selected))}</div>
               </div>
               <div>
                 <div className="text-gray-500">Cliente</div>
@@ -353,29 +476,30 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
                         {client.location_value || "-"}
                         {client.location_scope ? <span className="text-gray-500"> ({client.location_scope})</span> : null}
                       </td>
-                      <td className="p-2">{client.product_title || "-"}</td>
+                      <td className="p-2">{productSummary(client) || "-"}</td>
                       <td className="p-2">
                         {client.status === "purchased" ? (
                           <span className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
-                            Compro - {client.customer_kind || "-"} - {client.sale_place_type === "otro" ? client.sale_location : "Almacen"}
+                            Compro - {client.customer_kind || "-"} - {salePlaceLabel(client)}
                           </span>
                         ) : (
                           <span className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Pendiente</span>
                         )}
                       </td>
                       <td className="p-2">
-                        {client.status === "purchased" ? (
-                          <span className="text-xs text-gray-500">Registrado</span>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          {client.status !== "purchased" && (
                             <button onClick={() => openPurchase(client)} className="rounded bg-emerald-600 px-3 py-1 text-white">
                               Compro
                             </button>
-                            <button onClick={() => discardClient(client)} disabled={busy} className="rounded bg-red-50 px-3 py-1 text-red-700 disabled:opacity-60">
-                              Descarte
-                            </button>
-                          </div>
-                        )}
+                          )}
+                          <button onClick={() => openEdit(client)} disabled={busy} className="rounded bg-indigo-50 px-3 py-1 text-indigo-700 disabled:opacity-60">
+                            Editar
+                          </button>
+                          <button onClick={() => discardClient(client)} disabled={busy} className="rounded bg-red-50 px-3 py-1 text-red-700 disabled:opacity-60">
+                            Borrar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -386,6 +510,95 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editClient && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-5 text-gray-900 max-h-[86vh] overflow-auto">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="text-lg font-semibold">Editar cliente</h3>
+              <button onClick={() => setEditClient(null)} aria-label="Cerrar">X</button>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <label className="block font-medium text-gray-700">Cliente</label>
+                <input value={editDraft.customerName || ""} onChange={(e) => setEditDraft({ ...editDraft, customerName: e.target.value })} className="mt-1 w-full rounded border px-3 py-2" />
+              </div>
+              <div>
+                <label className="block font-medium text-gray-700">Numero</label>
+                <input value={editDraft.customerPhone || ""} onChange={(e) => setEditDraft({ ...editDraft, customerPhone: e.target.value })} className="mt-1 w-full rounded border px-3 py-2" />
+              </div>
+              <div>
+                <label className="block font-medium text-gray-700">Producto</label>
+                <input value={editDraft.productTitle || ""} onChange={(e) => setEditDraft({ ...editDraft, productTitle: e.target.value })} className="mt-1 w-full rounded border px-3 py-2" />
+              </div>
+              <div>
+                <label className="block font-medium text-gray-700">Color</label>
+                <input value={editDraft.productColor || ""} onChange={(e) => setEditDraft({ ...editDraft, productColor: e.target.value })} className="mt-1 w-full rounded border px-3 py-2" />
+              </div>
+              <div>
+                <label className="block font-medium text-gray-700">Precio</label>
+                <input type="number" value={editDraft.productPrice || ""} onChange={(e) => setEditDraft({ ...editDraft, productPrice: e.target.value })} className="mt-1 w-full rounded border px-3 py-2" />
+              </div>
+              <div>
+                <label className="block font-medium text-gray-700">Tipo de solicitud</label>
+                <select value={editDraft.requestType || ""} onChange={(e) => setEditDraft({ ...editDraft, requestType: e.target.value })} className="mt-1 w-full rounded border px-3 py-2 bg-white">
+                  <option value="">Sin tipo</option>
+                  <option value="purchase">Compra</option>
+                  <option value="offer">Mejor oferta</option>
+                  <option value="preventa">Preventa</option>
+                  <option value="manual-sale">Venta manual</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-medium text-gray-700">Zona</label>
+                <select value={editDraft.locationScope || ""} onChange={(e) => setEditDraft({ ...editDraft, locationScope: e.target.value })} className="mt-1 w-full rounded border px-3 py-2 bg-white">
+                  <option value="">Sin zona</option>
+                  <option value="lima">Lima</option>
+                  <option value="provincia">Provincia</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-medium text-gray-700">Ubicacion</label>
+                <input value={editDraft.locationValue || ""} onChange={(e) => setEditDraft({ ...editDraft, locationValue: e.target.value })} className="mt-1 w-full rounded border px-3 py-2" />
+              </div>
+              <div>
+                <label className="block font-medium text-gray-700">Tipo de cliente</label>
+                <select value={editDraft.customerKind || ""} onChange={(e) => setEditDraft({ ...editDraft, customerKind: e.target.value })} className="mt-1 w-full rounded border px-3 py-2 bg-white">
+                  <option value="">Sin registrar</option>
+                  <option value="tranquilo">Tranquilo</option>
+                  <option value="regateador">Regateador</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-medium text-gray-700">Lugar de venta</label>
+                <select value={editDraft.salePlaceType || ""} onChange={(e) => setEditDraft({ ...editDraft, salePlaceType: e.target.value, saleLocation: e.target.value === "almacen" ? "" : editDraft.saleLocation || "" })} className="mt-1 w-full rounded border px-3 py-2 bg-white">
+                  <option value="">Sin registrar</option>
+                  <option value="almacen">Almacen</option>
+                  <option value="otro">Otro lado</option>
+                </select>
+              </div>
+              {editDraft.salePlaceType === "otro" && (
+                <div className="sm:col-span-2">
+                  <label className="block font-medium text-gray-700">Ubicacion de la venta</label>
+                  <input value={editDraft.saleLocation || ""} onChange={(e) => setEditDraft({ ...editDraft, saleLocation: e.target.value })} className="mt-1 w-full rounded border px-3 py-2" />
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setEditClient(null)} className="rounded border px-3 py-2">Cancelar</button>
+              <button
+                onClick={saveEdit}
+                disabled={busy || !String(editDraft.customerName || "").trim() || !String(editDraft.customerPhone || "").trim()}
+                className="rounded bg-indigo-600 px-3 py-2 text-white disabled:opacity-60"
+              >
+                {busy ? "Guardando..." : "Guardar cambios"}
+              </button>
             </div>
           </div>
         </div>
@@ -416,6 +629,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
               <div>
                 <label className="block text-sm font-medium text-gray-700">Lugar de venta</label>
                 <select value={salePlaceType} onChange={(e) => setSalePlaceType(e.target.value as any)} className="mt-1 w-full rounded border px-3 py-2">
+                  <option value="">-</option>
                   <option value="almacen">Almacen</option>
                   <option value="otro">Otro lado</option>
                 </select>

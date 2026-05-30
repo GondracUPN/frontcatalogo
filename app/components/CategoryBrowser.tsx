@@ -169,6 +169,20 @@ function sortSeries(values: string[]) {
   });
 }
 
+function createdTime(row: Row) {
+  const value = row?.created_at || row?.product?.created_at || row?.staged?.created_at || 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function promoRank(item: any) {
+  const saleType = String(item.saleType || "").toUpperCase();
+  const compareAt = Number(item.compareAt || 0);
+  const price = Number(item.price || 0);
+  const hasSavings = compareAt > price && price > 0;
+  return saleType === "PROMOCION" || hasSavings ? 1 : 0;
+}
+
 function toneForCondition(condition: string) {
   const value = condition.toLowerCase();
   if (value.includes("nuevo")) return "bg-[rgba(230,245,236,0.92)] text-[#1f6c43]";
@@ -301,6 +315,12 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
     if (series.length) arr = arr.filter((m) => series.includes(normalizeWatchSeries(m)));
     if (sort === "price_asc") arr = [...arr].sort((a, b) => a.price - b.price);
     if (sort === "price_desc") arr = [...arr].sort((a, b) => b.price - a.price);
+    if (sort === "none") {
+      arr = [...arr].sort((a, b) =>
+        promoRank(b) - promoRank(a) ||
+        createdTime(b.row) - createdTime(a.row)
+      );
+    }
     return arr;
   }, [connectivity, isIphone, meta, minV, maxV, tipo, proc, sizes, rams, ssds, series, sort]);
 
