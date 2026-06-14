@@ -1,7 +1,9 @@
 "use client";
 import React from "react";
-import StagedPublishModal from "./PublishModal";
+import dynamic from "next/dynamic";
 import { listAdminCatalog, markProductSold, unpublishProduct } from "../../actions";
+
+const StagedPublishModal = dynamic(() => import("./PublishModal"), { ssr: false });
 
 type CatalogRow = {
   id: string;

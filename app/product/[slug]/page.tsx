@@ -4,6 +4,7 @@ import ProductViewTracker from "@/app/components/ProductViewTracker";
 import PriceWithIgv from "@/app/components/PriceWithIgv";
 import ProductDetailPhotos from "@/app/components/ProductDetailPhotos";
 import { getCatalogItem } from "@/app/actions";
+import { redirect } from "next/navigation";
 
 export const revalidate = 300;
 
@@ -94,6 +95,14 @@ export default async function ProductPage({
   const query = (await searchParams) || {};
   const { item } = await getCatalogItem(slug).catch(() => ({ item: null as any }));
   if (!item) return <div className="mx-auto max-w-7xl px-4 py-10 text-sm text-[color:var(--foreground-soft)]">Producto no encontrado.</div>;
+  if (item.slug && item.slug !== slug) {
+    const suffix = new URLSearchParams(
+      Object.entries(query).flatMap(([key, value]) =>
+        Array.isArray(value) ? value.map((entry) => [key, entry]) : value === undefined ? [] : [[key, value]]
+      )
+    ).toString();
+    redirect(`/product/${item.slug}${suffix ? `?${suffix}` : ""}`);
+  }
 
   const images: string[] = Array.isArray(item.images) && item.images.length ? item.images : Array.isArray(item.staged?.images) ? item.staged.images : [];
   const category = String(item.category || item.staged?.category || item.product?.category || "").toLowerCase();
@@ -322,7 +331,7 @@ export default async function ProductPage({
                 </span>
                 {saleType && saleType !== "VENTA_SIMPLE" && (saleType !== "PROMOCION" || promoLabel) && (
                   <span className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white ${isPromocion ? "bg-rose-600 shadow-[0_10px_26px_rgba(225,29,72,0.28)]" : "bg-black/90"}`}>
-                    {isPromocion ? promoLabel : saleType.toLowerCase()}
+                    {isPromocion ? promoLabel : saleType === "OFERTA" ? "Negociable" : saleType.toLowerCase()}
                   </span>
                 )}
                 <span className="rounded-full bg-white/78 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">

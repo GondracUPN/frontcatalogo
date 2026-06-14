@@ -36,11 +36,16 @@ function categoryLabel(cat: string) {
   }
 }
 
-function buildTitle(tipo: string, gama: string, proc: string, tam: string, iphoneModel?: string, ipadConnectivity?: string) {
+function buildTitle(tipo: string, gama: string, proc: string, tam: string, iphoneModel?: string, ipadConnectivity?: string, ipadGeneration?: string) {
   const isIphone = String(tipo || "").toLowerCase().includes("iphone");
   const isIpad = String(tipo || "").toLowerCase().includes("ipad");
   if (isIphone) return [tipo, proc, iphoneModel].filter(Boolean).join(" ").trim();
-  if (isIpad) return [tipo, gama, proc, tam, ipadConnectivity].filter(Boolean).join(" ").trim();
+  if (isIpad) {
+    const line = gama === "Normal" ? "" : gama;
+    const model = gama === "Normal" || gama === "Mini" ? ipadGeneration : proc;
+    const screen = tam && tam !== model ? tam : "";
+    return [tipo, line, model, screen, ipadConnectivity].filter(Boolean).join(" ").trim();
+  }
   return [tipo, gama, proc, tam].filter(Boolean).join(" ").trim();
 }
 
@@ -132,7 +137,12 @@ function getIpadProcesadores(gama: string) {
   return [] as string[];
 }
 
-function getIpadTamanos(gama: string, procesador: string) {
+function getIpadTamanos(gama: string, procesador: string, generacion: string) {
+  if (gama === "Normal") {
+    if (["8", "9"].includes(generacion)) return ["10.2"];
+    if (generacion === "10") return ["10.9"];
+    if (generacion === "11") return ["11"];
+  }
   if (gama === "Air" && ["M2", "M3"].includes(procesador)) return ["11", "13"];
   if (gama === "Pro") {
     if (["M1", "M2"].includes(procesador)) return ["11", "12.9"];
@@ -142,7 +152,12 @@ function getIpadTamanos(gama: string, procesador: string) {
 }
 
 function getIpadAlmacenamiento(gama: string, generacion: string, procesador: string) {
-  if (gama === "Normal") return [] as string[];
+  if (gama === "Normal") {
+    if (generacion === "8") return ["32", "128"];
+    if (["9", "10"].includes(generacion)) return ["64", "256"];
+    if (generacion === "11") return ["128", "256", "512"];
+    return [] as string[];
+  }
   if (gama === "Mini") {
     if (generacion === "6") return ["64", "256"];
     if (generacion === "7") return ["128", "256", "512"];
@@ -424,7 +439,8 @@ export default function PublishModal({
       if (auto) return auto;
     }
     const connectivity0 = detalle?.conectividad || notes?.conectividad || "";
-    const raw = buildTitle(tipo, gama0, proc0, tam0, item?.iphone_model || notes?.iphoneModel, connectivity0);
+    const generation0 = detalle?.generacion || notes?.generacion || "";
+    const raw = buildTitle(tipo, gama0, proc0, tam0, item?.iphone_model || notes?.iphoneModel, connectivity0, generation0);
     return raw ? capitalize(raw) : "";
   });
   const [titleManual, setTitleManual] = React.useState(false);
@@ -637,13 +653,13 @@ export default function PublishModal({
       if (descriptionOther?.trim()) setTitle(capitalize(descriptionOther.trim()));
       return;
     }
-    const auto = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity);
+    const auto = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity, ipadGeneration);
     const base = auto || title;
     if (base) {
       const withPrefix = saleType === "PREVENTA" && !/^preventa\\s+/i.test(base) ? `Preventa ${base}` : base;
       setTitle(capitalize(withPrefix));
     }
-  }, [category, gama, proc, tam, ipadConnectivity, titleManual, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, saleType, title]);
+  }, [category, gama, proc, tam, ipadConnectivity, ipadGeneration, titleManual, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, saleType, title]);
 
   const isMacbook = category === "macbook";
   const isIpad = category === "ipad";
@@ -689,7 +705,7 @@ export default function PublishModal({
     return [] as string[];
   }, [gama]);
   const ipadProcessorBase = React.useMemo(() => getIpadProcesadores(gama), [gama]);
-  const ipadSizeBase = React.useMemo(() => getIpadTamanos(gama, proc), [gama, proc]);
+  const ipadSizeBase = React.useMemo(() => getIpadTamanos(gama, proc, ipadGeneration), [gama, proc, ipadGeneration]);
   const ipadStorageBase = React.useMemo(() => getIpadAlmacenamiento(gama, ipadGeneration, proc), [gama, ipadGeneration, proc]);
   const ipadGenerationOptions = React.useMemo(() => withCurrentOption(ipadGenerationBase, ipadGeneration), [ipadGenerationBase, ipadGeneration]);
   const ipadProcessorOptions = React.useMemo(() => withCurrentOption(ipadProcessorBase, proc), [ipadProcessorBase, proc]);
@@ -727,7 +743,6 @@ export default function PublishModal({
     if (gama && !IPAD_GAMA_OPTIONS.includes(gama)) setGama("");
     if ((gama === "Normal" || gama === "Mini")) {
       if (proc) setProc("");
-      if (tam) setTam("");
     } else if (ipadGeneration) {
       setIpadGeneration("");
     }
@@ -806,7 +821,7 @@ export default function PublishModal({
     if (!gama?.trim()) errors.push("La gama es obligatoria");
     if ((gama === "Air" || gama === "Pro") && !proc?.trim()) errors.push("El procesador es obligatorio");
     if ((gama === "Normal" || gama === "Mini") && !ipadGeneration?.trim()) errors.push("La generación es obligatoria");
-    if ((gama === "Air" || gama === "Pro") && ipadSizeBase.length > 0 && !tam?.trim()) errors.push("El tamaño es obligatorio");
+    if (ipadSizeBase.length > 0 && !tam?.trim()) errors.push("El tamaño es obligatorio");
     if (tam && ipadSizeBase.length > 0 && !ipadSizeBase.includes(String(tam))) errors.push("Tamaño inválido para la configuración");
     if (ipadStorageBase.length > 0 && !alm?.trim()) errors.push("El almacenamiento es obligatorio");
     if (!ipadConnectivity?.trim()) errors.push("La conectividad es obligatoria");
@@ -940,7 +955,7 @@ export default function PublishModal({
     } else if (!titleManual && category === "otros") {
       baseTitle = descriptionOther.trim();
     } else if (!titleManual) {
-      const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity);
+      const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity, ipadGeneration);
       baseTitle = autoTitle || title;
     }
     if (saleType === "PREVENTA" && baseTitle && !/^preventa\s+/i.test(baseTitle)) {
@@ -1144,7 +1159,7 @@ export default function PublishModal({
         baseTitle = auto || title;
       } else if (!titleManual && category === "otros") baseTitle = descriptionOther.trim();
       else if (!titleManual) {
-        const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity);
+        const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity, ipadGeneration);
         baseTitle = autoTitle || title;
       }
       if (saleType === "PREVENTA" && baseTitle && !/^preventa\\s+/i.test(baseTitle)) {
@@ -1650,12 +1665,12 @@ export default function PublishModal({
                     </select>
                   </div>
                 )}
-                {(gama === "Air" || gama === "Pro") && ipadSizeOptions.length > 0 && (
+                {ipadSizeOptions.length > 0 && (
                   <div>
-                    <label className="block text-sm text-gray-700">Tamaño</label>
+                    <label className="block text-sm text-gray-700">Tamaño de pantalla</label>
                     <select value={tam} onChange={(e) => setTam(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
                       <option value="">Seleccione</option>
-                      {ipadSizeOptions.map((s) => (<option key={s} value={s}>{s}</option>))}
+                      {ipadSizeOptions.map((s) => (<option key={s} value={s}>{s} pulgadas</option>))}
                     </select>
                   </div>
                 )}

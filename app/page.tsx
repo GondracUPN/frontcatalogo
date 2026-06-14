@@ -116,7 +116,7 @@ export default async function Home() {
                             </span>
                             {saleType && saleType !== "VENTA_SIMPLE" && (saleType !== "PROMOCION" || promoLabel) && (
                               <span className={`rounded-full px-3 py-1 text-[11px] font-semibold text-white ${saleType === "PROMOCION" ? "bg-rose-600 shadow-[0_8px_18px_rgba(225,29,72,0.28)]" : "bg-black/85"}`}>
-                                {saleType === "PROMOCION" ? promoLabel : saleType.toLowerCase()}
+                                {saleType === "PROMOCION" ? promoLabel : saleType === "OFERTA" ? "Negociable" : saleType.toLowerCase()}
                               </span>
                             )}
                             {stockLabel && (

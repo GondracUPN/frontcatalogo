@@ -248,6 +248,7 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
   const [connectivity, setConnectivity] = React.useState<string[]>([]);
   const [series, setSeries] = React.useState<string[]>([]);
   const [sort, setSort] = React.useState<"price_asc" | "price_desc" | "none">("none");
+  const [availability, setAvailability] = React.useState<"all" | "warehouse" | "preorder">("all");
   const [filtersOpen, setFiltersOpen] = React.useState(false);
 
   const meta = React.useMemo(
@@ -297,9 +298,23 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
   const rawMaxV = Number(maxPrice || maxGlobal || 0);
   const minV = Math.min(rawMinV, rawMaxV);
   const maxV = Math.max(rawMinV, rawMaxV);
+  const availabilityCounts = React.useMemo(() => {
+    const preorder = meta.filter((item) => String(item.saleType || "").toUpperCase() === "PREVENTA").length;
+    return {
+      all: meta.length,
+      warehouse: meta.length - preorder,
+      preorder,
+    };
+  }, [meta]);
 
   const filteredMeta = React.useMemo(() => {
     let arr = meta.filter((m) => m.price >= minV && m.price <= maxV);
+    if (availability === "warehouse") {
+      arr = arr.filter((m) => String(m.saleType || "").toUpperCase() !== "PREVENTA");
+    }
+    if (availability === "preorder") {
+      arr = arr.filter((m) => String(m.saleType || "").toUpperCase() === "PREVENTA");
+    }
     if (tipo.length) {
       arr = arr.filter((m) => {
         const title = String(m.row?.product?.title || m.row?.staged?.title || m.title || "");
@@ -322,9 +337,18 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
       );
     }
     return arr;
-  }, [connectivity, isIphone, meta, minV, maxV, tipo, proc, sizes, rams, ssds, series, sort]);
+  }, [availability, connectivity, isIphone, meta, minV, maxV, tipo, proc, sizes, rams, ssds, series, sort]);
 
-  const activeFilters = [...tipo, ...proc, ...sizes.map((s) => `${s}${isWatch ? "mm" : "\""}`), ...rams, ...ssds, ...connectivity, ...series];
+  const activeFilters = [
+    ...(availability === "warehouse" ? ["En almacén"] : availability === "preorder" ? ["En camino"] : []),
+    ...tipo,
+    ...proc,
+    ...sizes.map((s) => `${s}${isWatch ? "mm" : "\""}`),
+    ...rams,
+    ...ssds,
+    ...connectivity,
+    ...series,
+  ];
   const toggle = (list: string[], setList: (value: string[]) => void, value: string) => {
     setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
   };
@@ -371,6 +395,7 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
     setSsds([]);
     setConnectivity([]);
     setSeries([]);
+    setAvailability("all");
     setSort("none");
     setMinPrice(String(minGlobal));
     setMaxPrice(String(maxGlobal));
@@ -506,6 +531,34 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <div className="flex w-full items-center rounded-full border border-black/10 bg-white/75 p-1 sm:w-auto">
+                {[
+                  { key: "all" as const, label: "Todos", count: availabilityCounts.all },
+                  { key: "warehouse" as const, label: "En almacén", count: availabilityCounts.warehouse },
+                  { key: "preorder" as const, label: "Preventa", count: availabilityCounts.preorder },
+                ].map((option) => {
+                  const active = availability === option.key;
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setAvailability(option.key)}
+                      className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-2.5 py-2 text-xs font-medium sm:flex-none sm:px-3 ${
+                        active
+                          ? "bg-[color:var(--foreground)] text-white shadow-sm"
+                          : "text-[color:var(--foreground-soft)] hover:bg-black/[0.04] hover:text-[color:var(--foreground)]"
+                      }`}
+                    >
+                      <span>{option.label}</span>
+                      <span className={`text-[10px] ${active ? "text-white/70" : "text-[color:var(--foreground-soft)]"}`}>
+                        {option.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
               <button
                 type="button"
                 className="btn-secondary inline-flex rounded-full border border-black/10 bg-white/75 px-4 py-2 text-sm text-[color:var(--foreground)] lg:hidden"
@@ -555,8 +608,18 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                           {item.condition || "Disponible"}
                         </span>
                         {item.saleType && item.saleType !== "VENTA_SIMPLE" && (item.saleType !== "PROMOCION" || item.promoLabel) && (
-                          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold text-white ${item.saleType === "PROMOCION" ? "bg-rose-600 shadow-[0_8px_18px_rgba(225,29,72,0.28)]" : "bg-black/85"}`}>
-                            {item.saleType === "PROMOCION" ? item.promoLabel : item.saleType.toLowerCase()}
+                          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold text-white ${
+                            item.saleType === "PROMOCION"
+                              ? "bg-rose-600 shadow-[0_8px_18px_rgba(225,29,72,0.28)]"
+                              : "bg-black/85"
+                          }`}>
+                            {item.saleType === "PROMOCION"
+                              ? item.promoLabel
+                              : item.saleType === "OFERTA"
+                                ? "Negociable"
+                                : item.saleType === "PREVENTA"
+                                  ? "preventa"
+                                  : item.saleType.toLowerCase()}
                           </span>
                         )}
                         {stockLabel && (

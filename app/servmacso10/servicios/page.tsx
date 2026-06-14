@@ -1,5 +1,5 @@
 ﻿import { redirect } from "next/navigation";
-import { getSessionUser, logoutAction, listStaged, listAdminCatalog, listSales, listContactRequests } from "../../actions";
+import { getSessionUser, logoutAction, listStaged, listAdminCatalog } from "../../actions";
 export const dynamic = "force-dynamic";
 import React from "react";
 import StagedManager from "./StagedManager";
@@ -30,10 +30,10 @@ function Stat({ label, value }: { label: string; value: string }) {
 export default async function ServiciosPage() {
   const me = await getSessionUser();
   if (!me || me.role !== "admin") redirect("/servmacso10?next=/servmacso10/servicios");
-  const { items } = await listStaged({ pageSize: "all" });
-  const { items: published } = await listAdminCatalog().catch(() => ({ items: [] as any[] }));
-  const { items: sold } = await listSales().catch(() => ({ items: [] as any[] }));
-  const { items: contactAlerts } = await listContactRequests().catch(() => ({ items: [] as any[] }));
+  const [{ items }, { items: published }] = await Promise.all([
+    listStaged({ pageSize: "all" }),
+    listAdminCatalog().catch(() => ({ items: [] as any[] })),
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -56,8 +56,8 @@ export default async function ServiciosPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <SoldProductsPanel initialSales={sold as any[]} />
-        <ContactAlertsPanel initialItems={contactAlerts as any[]} />
+        <SoldProductsPanel initialSales={[]} />
+        <ContactAlertsPanel initialItems={[]} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">

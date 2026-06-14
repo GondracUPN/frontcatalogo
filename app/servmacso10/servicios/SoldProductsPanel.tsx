@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { listSales, unsellProduct } from "../../actions";
+import { listSales, unsellProduct, updateSale } from "../../actions";
 
 type Sale = {
   id: string;
@@ -22,6 +22,13 @@ function formatDate(value: unknown) {
   return date.toLocaleDateString();
 }
 
+function inputDate(value: unknown) {
+  const date = value ? new Date(String(value)) : null;
+  if (!date || Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
 function phone(value: unknown) {
   return String(value || "").replace(/\D+/g, "") || "-";
 }
@@ -36,15 +43,26 @@ function salePlace(sale: Sale) {
 
 export default function SoldProductsPanel({ initialSales }: { initialSales: Sale[] }) {
   const [sales, setSales] = React.useState<Sale[]>(initialSales || []);
+  const [loading, setLoading] = React.useState((initialSales || []).length === 0);
   const [open, setOpen] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
+  const [editing, setEditing] = React.useState<Sale | null>(null);
+  const [editForm, setEditForm] = React.useState({
+    saleDate: "",
+    salePrice: "",
+  });
 
   const refresh = React.useCallback(async () => {
-    const res = await listSales();
-    setSales(Array.isArray(res?.items) ? (res.items as Sale[]) : []);
+    try {
+      const res = await listSales();
+      setSales(Array.isArray(res?.items) ? (res.items as Sale[]) : []);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   React.useEffect(() => {
+    refresh().catch(() => {});
     const onSalesUpdated = () => {
       refresh().catch(() => {});
     };
@@ -59,6 +77,37 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
       await unsellProduct(sale.product_id, sale.id);
       await refresh();
       window.dispatchEvent(new Event("catalog-products-updated"));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openEditor = (sale: Sale) => {
+    setEditing(sale);
+    setEditForm({
+      saleDate: inputDate(sale.sold_at),
+      salePrice: String(sale.sale_price ?? ""),
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editing || busyId) return;
+    if (!editForm.saleDate || editForm.salePrice === "") {
+      alert("Completa la fecha y el precio de venta");
+      return;
+    }
+    setBusyId(editing.id);
+    try {
+      const result = await updateSale(editing.id, editForm);
+      const updated = result?.item as Sale | undefined;
+      if (updated) {
+        setSales((current) => current.map((sale) => sale.id === editing.id ? { ...sale, ...updated } : sale));
+      } else {
+        await refresh();
+      }
+      setEditing(null);
+    } catch {
+      alert("No se pudo actualizar la venta");
     } finally {
       setBusyId(null);
     }
@@ -82,6 +131,7 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
               <th className="p-2">SKU</th>
               <th className="p-2">Precio venta</th>
               <th className="p-2">Fecha</th>
+              <th className="p-2">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -91,12 +141,20 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                 <td className="p-2 text-gray-900">{sale.sku || "-"}</td>
                 <td className="p-2 text-gray-900">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
                 <td className="p-2 text-gray-900">{formatDate(sale.sold_at)}</td>
+                <td className="p-2">
+                  <button
+                    onClick={() => openEditor(sale)}
+                    className="rounded bg-indigo-600 px-3 py-1 text-white"
+                  >
+                    Editar
+                  </button>
+                </td>
               </tr>
             ))}
             {!recentSales.length && (
               <tr>
-                <td className="p-2 text-gray-500" colSpan={4}>
-                  Sin registros
+                <td className="p-2 text-gray-500" colSpan={5}>
+                  {loading ? "Cargando ventas..." : "Sin registros"}
                 </td>
               </tr>
             )}
@@ -138,7 +196,13 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                     <td className="p-2">{phone(sale.customer_phone)}</td>
                     <td className="p-2">{sale.customer_kind || "-"}</td>
                     <td className="p-2">{salePlace(sale)}</td>
-                    <td className="p-2">
+                    <td className="p-2 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => openEditor(sale)}
+                        className="rounded bg-indigo-600 px-3 py-1 text-white"
+                      >
+                        Editar
+                      </button>
                       <button
                         onClick={() => restoreSale(sale)}
                         disabled={busyId === sale.id}
@@ -158,6 +222,56 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {editing && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-5 text-gray-900">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold">Editar venta</h3>
+                <p className="mt-1 text-sm text-gray-500">{editing.title || editing.sku || "Producto"}</p>
+              </div>
+              <button onClick={() => setEditing(null)} aria-label="Cerrar">X</button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">Fecha de venta</label>
+                <input
+                  type="date"
+                  value={editForm.saleDate}
+                  onChange={(e) => setEditForm((current) => ({ ...current, saleDate: e.target.value }))}
+                  className="w-full rounded border px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">Precio de venta (S/)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editForm.salePrice}
+                  onChange={(e) => setEditForm((current) => ({ ...current, salePrice: e.target.value }))}
+                  className="w-full rounded border px-3 py-2"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setEditing(null)} className="rounded border px-4 py-2">
+                Cancelar
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={busyId === editing.id}
+                className="rounded bg-indigo-600 px-4 py-2 text-white disabled:opacity-60"
+              >
+                {busyId === editing.id ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
           </div>
         </div>
       )}

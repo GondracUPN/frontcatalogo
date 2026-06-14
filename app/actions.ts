@@ -384,6 +384,23 @@ export async function listSales() {
   return apiFetch<{ items: any[] }>(`/admin/sales`, { headers: { Authorization: `Bearer ${token}` } });
 }
 
+export async function updateSale(
+  saleId: string,
+  patch: {
+    saleDate?: string;
+    salePrice?: string | number;
+  }
+) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
+  return apiFetch<{ ok: boolean; item: any }>(`/admin/sales/${encodeURIComponent(saleId)}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(patch),
+  });
+}
+
 export async function listContactRequests() {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;

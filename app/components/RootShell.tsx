@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { href: "/c/ipad", label: "iPad" },
   { href: "/c/iphone", label: "iPhone" },
   { href: "/c/watch", label: "Watch" },
-  { href: "/c/otros", label: "Open box y usados" },
+  { href: "/proximos", label: "Próximos" },
   { href: "/accesorios", label: "Accesorios" },
   { href: "/contact", label: "Contacto" },
 ];
@@ -161,7 +161,7 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
                   Estado de equipo
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {["Nuevo", "Open box", "Usado premium", "Preventa"].map((item) => (
+                  {["Nuevo", "Open box", "Usado premium", "Próximos"].map((item) => (
                     <span key={item} className="pill-chip !px-3 !py-2 !text-xs !font-medium !tracking-[0.08em]">
                       {item}
                     </span>

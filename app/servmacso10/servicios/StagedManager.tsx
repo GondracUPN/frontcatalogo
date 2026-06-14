@@ -1,7 +1,9 @@
 "use client";
 import React from "react";
-import StagedPublishModal from "./PublishModal";
+import dynamic from "next/dynamic";
 import { deleteStaged } from "../../actions";
+
+const StagedPublishModal = dynamic(() => import("./PublishModal"), { ssr: false });
 
 export default function StagedManager({ initialItems }: { initialItems: any[] }) {
   const [items, setItems] = React.useState<any[]>(initialItems || []);
