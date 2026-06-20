@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCatalogAnalytics, getSessionUser } from "../../actions";
+import { formatPeruDateTime } from "../../utils/peruTime";
 
 function StatCard({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
@@ -94,7 +95,7 @@ export default async function AnalisisPage() {
                           <td className="px-3 py-3 text-gray-900">{product.totalViews}</td>
                           <td className="px-3 py-3 text-gray-900">{product.uniqueVisitors}</td>
                           <td className="px-3 py-3 text-gray-900">
-                            {product.lastViewedAt ? new Date(product.lastViewedAt).toLocaleString() : "-"}
+                            {formatPeruDateTime(product.lastViewedAt)}
                           </td>
                           <td className="px-3 py-3">
                             <a

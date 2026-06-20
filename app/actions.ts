@@ -285,7 +285,6 @@ export async function getHomeCatalog() {
       category: string | null;
       image: string;
       title: string;
-      created_at: string;
       condition: string;
       saleType: string;
       discount?: number;
@@ -306,7 +305,8 @@ export async function getHomeCatalog() {
 export async function getCatalogItem(slug: string) {
   return apiFetch<{ item: any }>(`/catalog/${encodeURIComponent(slug)}`, {
     method: "GET",
-    cache: "no-store",
+    cache: "force-cache",
+    next: { revalidate: 300, tags: ["catalog-products"] },
   });
 }
 

@@ -1,7 +1,8 @@
 "use client";
 import React from "react";
 import dynamic from "next/dynamic";
-import { listAdminCatalog, markProductSold, unpublishProduct } from "../../actions";
+import { listAdminCatalog, listStaged, markProductSold, unpublishProduct } from "../../actions";
+import { dateInputInPeru, formatPeruDate, hasMeaningfulPeruUpdate } from "../../utils/peruTime";
 
 const StagedPublishModal = dynamic(() => import("./PublishModal"), { ssr: false });
 
@@ -11,6 +12,8 @@ type CatalogRow = {
   slug?: string | null;
   category?: string | null;
   is_published?: boolean;
+  created_at?: string;
+  updated_at?: string;
   images?: string[];
   product?: { id: string; sku: string; title: string; price: string; stock?: number; status?: string; variant_group?: string | null };
   staged?: any;
@@ -61,6 +64,7 @@ function linkedSkuRowsFor(row: CatalogRow) {
 
 export default function CatalogManager({ initialItems, inventoryItems = [] }: { initialItems: CatalogRow[]; inventoryItems?: any[] }) {
   const [items, setItems] = React.useState<CatalogRow[]>(initialItems || []);
+  const [inventoryRows, setInventoryRows] = React.useState<any[]>(inventoryItems || []);
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [open, setOpen] = React.useState<any | null>(null);
   const [soldModal, setSoldModal] = React.useState<{
@@ -73,15 +77,28 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
     salePlaceType: "" | "almacen" | "otro";
     saleLocation: string;
   } | null>(null);
+
+  const refreshCatalog = React.useCallback(async () => {
+    try {
+      const { items } = await listAdminCatalog();
+      setItems(items as any);
+    } catch {}
+  }, []);
+
   React.useEffect(() => {
-    const refreshCatalog = async () => {
-      try {
-        const { items } = await listAdminCatalog();
-        setItems(items as any);
-      } catch {}
-    };
     window.addEventListener("catalog-products-updated", refreshCatalog);
     return () => window.removeEventListener("catalog-products-updated", refreshCatalog);
+  }, [refreshCatalog]);
+
+  React.useEffect(() => {
+    const refreshInventory = async () => {
+      try {
+        const res = await listStaged({ pageSize: "all" });
+        setInventoryRows(Array.isArray(res?.items) ? res.items : []);
+      } catch {}
+    };
+    window.addEventListener("staged-products-updated", refreshInventory);
+    return () => window.removeEventListener("staged-products-updated", refreshInventory);
   }, []);
 
   const toStagedShape = (row: CatalogRow) => {
@@ -90,7 +107,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
     const linkedSkus = linkedRows.map((linked: any) => String(linked?.sku || "").trim()).filter(Boolean);
     const currentSaleType = saleTypeOf(row.staged) || String((row.product as any)?.sale_type || "").toUpperCase();
     const replacementCandidates = currentSaleType === "PREVENTA"
-      ? inventoryItems
+      ? inventoryRows
           .filter((candidate: any) => !["published", "sold"].includes(String(candidate?.status || "").toLowerCase()))
           .filter((candidate: any) => String(candidate?.id || "") !== String(row.staged?.id || ""))
       : [];
@@ -211,12 +228,14 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
             <th className="p-2">Título</th>
             <th className="p-2">SKU</th>
             <th className="p-2">Precio</th>
+            <th className="p-2">Fechas</th>
             <th className="p-2">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {filteredItems.map((row) => {
             const linkedRows = linkedSkuRowsFor(row);
+            const showUpdated = hasMeaningfulPeruUpdate(row.created_at, row.updated_at);
             return (
               <React.Fragment key={row.id}>
                 <tr className="border-t">
@@ -233,55 +252,65 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
                     )}
                   </td>
                   <td className="p-2 text-gray-900">S/ {Number(row.product?.price || 0).toFixed(2)}</td>
-                  <td className="p-2 flex gap-2">
-                <button
-                  onClick={() => {
-                    if (!row.staged?.id) {
-                      alert("No se puede editar: falta referencia de inventario");
-                      return;
-                    }
-                    setOpen(toStagedShape(row));
-                  }}
-                  className="px-3 py-1 rounded bg-indigo-600 text-white"
-                >
-                  Editar
-                </button>
-                {row.slug && row.is_published && (
-                  <a
-                    href={`/product/${row.slug}`}
-                    className="px-3 py-1 rounded bg-gray-900 text-white"
-                  >
-                    Ver
-                  </a>
-                )}
-                <button
-                  onClick={() => setSoldModal({
-                    row,
-                    date: new Date().toISOString().slice(0, 10),
-                    price: String(row.product?.price || 0),
-                    customerName: "",
-                    customerPhone: "",
-                    customerKind: "tranquilo",
-                    salePlaceType: "",
-                    saleLocation: "",
-                  })}
-                  className="px-3 py-1 rounded bg-amber-600 text-white"
-                >
-                  Vendido
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      await unpublishProduct(row.product?.id || row.id);
-                      setItems((arr) => arr.filter((r) => r.id !== row.id));
-                    } catch {
-                      alert("No se pudo despublicar");
-                    }
-                  }}
-                  className="px-3 py-1 rounded bg-red-600 text-white"
-                >
-                  Eliminar
-                </button>
+                  <td className="p-2 text-xs leading-5 text-gray-600">
+                    <div>Subida: {formatPeruDate(row.created_at)}</div>
+                    {showUpdated && <div>Actualizada: {formatPeruDate(row.updated_at)}</div>}
+                  </td>
+                  <td className="p-2">
+                <div className="flex w-fit flex-col gap-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (!row.staged?.id) {
+                          alert("No se puede editar: falta referencia de inventario");
+                          return;
+                        }
+                        setOpen(toStagedShape(row));
+                      }}
+                      className="px-3 py-1 rounded bg-indigo-600 text-white"
+                    >
+                      Editar
+                    </button>
+                    {row.slug && row.is_published && (
+                      <a
+                        href={`/product/${row.slug}`}
+                        className="px-3 py-1 rounded bg-gray-900 text-white"
+                      >
+                        Ver
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSoldModal({
+                        row,
+                        date: dateInputInPeru(),
+                        price: String(row.product?.price || 0),
+                        customerName: "",
+                        customerPhone: "",
+                        customerKind: "tranquilo",
+                        salePlaceType: "",
+                        saleLocation: "",
+                      })}
+                      className="px-3 py-1 rounded bg-amber-600 text-white"
+                    >
+                      Vendido
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await unpublishProduct(row.product?.id || row.id);
+                          setItems((arr) => arr.filter((r) => r.id !== row.id));
+                        } catch {
+                          alert("No se pudo despublicar");
+                        }
+                      }}
+                      className="px-3 py-1 rounded bg-red-600 text-white"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
                   </td>
                 </tr>
                 {linkedRows.map((linked: any) => (
@@ -292,6 +321,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
                     </td>
                     <td className="p-2 font-mono text-xs text-gray-900">{linked.sku || "-"}</td>
                     <td className="p-2 text-gray-900">S/ {Number(linked.price || row.product?.price || 0).toFixed(2)}</td>
+                    <td className="p-2 text-xs text-gray-500">-</td>
                     <td className="p-2 text-xs text-gray-500">Incluido en stock</td>
                   </tr>
                 ))}
@@ -300,7 +330,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
           })}
           {!filteredItems.length && (
             <tr>
-              <td className="p-3 text-gray-500" colSpan={4}>
+              <td className="p-3 text-gray-500" colSpan={5}>
                 No hay productos publicados para este tipo.
               </td>
             </tr>
@@ -314,13 +344,11 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
           onClose={() => setOpen(null)}
           onSaved={async (updated: any) => {
             if (updated?.__replacedPreventa) {
-              window.location.reload();
-              return;
+              await refreshCatalog();
+            } else {
+              await refreshCatalog();
             }
-            try {
-              const { items } = await listAdminCatalog();
-              setItems(items as any);
-            } catch {}
+            window.dispatchEvent(new Event("staged-products-updated"));
             setOpen(null);
           }}
         />

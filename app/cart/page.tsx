@@ -2,6 +2,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import {
+  clearCartItemsCache,
   getCachedCartItems,
   listCartItems,
   persistCartItemsCache,
@@ -19,7 +20,7 @@ type CartRow = {
   slug?: string | null;
 };
 
-const LIMA_DISTRICTS = [
+const LIMA_CALLAO_DISTRICTS = [
   "Ancon",
   "Ate",
   "Barranco",
@@ -63,33 +64,13 @@ const LIMA_DISTRICTS = [
   "Surquillo",
   "Villa El Salvador",
   "Villa Maria del Triunfo",
-];
-
-const PERU_DEPARTMENTS = [
-  "Amazonas",
-  "Ancash",
-  "Apurimac",
-  "Arequipa",
-  "Ayacucho",
-  "Cajamarca",
-  "Cusco",
-  "Huancavelica",
-  "Huanuco",
-  "Ica",
-  "Junin",
-  "La Libertad",
-  "Lambayeque",
-  "Lima Provincia",
-  "Loreto",
-  "Madre de Dios",
-  "Moquegua",
-  "Pasco",
-  "Piura",
-  "Puno",
-  "San Martin",
-  "Tacna",
-  "Tumbes",
-  "Ucayali",
+  "Bellavista",
+  "Callao",
+  "Carmen de la Legua Reynoso",
+  "La Perla",
+  "La Punta",
+  "Mi Peru",
+  "Ventanilla",
 ];
 
 function parseNotes(notes: any) {
@@ -130,12 +111,6 @@ function priceFromRow(row: CartRow): number {
   return salePrice;
 }
 
-function locationOptions(scope: "lima" | "provincia" | "") {
-  if (scope === "lima") return LIMA_DISTRICTS;
-  if (scope === "provincia") return PERU_DEPARTMENTS;
-  return [];
-}
-
 export default function CartPage() {
   const router = useRouter();
   const [items, setItems] = React.useState<CartRow[]>([]);
@@ -146,7 +121,7 @@ export default function CartPage() {
   const [contactError, setContactError] = React.useState("");
   const [contactName, setContactName] = React.useState("");
   const [contactPhone, setContactPhone] = React.useState("");
-  const [locationScope, setLocationScope] = React.useState<"lima" | "provincia" | "">("");
+  const [locationScope, setLocationScope] = React.useState<"almacen" | "punto_medio" | "">("");
   const [locationValue, setLocationValue] = React.useState("");
 
   const syncCache = (next: CartRow[]) => {
@@ -189,13 +164,20 @@ export default function CartPage() {
     const phone = contactPhone.replace(/\D+/g, "");
     if (!name) return setContactError("Ingresa tu nombre.");
     if (!phone) return setContactError("Ingresa tu numero de telefono.");
-    if (!locationScope) return setContactError("Selecciona Lima o Provincia.");
-    if (!locationValue) return setContactError(locationScope === "lima" ? "Selecciona un distrito." : "Selecciona un departamento.");
+    if (!locationScope) return setContactError("Selecciona una opcion de entrega.");
+    if (locationScope === "punto_medio" && !locationValue.trim()) return setContactError("Selecciona tu distrito.");
 
     setSavingContact(true);
     setContactError("");
     try {
-      await submitContactRequest({ name, phone, locationScope, locationValue });
+      await submitContactRequest({
+        name,
+        phone,
+        locationScope,
+        locationValue: locationScope === "almacen" ? "Recoger en almacen" : locationValue.trim(),
+      });
+      clearCartItemsCache();
+      setItems([]);
       setContactName("");
       setContactPhone("");
       setLocationScope("");
@@ -342,7 +324,6 @@ export default function CartPage() {
             ) : (
               <div className="mt-5 space-y-3 text-sm text-[color:var(--foreground-soft)]">
                 <div className="flex justify-between"><span>Subtotal</span><span className="font-medium text-[color:var(--foreground)]">S/ {subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span>Envio</span><span className="font-medium text-[color:var(--foreground)]">S/ 0.00</span></div>
                 <div className="flex justify-between border-t border-black/6 pt-3 text-base font-semibold text-[color:var(--foreground)]"><span>Total</span><span>S/ {total.toFixed(2)}</span></div>
               </div>
             )}
@@ -351,7 +332,7 @@ export default function CartPage() {
               onClick={openContact}
               className="btn-primary mt-6 block w-full rounded-full bg-[color:var(--foreground)] py-3 text-center text-sm font-medium text-white hover:bg-black disabled:opacity-50"
             >
-              Comprar
+              Realizar solicitud de pedido
             </button>
           </aside>
         </div>
@@ -372,27 +353,31 @@ export default function CartPage() {
 
             <div className="mt-5 grid gap-4">
               <input value={contactName} onChange={(e) => setContactName(e.target.value)} className="px-4 py-3" placeholder="Tu nombre" />
-              <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className="px-4 py-3" placeholder="999999999" />
+              <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className="px-4 py-3" placeholder="Tu numero de Whatsapp" />
               <select
                 value={locationScope}
                 onChange={(e) => {
-                  const next = e.target.value as "lima" | "provincia" | "";
+                  const next = e.target.value as "almacen" | "punto_medio" | "";
                   setLocationScope(next);
                   setLocationValue("");
                 }}
                 className="px-4 py-3"
               >
-                <option value="">Selecciona ubicacion</option>
-                <option value="lima">Lima</option>
-                <option value="provincia">Provincia</option>
+                <option value="">Selecciona opcion de entrega</option>
+                <option value="almacen">Recoger en almacen</option>
+                <option value="punto_medio">Pactar entrega en punto medio</option>
               </select>
 
-              {locationScope && (
-                <select value={locationValue} onChange={(e) => setLocationValue(e.target.value)} className="px-4 py-3">
-                  <option value="">{locationScope === "lima" ? "Selecciona distrito" : "Selecciona departamento"}</option>
-                  {locationOptions(locationScope).map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
+              {locationScope === "punto_medio" && (
+                <select
+                  value={locationValue}
+                  onChange={(e) => setLocationValue(e.target.value)}
+                  className="px-4 py-3"
+                >
+                  <option value="">Selecciona tu distrito</option>
+                  {LIMA_CALLAO_DISTRICTS.map((district) => (
+                    <option key={district} value={district}>
+                      {district}
                     </option>
                   ))}
                 </select>

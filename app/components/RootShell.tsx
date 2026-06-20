@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/c/ipad", label: "iPad" },
   { href: "/c/iphone", label: "iPhone" },
   { href: "/c/watch", label: "Watch" },
+  { href: "/c/otros", label: "Otros" },
   { href: "/proximos", label: "Próximos" },
   { href: "/accesorios", label: "Accesorios" },
   { href: "/contact", label: "Contacto" },

@@ -56,10 +56,7 @@ function isNewCondition(condition: unknown) {
 export default async function NovedadesPage() {
   const { items } = await listCatalog().catch(() => ({ items: [] as any[] }));
   const availableItems = (items || []).filter((row: any) => row?.product?.status !== "sold");
-  const sortedAvailable = [...availableItems].sort(
-    (a: any, b: any) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime()
-  );
-  const visibleItems = sortedAvailable;
+  const visibleItems = availableItems;
 
   return (
     <div className="px-3 pb-10 pt-4 sm:px-4 sm:pb-14 sm:pt-6">

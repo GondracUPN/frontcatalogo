@@ -22,8 +22,7 @@ function priceFromRow(row: any) {
 export default async function ProximosPage() {
   const { items } = await listCatalog().catch(() => ({ items: [] as any[] }));
   const preventas = (items || [])
-    .filter((row: any) => row?.product?.status !== "sold" && saleTypeFromRow(row) === "PREVENTA")
-    .sort((a: any, b: any) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime());
+    .filter((row: any) => row?.product?.status !== "sold" && saleTypeFromRow(row) === "PREVENTA");
 
   return (
     <div className="px-3 pb-10 pt-4 sm:px-4 sm:pb-14 sm:pt-6">

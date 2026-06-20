@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import dynamic from "next/dynamic";
-import { deleteStaged } from "../../actions";
+import { deleteStaged, listStaged } from "../../actions";
 
 const StagedPublishModal = dynamic(() => import("./PublishModal"), { ssr: false });
 
@@ -9,6 +9,17 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
   const [items, setItems] = React.useState<any[]>(initialItems || []);
   const [open, setOpen] = React.useState<null | any>(null);
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    const refreshStaged = async () => {
+      try {
+        const res = await listStaged({ pageSize: "all" });
+        setItems(Array.isArray(res?.items) ? res.items : []);
+      } catch {}
+    };
+    window.addEventListener("staged-products-updated", refreshStaged);
+    return () => window.removeEventListener("staged-products-updated", refreshStaged);
+  }, []);
 
   const costoCompra = (it: any) => {
     try {
@@ -86,6 +97,7 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
     try {
       await deleteStaged(it.id);
       setItems((arr) => arr.filter((a) => a.id !== it.id));
+      window.dispatchEvent(new Event("staged-products-updated"));
     } catch {
       alert("No se pudo eliminar el borrador");
     }
@@ -171,6 +183,8 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
             const merged = new Set([String(updated.id), ...(Array.isArray(updated.__mergeStagedIds) ? updated.__mergeStagedIds.map(String) : [])]);
             setItems((arr) => arr.filter((a) => !merged.has(String(a.id))));
             setOpen(null);
+            window.dispatchEvent(new Event("staged-products-updated"));
+            window.dispatchEvent(new Event("catalog-products-updated"));
           }}
         />
       )}

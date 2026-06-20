@@ -34,7 +34,8 @@ export default function PreventaManualButton() {
           onClose={() => setOpen(false)}
           onSaved={() => {
             setOpen(false);
-            window.location.reload();
+            window.dispatchEvent(new Event("staged-products-updated"));
+            window.dispatchEvent(new Event("catalog-products-updated"));
           }}
         />
       )}

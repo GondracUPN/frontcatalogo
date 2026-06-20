@@ -8,6 +8,7 @@ import {
   markPossibleClientPurchased,
   updatePossibleClient,
 } from "../../actions";
+import { formatPeruDateTime } from "../../utils/peruTime";
 
 type ContactRequest = {
   id: string;
@@ -229,11 +230,21 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
     };
     run();
     const t = setInterval(run, 15000);
+    const onContactRequestsUpdated = () => {
+      refreshAlerts().catch(() => {});
+    };
+    const onPossibleClientsUpdated = () => {
+      refreshClients().catch(() => {});
+    };
+    window.addEventListener("contact-requests-updated", onContactRequestsUpdated);
+    window.addEventListener("possible-clients-updated", onPossibleClientsUpdated);
     return () => {
       active = false;
       clearInterval(t);
+      window.removeEventListener("contact-requests-updated", onContactRequestsUpdated);
+      window.removeEventListener("possible-clients-updated", onPossibleClientsUpdated);
     };
-  }, []);
+  }, [refreshAlerts, refreshClients]);
 
   const attendSelected = async () => {
     if (!selected) return;
@@ -246,6 +257,8 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
       await markContactRequestAttended(request.id);
       setSelected(null);
       await Promise.all([refreshAlerts(), refreshClients()]);
+      window.dispatchEvent(new Event("contact-requests-updated"));
+      window.dispatchEvent(new Event("possible-clients-updated"));
     } finally {
       setBusy(false);
     }
@@ -257,6 +270,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
     try {
       await discardPossibleClient(client.id);
       await refreshClients();
+      window.dispatchEvent(new Event("possible-clients-updated"));
     } finally {
       setBusy(false);
     }
@@ -294,6 +308,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
       setEditClient(null);
       setEditDraft({});
       await refreshClients();
+      window.dispatchEvent(new Event("possible-clients-updated"));
     } finally {
       setBusy(false);
     }
@@ -310,6 +325,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
       });
       setPurchaseClient(null);
       await refreshClients();
+      window.dispatchEvent(new Event("possible-clients-updated"));
     } finally {
       setBusy(false);
     }
@@ -347,6 +363,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
             <tr className="text-left text-gray-700">
               <th className="p-2">Producto</th>
               <th className="p-2">Tipo</th>
+              <th className="p-2">Fecha</th>
               <th className="p-2">Acciones</th>
             </tr>
           </thead>
@@ -365,6 +382,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
                       ? "Mejor oferta"
                       : "Compra"}
                 </td>
+                <td className="p-2 text-gray-900">{formatPeruDateTime(row.created_at)}</td>
                 <td className="p-2">
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => setSelected(row)} className="px-3 py-1 rounded bg-amber-600 text-white">
@@ -379,7 +397,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
             ))}
             {!items.length && (
               <tr>
-                <td className="p-2 text-gray-500" colSpan={3}>
+                <td className="p-2 text-gray-500" colSpan={4}>
                   Sin alertas
                 </td>
               </tr>
@@ -417,6 +435,10 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
               <div>
                 <div className="text-gray-500">Total</div>
                 <div className="font-medium">{formatPrice(requestTotal(selected))}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Fecha de solicitud</div>
+                <div className="font-medium">{formatPeruDateTime(selected.created_at)}</div>
               </div>
               <div>
                 <div className="text-gray-500">Cliente</div>

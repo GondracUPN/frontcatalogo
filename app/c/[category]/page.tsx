@@ -1,10 +1,9 @@
 import { listCatalog } from "@/app/actions";
 import CategoryBrowser from "../../components/CategoryBrowser";
-import { redirect } from "next/navigation";
 
 export const revalidate = 300;
 
-const CATEGORY_PARAMS = ["macbook", "ipad", "iphone", "watch", "accesorios"] as const;
+const CATEGORY_PARAMS = ["macbook", "ipad", "iphone", "watch", "otros", "accesorios"] as const;
 
 export function generateStaticParams() {
   return CATEGORY_PARAMS.map((category) => ({ category }));
@@ -16,6 +15,7 @@ function toTitle(cat: string) {
     ipad: "iPad nuevos, open box y usados",
     iphone: "iPhone nuevos, open box y usados",
     watch: "Apple Watch nuevos, open box y usados",
+    otros: "Otros productos",
     accesorios: "Accesorios",
   };
   return m[cat?.toLowerCase?.()] || cat;
@@ -24,7 +24,6 @@ function toTitle(cat: string) {
 export default async function CategoryPage({ params }: { params: Promise<{ category: string }> }) {
   const { category: rawCategory } = await params;
   const category = String(rawCategory || "").toLowerCase();
-  if (category === "otros") redirect("/proximos");
   const { items } = await listCatalog({ category }).catch(() => ({ items: [] as any[] }));
 
   return (

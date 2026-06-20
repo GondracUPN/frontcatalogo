@@ -166,6 +166,10 @@ export function persistCartItemsCache(items: any[]) {
   }
 }
 
+export function clearCartItemsCache() {
+  persistCartItemsCache([]);
+}
+
 async function cartFetch<T>(path: string, init: RequestInit = {}) {
   const cartId = getCartId();
   let res: Response;
@@ -248,7 +252,7 @@ export async function removeCartItem(id: string) {
 export async function submitContactRequest(payload: {
   name: string;
   phone: string;
-  locationScope: "lima" | "provincia";
+  locationScope: "almacen" | "punto_medio";
   locationValue: string;
 }) {
   return cartFetch<{ ok: boolean; id?: string | null }>("/cart/contact-request", {

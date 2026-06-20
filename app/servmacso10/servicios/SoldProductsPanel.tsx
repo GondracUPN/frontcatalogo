@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { listSales, unsellProduct, updateSale } from "../../actions";
+import { dateInputInPeru, formatPeruDate } from "../../utils/peruTime";
 
 type Sale = {
   id: string;
@@ -17,16 +18,11 @@ type Sale = {
 };
 
 function formatDate(value: unknown) {
-  const date = value ? new Date(String(value)) : null;
-  if (!date || Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleDateString();
+  return formatPeruDate(value);
 }
 
 function inputDate(value: unknown) {
-  const date = value ? new Date(String(value)) : null;
-  if (!date || Number.isNaN(date.getTime())) return "";
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
+  return value ? dateInputInPeru(value) : "";
 }
 
 function phone(value: unknown) {
@@ -76,7 +72,9 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
     try {
       await unsellProduct(sale.product_id, sale.id);
       await refresh();
+      window.dispatchEvent(new Event("sales-updated"));
       window.dispatchEvent(new Event("catalog-products-updated"));
+      window.dispatchEvent(new Event("staged-products-updated"));
     } finally {
       setBusyId(null);
     }
@@ -106,6 +104,7 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
         await refresh();
       }
       setEditing(null);
+      window.dispatchEvent(new Event("sales-updated"));
     } catch {
       alert("No se pudo actualizar la venta");
     } finally {
