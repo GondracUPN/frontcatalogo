@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { listCatalog } from "../actions";
 import PriceWithIgv from "../components/PriceWithIgv";
 
@@ -84,10 +85,10 @@ export default async function NovedadesPage() {
                 const stock = Number(row?.product?.stock ?? row?.staged?.stock ?? 0);
                 const stockLabel = isNewCondition(conditionFromRow(row)) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
                 return (
-                  <a
+                  <Link
                     key={row.id}
                     href={`/product/${row.slug}`}
-                    className="group rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.94))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
+                    className="catalog-card group rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.94))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
                   >
                     <div className="relative overflow-hidden rounded-[24px] bg-[linear-gradient(145deg,#f5f7fa,#ebf0f6)]">
                       {stockLabel && (
@@ -114,7 +115,7 @@ export default async function NovedadesPage() {
                       {title}
                     </div>
                     <PriceWithIgv price={Number(price)} compareAt={compareAt} wrapperClassName="mt-3" />
-                  </a>
+                  </Link>
                 );
               })
             ) : (

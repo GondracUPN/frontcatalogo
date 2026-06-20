@@ -383,11 +383,24 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
           }}
           onTransitionEnd={handleMainTransitionEnd}
         >
-          {carouselImages.map((src, index) => (
-            <div key={`${src}-${index}`} className="relative h-full w-full shrink-0">
-              <img src={src} alt="" className={`h-full w-full ${mainImageFitClass}`} draggable={false} />
-            </div>
-          ))}
+          {carouselImages.map((src, index) => {
+            const shouldLoad = Math.abs(index - mainTrackIndex) <= 1 || carouselImages.length <= 3;
+            return (
+              <div key={`${src}-${index}`} className="relative h-full w-full shrink-0">
+                {shouldLoad && (
+                  <Image
+                    src={src}
+                    alt=""
+                    fill
+                    sizes="(max-width: 1024px) 100vw, 54vw"
+                    className={`h-full w-full ${mainImageFitClass}`}
+                    {...(index === mainTrackIndex ? { priority: true } : { loading: "lazy" as const })}
+                    draggable={false}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
         <div className="absolute bottom-3 right-3 z-[3] rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[color:var(--foreground-soft)] backdrop-blur-xl sm:bottom-4 sm:right-4 sm:text-xs">
           {active + 1} / {imgs.length}

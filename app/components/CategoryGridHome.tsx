@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { listCatalog } from "@/app/actions";
 
 const CATS = ["macbook", "ipad", "iphone", "watch", "accesorios"] as const;
@@ -16,12 +17,12 @@ export default async function CategoryGridHome() {
   return (
     <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
       {byCat.map(({ cat, img }) => (
-        <a key={cat} href={`/c/${cat}`} className="rounded-2xl bg-[#e6f7a8] border border-gray-200 p-4 block hover:shadow-md transition">
+        <Link key={cat} href={`/c/${cat}`} className="rounded-2xl bg-[#e6f7a8] border border-gray-200 p-4 block hover:shadow-md transition">
           <div className="aspect-[16/10] rounded-lg overflow-hidden">
             <img src={img} alt="" className="w-full h-full object-cover" />
           </div>
           <div className="mt-3 text-[15px] font-semibold text-gray-900">{LABEL[cat]}</div>
-        </a>
+        </Link>
       ))}
     </div>
   );

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { listCatalog } from "../actions";
 import PriceWithIgv from "../components/PriceWithIgv";
 
@@ -46,10 +47,10 @@ export default async function ProximosPage() {
                 const img = (row.images && row.images[0]) || row.staged?.images?.[0] || "/placeholder.svg";
                 const title = String(row.product?.title || row.staged?.title || row.slug || "Producto");
                 return (
-                  <a
+                  <Link
                     key={row.id}
                     href={`/product/${row.slug}`}
-                    className="group rounded-[28px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.94))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
+                    className="catalog-card group rounded-[28px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.94))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
                   >
                     <div className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(145deg,#f5f7fa,#ebf0f6)]">
                       <span className="absolute left-3 top-3 z-10 rounded-full bg-black/85 px-3 py-1 text-[11px] font-semibold text-white">
@@ -69,7 +70,7 @@ export default async function ProximosPage() {
                       {title}
                     </div>
                     <PriceWithIgv price={priceFromRow(row)} wrapperClassName="mt-3" />
-                  </a>
+                  </Link>
                 );
               })
             ) : (

@@ -36,6 +36,18 @@ html {
   scroll-behavior: smooth;
 }
 
+@keyframes route-progress {
+  0% {
+    transform: translateX(-95%) scaleX(0.28);
+  }
+  45% {
+    transform: translateX(15%) scaleX(0.78);
+  }
+  100% {
+    transform: translateX(145%) scaleX(0.42);
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -110,6 +122,11 @@ textarea:focus {
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: calc(var(--radius-card) + 4px);
   box-shadow: var(--shadow-strong);
+}
+
+.catalog-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 360px;
 }
 
 .soft-outline {

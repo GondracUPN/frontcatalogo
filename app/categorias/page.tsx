@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { getHomeCatalog } from "../actions";
 
 export const revalidate = 300;
@@ -39,7 +40,7 @@ export default async function CategoriasPage() {
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {data.map((cat) => (
-              <a
+              <Link
                 key={cat.key}
                 href={cat.href}
                 className="group rounded-[24px] border border-black/10 bg-white/80 p-5 shadow-sm hover:-translate-y-0.5 hover:shadow-md"
@@ -77,7 +78,7 @@ export default async function CategoriasPage() {
                   </div>
                   <span className="text-sm font-medium text-[color:var(--accent)]">Ver</span>
                 </div>
-              </a>
+              </Link>
             ))}
           </div>
         </div>

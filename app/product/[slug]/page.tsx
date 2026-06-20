@@ -4,6 +4,7 @@ import ProductViewTracker from "@/app/components/ProductViewTracker";
 import PriceWithIgv from "@/app/components/PriceWithIgv";
 import ProductDetailPhotos from "@/app/components/ProductDetailPhotos";
 import { getCatalogItem } from "@/app/actions";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export const revalidate = 300;
@@ -486,13 +487,13 @@ export default async function ProductPage({
                             );
                           }
                           return (
-                            <a
+                            <Link
                               key={variant.product_id || variant.slug}
                               href={`/product/${variant.slug}`}
                               className={optionClass}
                             >
                               {content}
-                            </a>
+                            </Link>
                           );
                         })}
                       </div>

@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import Link from "next/link";
 import React from "react";
 import PriceWithIgv from "./PriceWithIgv";
 
@@ -586,10 +587,10 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                 const stock = Number(row?.product?.stock ?? row?.staged?.stock ?? 0);
                 const stockLabel = isNewCondition(item.condition) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
                 return (
-                  <a
+                  <Link
                     key={row.id}
                     href={`/product/${row.slug}`}
-                    className="group rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.94))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
+                    className="catalog-card group rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.94))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
                   >
                     <div className="relative overflow-hidden rounded-[24px] bg-[linear-gradient(145deg,#f5f7fa,#ebf0f6)]">
                       <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
@@ -634,7 +635,7 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                       </div>
                       <PriceWithIgv price={Number(item.price)} compareAt={item.compareAt} wrapperClassName="mt-3" />
                     </div>
-                  </a>
+                  </Link>
                 );
               })
             ) : (

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import CategoryStripHome from "./components/CategoryStripHome";
 import CategoryClientsCarousel from "./components/CategoryClientsCarousel";
 import PriceWithIgv from "./components/PriceWithIgv";
@@ -52,18 +53,18 @@ export default async function Home() {
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <a
+                <Link
                   href="/novedades"
                   className="btn-primary inline-flex items-center rounded-full bg-[color:var(--foreground)] px-6 py-3 text-sm font-medium text-white shadow-lg shadow-black/10 hover:bg-black"
                 >
                   Ultimas llegadas
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/categorias"
                   className="btn-secondary inline-flex items-center rounded-full border border-black/10 bg-white/70 px-6 py-3 text-sm font-medium text-[color:var(--foreground)] hover:bg-white"
                 >
                   Categorias
-                </a>
+                </Link>
               </div>
             </div>
           </div>
@@ -84,9 +85,9 @@ export default async function Home() {
                   Ultimos ingresos.
                 </h2>
               </div>
-              <a href="/novedades" className="btn-ghost text-sm font-medium text-[color:var(--accent)]">
+              <Link href="/novedades" className="btn-ghost text-sm font-medium text-[color:var(--accent)]">
                 Ver todo el catalogo reciente
-              </a>
+              </Link>
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -103,10 +104,10 @@ export default async function Home() {
                     const stockLabel = isNewCondition(condition) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
                     const promoLabel = promoBadge(row);
                     return (
-                      <a
+                      <Link
                         key={row.id}
                         href={`/product/${row.slug}`}
-                        className="group rounded-[30px] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,247,251,0.94))] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_28px_60px_rgba(15,23,42,0.13)]"
+                        className="catalog-card group rounded-[30px] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,247,251,0.94))] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_28px_60px_rgba(15,23,42,0.13)]"
                       >
                         <div className="relative overflow-hidden rounded-[24px] bg-[linear-gradient(145deg,#f6f8fb,#ecf0f5)]">
                           <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-white/85 to-transparent" />
@@ -148,7 +149,7 @@ export default async function Home() {
                             priceClassName="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]"
                           />
                         </div>
-                      </a>
+                      </Link>
                     );
                   })
                 : Array.from({ length: 4 }).map((_, i) => (

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import RootShell from "./components/RootShell";
 import ClientDomCleanup from "./components/ClientDomCleanup";
+import NavigationProgress from "./components/NavigationProgress";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,6 +38,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} bg-[var(--background)] text-[var(--foreground)] antialiased`}
       >
         <ClientDomCleanup />
+        <NavigationProgress />
         <RootShell>{children}</RootShell>
       </body>
     </html>

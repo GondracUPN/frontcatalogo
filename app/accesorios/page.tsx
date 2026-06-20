@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { listCatalog } from "@/app/actions";
 import PriceWithIgv from "@/app/components/PriceWithIgv";
 
@@ -64,7 +65,7 @@ export default async function AccesoriosPage() {
           const stock = Number(row?.product?.stock ?? row?.staged?.stock ?? 0);
           const stockLabel = isNewCondition(conditionFromRow(row)) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
           return (
-            <a key={row.id} href={`/product/${row.slug}`} className="rounded-xl bg-white shadow-sm border border-gray-200 p-3 block">
+            <Link key={row.id} href={`/product/${row.slug}`} className="catalog-card rounded-xl bg-white shadow-sm border border-gray-200 p-3 block">
               <div className="relative aspect-square rounded-lg bg-gray-50 overflow-hidden">
                 {stockLabel && (
                   <div className="absolute left-2 top-2 z-10 rounded-full bg-[rgba(230,245,236,0.92)] px-2.5 py-1 text-[10px] font-semibold text-[#1f6c43]">
@@ -92,7 +93,7 @@ export default async function AccesoriosPage() {
                 labelClassName="text-[10px] font-semibold uppercase tracking-[0.12em] text-rose-400"
                 igvClassName="mt-1 text-xs font-medium text-emerald-500"
               />
-            </a>
+            </Link>
           );
         }) : (
           <div className="col-span-full text-center text-gray-500">Sin productos publicados aún.</div>
