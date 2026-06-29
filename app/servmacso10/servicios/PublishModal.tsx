@@ -196,6 +196,7 @@ function getIphoneStorageOptions(numero: string, modelo: string) {
   if (n >= 13 && n <= 16) {
     if (["Pro", "Pro Max"].includes(modelo)) {
       if (n <= 14) return ["128", "256", "512"];
+      if (n === 16 && modelo === "Pro") return ["128", "256", "512", "1TB"];
       return ["256", "512", "1TB"];
     }
     return ["128", "256", "512"];
