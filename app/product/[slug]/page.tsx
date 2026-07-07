@@ -17,6 +17,13 @@ function parseNotes(notes: any) {
   }
 }
 
+function formatIncludesAccessories(value: string, cuboFake: boolean, cableFake: boolean) {
+  let formatted = String(value || "");
+  if (cuboFake) formatted = formatted.replace(/\bCubo\b/i, "Cubo Genérico");
+  if (cableFake) formatted = formatted.replace(/\bCable\b/i, "Cable Genérico");
+  return formatted;
+}
+
 function buildIphoneTitle(number?: number | string | null, model?: string | null, storageGb?: number | string | null, color?: string | null) {
   const n = number ? String(number).trim() : "";
   const m = model ? String(model).trim() : "";
@@ -285,7 +292,7 @@ export default async function ProductPage({
       ? "-"
       : includesValue === "Otros"
         ? includesExtra || "Otros"
-        : includesValue
+        : formatIncludesAccessories(includesValue, notes?.cuboFake === true || notes?.cuboFake === "true", notes?.cableFake === true || notes?.cableFake === "true")
     : "";
   const incluyeLegacy = notes?.incluye || {};
   const sold = item.product?.status === "sold";

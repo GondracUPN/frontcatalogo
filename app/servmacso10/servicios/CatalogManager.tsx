@@ -20,6 +20,8 @@ type CatalogRow = {
   linkedStaged?: any[];
 };
 
+type SortMode = "upload" | "sku";
+
 const CATEGORY_OPTIONS = [
   { value: "all", label: "Todos" },
   { value: "macbook", label: "MacBooks" },
@@ -62,10 +64,40 @@ function linkedSkuRowsFor(row: CatalogRow) {
   return skus.map((sku: unknown) => ({ sku: String(sku || "").trim() })).filter((linked: any) => linked.sku);
 }
 
+function displaySku(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const preventaLegacy = raw.match(/^prev[-_\s]*svc[-_\s]*(\d+)$/i);
+  if (preventaLegacy) return `PREV-MS-${preventaLegacy[1]}`;
+  const legacy = raw.match(/^svc[-_\s]*(\d+)$/i);
+  if (legacy) return `MS-${legacy[1]}`;
+  return raw;
+}
+
+function skuSortValue(row: CatalogRow) {
+  return displaySku(row.product?.sku || row.staged?.sku).toUpperCase();
+}
+
+function skuSortParts(value: string) {
+  const match = value.match(/(\d+)(?!.*\d)/);
+  return {
+    number: match ? Number(match[1]) : Number.POSITIVE_INFINITY,
+    raw: value,
+  };
+}
+
+function compareSkuRows(a: CatalogRow, b: CatalogRow) {
+  const left = skuSortParts(skuSortValue(a));
+  const right = skuSortParts(skuSortValue(b));
+  if (left.number !== right.number) return left.number - right.number;
+  return left.raw.localeCompare(right.raw);
+}
+
 export default function CatalogManager({ initialItems, inventoryItems = [] }: { initialItems: CatalogRow[]; inventoryItems?: any[] }) {
   const [items, setItems] = React.useState<CatalogRow[]>(initialItems || []);
   const [inventoryRows, setInventoryRows] = React.useState<any[]>(inventoryItems || []);
   const [categoryFilter, setCategoryFilter] = React.useState("all");
+  const [sortMode, setSortMode] = React.useState<SortMode>("upload");
   const [open, setOpen] = React.useState<any | null>(null);
   const [soldModal, setSoldModal] = React.useState<{
     row: CatalogRow;
@@ -173,10 +205,11 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
     );
   };
 
-  const filteredItems = React.useMemo(
-    () => items.filter((row) => categoryFilter === "all" || rowCategory(row) === categoryFilter),
-    [categoryFilter, items]
-  );
+  const filteredItems = React.useMemo(() => {
+    const rows = items.filter((row) => categoryFilter === "all" || rowCategory(row) === categoryFilter);
+    if (sortMode === "sku") return rows.slice().sort(compareSkuRows);
+    return rows;
+  }, [categoryFilter, items, sortMode]);
 
   const variantLabel = (row: CatalogRow) => {
     const staged = (row.staged || {}) as any;
@@ -190,7 +223,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
     })();
     return [
       product.variant_group || staged.variant_group ? `Grupo: ${product.variant_group || staged.variant_group}` : "",
-      product.sku || staged.sku ? `SKU: ${product.sku || staged.sku}` : "",
+      product.sku || staged.sku ? `SKU: ${displaySku(product.sku || staged.sku)}` : "",
       product.title || staged.title ? "" : "",
       product.stock ? `Stock: ${product.stock}` : "",
       product.status === "sold" ? "Vendido" : "",
@@ -203,19 +236,32 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
   return (
     <div className="overflow-auto">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Filtrar por tipo</label>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="mt-1 w-full min-w-[220px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-          >
-            {CATEGORY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Filtrar por tipo</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="mt-1 w-full min-w-[220px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+            >
+              {CATEGORY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Orden</label>
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as SortMode)}
+              className="mt-1 w-full min-w-[180px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+            >
+              <option value="upload">Subida</option>
+              <option value="sku">SKU</option>
+            </select>
+          </div>
         </div>
         <div className="text-sm text-gray-600">
           {filteredItems.length} de {items.length} productos
@@ -244,7 +290,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
                     {variantLabel(row) && <div className="mt-1 text-xs font-normal text-gray-500">{variantLabel(row)}</div>}
                   </td>
                   <td className="p-2 text-gray-900">
-                    <div>{row.product?.sku || row.staged?.sku || "-"}</div>
+                    <div>{displaySku(row.product?.sku || row.staged?.sku) || "-"}</div>
                     {linkedRows.length > 0 && (
                       <div className="mt-1 text-xs text-gray-500">
                         +{linkedRows.length} vinculado{linkedRows.length === 1 ? "" : "s"}
@@ -317,9 +363,9 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
                   <tr key={`linked-${row.id}-${linked.id || linked.sku}`} className="border-t bg-emerald-50/40">
                     <td className="p-2 pl-6 text-gray-900">
                       <div className="text-sm font-medium">{linked.title || row.product?.title || row.staged?.title || row.slug}</div>
-                      <div className="mt-1 text-xs text-gray-500">Vinculado a {row.product?.sku || row.staged?.sku || "-"}</div>
+                      <div className="mt-1 text-xs text-gray-500">Vinculado a {displaySku(row.product?.sku || row.staged?.sku) || "-"}</div>
                     </td>
-                    <td className="p-2 font-mono text-xs text-gray-900">{linked.sku || "-"}</td>
+                    <td className="p-2 font-mono text-xs text-gray-900">{displaySku(linked.sku) || "-"}</td>
                     <td className="p-2 text-gray-900">S/ {Number(linked.price || row.product?.price || 0).toFixed(2)}</td>
                     <td className="p-2 text-xs text-gray-500">-</td>
                     <td className="p-2 text-xs text-gray-500">Incluido en stock</td>

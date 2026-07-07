@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { listCatalog } from "@/app/actions";
 
-const CATS = ["macbook", "ipad", "iphone", "watch", "accesorios"] as const;
-const LABEL: Record<string, string> = { macbook: "MacBook", ipad: "iPad", iphone: "iPhone", watch: "Watch", accesorios: "Accesorios" };
+const CATS = ["macbook", "ipad", "iphone", "watch", "otros"] as const;
+const LABEL: Record<string, string> = { macbook: "MacBook", ipad: "iPad", iphone: "iPhone", watch: "Watch", otros: "Otros" };
 
 export default async function CategoryGridHome() {
   const byCat = await Promise.all(

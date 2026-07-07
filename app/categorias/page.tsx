@@ -9,7 +9,7 @@ const CATS = [
   { key: "iphone", label: "iPhone", href: "/c/iphone", icon: "/imagenestipos/iphone.webp", note: "Uso diario." },
   { key: "ipad", label: "iPad", href: "/c/ipad", icon: "/imagenestipos/ipad.webp", note: "Movilidad y creatividad." },
   { key: "watch", label: "Watch", href: "/c/watch", icon: "/imagenestipos/watch.webp", note: "Estilo y ecosistema." },
-  { key: "accesorios", label: "Accesorios", href: "/c/accesorios", icon: "/imagenestipos/accesorios.webp", note: "Complementos clave." },
+  { key: "otros", label: "Otros", href: "/c/otros", icon: "/imagenestipos/accesorios.webp", note: "Mas opciones." },
 ] as const;
 
 export default async function CategoriasPage() {

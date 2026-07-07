@@ -4,6 +4,17 @@ import { updateStaged, publishStaged } from "../../actions";
 
 type DiscountMode = "percent" | "amount";
 
+function includesAccessory(value: string, accessory: "Cubo" | "Cable") {
+  return new RegExp(`\\b${accessory}\\b`, "i").test(String(value || ""));
+}
+
+function formatIncludesAccessories(value: string, cuboFake: boolean, cableFake: boolean) {
+  let formatted = String(value || "");
+  if (cuboFake && includesAccessory(formatted, "Cubo")) formatted = formatted.replace(/\bCubo\b/i, "Cubo Fake");
+  if (cableFake && includesAccessory(formatted, "Cable")) formatted = formatted.replace(/\bCable\b/i, "Cable Fake");
+  return formatted;
+}
+
 function toSlug(s: string) {
   return String(s || "")
     .toLowerCase()
@@ -312,6 +323,8 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   const [watchIncludes, setWatchIncludes] = React.useState<string>(String(notes?.watchIncludes || ""));
   const [includesValue, setIncludesValue] = React.useState<string>(item?.includes || notes?.includes || "");
   const [includesExtra, setIncludesExtra] = React.useState<string>(item?.includes_extra || notes?.includesExtra || "");
+  const [cuboFake, setCuboFake] = React.useState<boolean>(() => notes?.cuboFake === true || notes?.cuboFake === "true");
+  const [cableFake, setCableFake] = React.useState<boolean>(() => notes?.cableFake === true || notes?.cableFake === "true");
   const [descriptionOther, setDescriptionOther] = React.useState<string>((detalle as any)?.descripcionOtro || notes?.descripcionOtro || "");
   const [productDetails, setProductDetails] = React.useState<string>(
     String((detalle as any)?.detalles || (detalle as any)?.productDetails || notes?.productDetails || notes?.detalles || "")
@@ -594,7 +607,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
       add("Salud de bateria", salud ? `${salud}%` : "");
       add("Ciclos de carga", ciclos);
     }
-    add("Incluye", includesValue === "Otros" ? includesExtra : includesValue);
+    add("Incluye", includesValue === "Otros" ? includesExtra : formatIncludesAccessories(includesValue, cuboFake, cableFake));
     if (hasWarranty) add("Garantia", warrantyDate);
     if (showProductDetails) add("Detalles", productDetails);
     if (salePrice) add("Precio", `S/ ${Number(salePrice || 0).toFixed(2)}`);
@@ -681,6 +694,8 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         incluye: includesFlags,
         includes: includesValue,
         includesExtra,
+        cuboFake: includesAccessory(includesValue, "Cubo") && cuboFake,
+        cableFake: includesAccessory(includesValue, "Cable") && cableFake,
         productDetails: productDetailsValue || null,
         detalles: productDetailsValue || null,
         detailImages: detailImageValues,
@@ -1162,7 +1177,16 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
               {!isWatch && (
                 <div>
                   <label className="block text-sm">Incluye</label>
-                  <select value={includesValue} onChange={(e) => setIncludesValue(e.target.value)} className="w-full border rounded px-3 py-2 bg-white">
+                  <select
+                    value={includesValue}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setIncludesValue(nextValue);
+                      if (!includesAccessory(nextValue, "Cubo")) setCuboFake(false);
+                      if (!includesAccessory(nextValue, "Cable")) setCableFake(false);
+                    }}
+                    className="w-full border rounded px-3 py-2 bg-white"
+                  >
                     <option value="">Seleccionar</option>
                     <option value="Caja + Cubo + Cable">Caja + Cubo + Cable</option>
                     <option value="Cubo + Cable">Cubo + Cable</option>
@@ -1170,6 +1194,22 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
                     <option value="Ninguno">Ninguno</option>
                     <option value="Otros">Otros</option>
                   </select>
+                  {(includesAccessory(includesValue, "Cubo") || includesAccessory(includesValue, "Cable")) && (
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                      {includesAccessory(includesValue, "Cubo") && (
+                        <label className="flex items-center gap-2 text-sm">
+                          <input type="checkbox" checked={cuboFake} onChange={(e) => setCuboFake(e.target.checked)} />
+                          Cubo Fake
+                        </label>
+                      )}
+                      {includesAccessory(includesValue, "Cable") && (
+                        <label className="flex items-center gap-2 text-sm">
+                          <input type="checkbox" checked={cableFake} onChange={(e) => setCableFake(e.target.checked)} />
+                          Cable Fake
+                        </label>
+                      )}
+                    </div>
+                  )}
                   {includesValue === "Otros" && (
                     <input value={includesExtra} onChange={(e) => setIncludesExtra(e.target.value)} className="mt-2 w-full border rounded px-3 py-2" placeholder="Especifica" />
                   )}

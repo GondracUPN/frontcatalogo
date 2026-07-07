@@ -180,6 +180,7 @@ export async function listStaged(params: {
 export async function createManualPreventaDraft(seed?: {
   saleType?: "PREVENTA" | "VENTA_SIMPLE" | "PROMOCION" | "OFERTA";
   category?: string;
+  sku?: string;
   title?: string;
   stock?: number;
   price?: number;
@@ -189,6 +190,7 @@ export async function createManualPreventaDraft(seed?: {
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
   const saleType = String(seed?.saleType || "PREVENTA").toUpperCase();
   const category = String(seed?.category || "otros").toLowerCase();
+  const sku = String(seed?.sku || "").trim();
   const title = String(seed?.title || "Preventa").trim() || "Preventa";
   const stock = Math.max(1, Number(seed?.stock || 1) || 1);
   const price = Number(seed?.price || 0) || 0;
@@ -198,6 +200,7 @@ export async function createManualPreventaDraft(seed?: {
     body: JSON.stringify({
       saleType,
       category,
+      sku,
       title,
       stock,
       price,

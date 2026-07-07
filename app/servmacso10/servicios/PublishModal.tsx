@@ -7,6 +7,17 @@ type DiscountMode = "percent" | "amount";
 type MergeCandidate = { id: string; sku: string; title: string };
 type ReplacementCandidate = { id: string; sku: string; title: string; price?: string | number; status?: string };
 
+function includesAccessory(value: string, accessory: "Cubo" | "Cable") {
+  return new RegExp(`\\b${accessory}\\b`, "i").test(String(value || ""));
+}
+
+function formatIncludesAccessories(value: string, cuboFake: boolean, cableFake: boolean) {
+  let formatted = String(value || "");
+  if (cuboFake && includesAccessory(formatted, "Cubo")) formatted = formatted.replace(/\bCubo\b/i, "Cubo Fake");
+  if (cableFake && includesAccessory(formatted, "Cable")) formatted = formatted.replace(/\bCable\b/i, "Cable Fake");
+  return formatted;
+}
+
 function toSlug(s: string) {
   return String(s || "")
     .toLowerCase()
@@ -232,6 +243,14 @@ function normalizeSku(value: unknown) {
   return String(value || "").trim().toUpperCase();
 }
 
+function normalizeManualSku(value: unknown) {
+  const raw = normalizeSku(value).replace(/\s+/g, "");
+  if (!raw) return "";
+  if (/^MS-\d+$/i.test(raw)) return raw.toUpperCase();
+  const number = raw.match(/\d+/)?.[0] || "";
+  return number ? `MS-${number}` : raw;
+}
+
 function withCurrentOption(options: string[], current: string) {
   const value = String(current || "").trim();
   if (!value) return options;
@@ -445,6 +464,7 @@ export default function PublishModal({
     return raw ? capitalize(raw) : "";
   });
   const [titleManual, setTitleManual] = React.useState(false);
+  const [manualSku, setManualSku] = React.useState<string>(() => normalizeManualSku(item?.sku || notes?.manualSku || notes?.sourceSku || ""));
   const [proc, setProc] = React.useState<string>(detalle?.procesador || "");
   const [gama, setGama] = React.useState<string>(detalle?.gama || "");
   const [tam, setTam] = React.useState<string>(() => {
@@ -545,6 +565,8 @@ export default function PublishModal({
   const [watchIncludes, setWatchIncludes] = React.useState<string>(String(notes?.watchIncludes || ""));
   const [includesValue, setIncludesValue] = React.useState<string>(item?.includes || notes?.includes || "");
   const [includesExtra, setIncludesExtra] = React.useState<string>(item?.includes_extra || notes?.includesExtra || "");
+  const [cuboFake, setCuboFake] = React.useState<boolean>(() => notes?.cuboFake === true || notes?.cuboFake === "true");
+  const [cableFake, setCableFake] = React.useState<boolean>(() => notes?.cableFake === true || notes?.cableFake === "true");
   const [descriptionOther, setDescriptionOther] = React.useState<string>(detalle?.descripcionOtro || notes?.descripcionOtro || "");
   const [productDetails, setProductDetails] = React.useState<string>(
     String(detalle?.detalles || detalle?.productDetails || notes?.productDetails || notes?.detalles || "")
@@ -785,6 +807,7 @@ export default function PublishModal({
 
   const errors: string[] = [];
   const requiresBatteryInfo = saleType !== "PREVENTA" && productCondition !== "Nuevo";
+  const normalizedManualSku = normalizeManualSku(manualSku);
   if (!category) errors.push("Selecciona el tipo de producto");
   if (!saleType) errors.push("Selecciona el tipo de venta");
   if (!salePrice || salePrice <= 0) errors.push("El precio de venta es obligatorio");
@@ -1010,7 +1033,7 @@ export default function PublishModal({
       add("Salud de bateria", salud ? `${salud}%` : "");
       add("Ciclos de carga", ciclos);
     }
-    add("Incluye", includesValue === "Otros" ? includesExtra : includesValue);
+    add("Incluye", includesValue === "Otros" ? includesExtra : formatIncludesAccessories(includesValue, cuboFake, cableFake));
     if (hasWarranty) add("Garantia", warrantyDate);
     if (showProductDetails) add("Detalles", productDetails);
     if (salePrice) add("Precio", `S/ ${Number(salePrice || 0).toFixed(2)}`);
@@ -1121,6 +1144,8 @@ export default function PublishModal({
         incluye: includesFlags,
         includes: includesValue,
         includesExtra,
+        cuboFake: includesAccessory(includesValue, "Cubo") && cuboFake,
+        cableFake: includesAccessory(includesValue, "Cable") && cableFake,
         productDetails: productDetailsValue || null,
         detalles: productDetailsValue || null,
         detailImages: detailImageValues,
@@ -1148,6 +1173,7 @@ export default function PublishModal({
         watchIncludes: watchIncludes || null,
         saleType,
         salePrice,
+        manualSku: normalizedManualSku || null,
         discount: saleType === "PROMOCION" ? discount : null,
         discountMode: saleType === "PROMOCION" ? discountMode : null,
         finalPrice: saleType === "PROMOCION" ? finalPrice : null,
@@ -1172,6 +1198,7 @@ export default function PublishModal({
         const created = await createManualPreventaDraft({
           saleType: saleType as SaleType,
           category,
+          sku: normalizedManualSku,
           title: fixedTitle || "Preventa",
           stock: productCondition === "Nuevo" ? Number(stock || 1) : 1,
           price: Number(salePrice || 0),
@@ -1366,6 +1393,20 @@ export default function PublishModal({
             )}
             {isIphone && (
               <p className="text-xs text-gray-500">Se autogenera con los datos del iPhone hasta que lo edites manualmente.</p>
+            )}
+            {!item?.id && (
+              <div>
+                <label className="mt-3 block text-sm font-medium text-gray-900">SKU</label>
+                <input
+                  value={manualSku}
+                  onChange={(e) => setManualSku(e.target.value)}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
+                  placeholder="MS-303"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  En preventa se guardara como {normalizedManualSku ? `PREV-${normalizedManualSku}` : "PREV-MS-..."}.
+                </p>
+              </div>
             )}
 
             <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
@@ -1945,7 +1986,12 @@ export default function PublishModal({
                   <label className="block text-sm text-gray-700">Incluye</label>
                   <select
                     value={includesValue}
-                    onChange={(e) => setIncludesValue(e.target.value)}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setIncludesValue(nextValue);
+                      if (!includesAccessory(nextValue, "Cubo")) setCuboFake(false);
+                      if (!includesAccessory(nextValue, "Cable")) setCableFake(false);
+                    }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
                   >
                     <option value="">Seleccionar</option>
@@ -1967,6 +2013,22 @@ export default function PublishModal({
                       </>
                     )}
                   </select>
+                  {(includesAccessory(includesValue, "Cubo") || includesAccessory(includesValue, "Cable")) && (
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                      {includesAccessory(includesValue, "Cubo") && (
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <input type="checkbox" checked={cuboFake} onChange={(e) => setCuboFake(e.target.checked)} />
+                          Cubo Fake
+                        </label>
+                      )}
+                      {includesAccessory(includesValue, "Cable") && (
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <input type="checkbox" checked={cableFake} onChange={(e) => setCableFake(e.target.checked)} />
+                          Cable Fake
+                        </label>
+                      )}
+                    </div>
+                  )}
                   {includesValue === "Otros" && (
                     <input
                       value={includesExtra}

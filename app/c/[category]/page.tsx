@@ -1,5 +1,6 @@
 import { listCatalog } from "@/app/actions";
 import CategoryBrowser from "../../components/CategoryBrowser";
+import { redirect } from "next/navigation";
 
 export const revalidate = 300;
 
@@ -24,6 +25,7 @@ function toTitle(cat: string) {
 export default async function CategoryPage({ params }: { params: Promise<{ category: string }> }) {
   const { category: rawCategory } = await params;
   const category = String(rawCategory || "").toLowerCase();
+  if (category === "accesorios") redirect("/c/otros");
   const { items } = await listCatalog({ category }).catch(() => ({ items: [] as any[] }));
 
   return (

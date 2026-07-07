@@ -11,7 +11,6 @@ const NAV_ITEMS = [
   { href: "/c/watch", label: "Watch" },
   { href: "/c/otros", label: "Otros" },
   { href: "/proximos", label: "Próximos" },
-  { href: "/accesorios", label: "Accesorios" },
   { href: "/contact", label: "Contacto" },
 ];
 
@@ -32,7 +31,7 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-3">
               <button
                 aria-label="Abrir menu"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white/70 text-[color:var(--foreground)] md:hidden"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white/70 text-[color:var(--foreground)] xl:hidden"
                 onClick={() => setMenuOpen(true)}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
@@ -86,7 +85,7 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
       </header>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-[60] md:hidden">
+        <div className="fixed inset-0 z-[60] xl:hidden">
           <button
             className="absolute inset-0 bg-[rgba(14,20,32,0.44)] backdrop-blur-sm"
             aria-label="Cerrar menu"
