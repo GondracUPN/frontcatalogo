@@ -471,8 +471,9 @@ export default function PublishModal({
     return "VENTA_SIMPLE";
   });
   const [salePrice, setSalePrice] = React.useState<number>(() => {
-    if (legacySalePrice > 0) return legacySalePrice;
-    return Number(item?.price || 0);
+    const persistedPrice = Number(item?.price ?? notes?.salePrice ?? 0);
+    if (persistedPrice > 0) return persistedPrice;
+    return legacySalePrice;
   });
   const [preventaDateFrom, setPreventaDateFrom] = React.useState<string>(
     String(notes?.preventaDateFrom || notes?.preventa?.from || "")
