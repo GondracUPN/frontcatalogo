@@ -1,21 +1,34 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { normalizeProductVersionConfig, type ProductVersionConfig } from "./product-version-config";
 
-const CONFIG_PATH = path.join(process.cwd(), "storage", "product-version-config.json");
-
-export async function readProductVersionConfig(): Promise<ProductVersionConfig> {
-  try {
-    const raw = await fs.readFile(CONFIG_PATH, "utf8");
-    return normalizeProductVersionConfig(JSON.parse(raw));
-  } catch {
-    return normalizeProductVersionConfig();
-  }
+function apiBase() {
+  const raw = process.env.API_BASE_URL || "http://127.0.0.1:3101";
+  return raw.trim().replace(/\/+$/, "");
 }
 
-export async function writeProductVersionConfig(config: Partial<ProductVersionConfig>) {
-  const normalized = normalizeProductVersionConfig(config);
-  await fs.mkdir(path.dirname(CONFIG_PATH), { recursive: true });
-  await fs.writeFile(CONFIG_PATH, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
-  return normalized;
+async function requestProductVersionConfig(token: string, init?: RequestInit) {
+  const res = await fetch(`${apiBase()}/admin/product-versions`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(init?.headers || {}),
+    },
+    cache: "no-store",
+  });
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body?.ok) throw new Error("No se pudo guardar la configuracion de versiones");
+  return body.config;
+}
+
+export async function readProductVersionConfig(token: string): Promise<ProductVersionConfig> {
+  const config = await requestProductVersionConfig(token);
+  return normalizeProductVersionConfig(config);
+}
+
+export async function writeProductVersionConfig(token: string, config: Partial<ProductVersionConfig>) {
+  const saved = await requestProductVersionConfig(token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ config }),
+  });
+  return normalizeProductVersionConfig(saved);
 }

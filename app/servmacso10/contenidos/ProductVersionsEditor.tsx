@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DEFAULT_PRODUCT_VERSION_CONFIG,
   normalizeProductVersionConfig,
@@ -29,15 +29,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputClass = "h-9 w-full rounded-lg border border-gray-300 px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a84ff]";
 const selectClass = `${inputClass} bg-white`;
 const buttonClass = "h-9 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white disabled:opacity-60";
-const outlineButtonClass = "h-9 rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-800 disabled:opacity-60";
 
 export default function ProductVersionsEditor() {
   const [config, setConfig] = useState<ProductVersionConfig>(() => emptyConfig());
   const [state, setState] = useState<SaveState>("idle");
   const [iphoneNumber, setIphoneNumber] = useState("");
   const [iphoneNumberModels, setIphoneNumberModels] = useState("Normal, Plus, Pro, Pro Max");
-  const [iphoneStorageNumber, setIphoneStorageNumber] = useState("");
-  const [iphoneStorageModel, setIphoneStorageModel] = useState("");
   const [iphoneStorageValues, setIphoneStorageValues] = useState("256, 512, 1TB");
   const [macGama, setMacGama] = useState("Air");
   const [macChip, setMacChip] = useState("");
@@ -50,10 +47,6 @@ export default function ProductVersionsEditor() {
   const [ipadStorage, setIpadStorage] = useState("128, 256, 512");
   const [watchKind, setWatchKind] = useState<WatchKind>("");
   const [watchValue, setWatchValue] = useState("");
-
-  const iphoneStorageModels = useMemo(() => {
-    return config.iphone.modelsByNumber[iphoneStorageNumber] || [];
-  }, [config.iphone.modelsByNumber, iphoneStorageNumber]);
 
   useEffect(() => {
     let alive = true;
@@ -69,14 +62,6 @@ export default function ProductVersionsEditor() {
       alive = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!iphoneStorageNumber) setIphoneStorageNumber(config.iphone.numbers.at(-1) || "");
-  }, [config.iphone.numbers, iphoneStorageNumber]);
-
-  useEffect(() => {
-    if (!iphoneStorageModel && iphoneStorageModels.length) setIphoneStorageModel(iphoneStorageModels[0]);
-  }, [iphoneStorageModel, iphoneStorageModels]);
 
   const save = async (next: ProductVersionConfig) => {
     setState("saving");
@@ -104,7 +89,12 @@ export default function ProductVersionsEditor() {
   const addIphoneNumber = () => {
     const number = iphoneNumber.trim();
     const models = splitList(iphoneNumberModels);
-    if (!number || !models.length) return;
+    const storage = splitList(iphoneStorageValues);
+    if (!number || !models.length || !storage.length) return;
+    if (config.iphone.numbers.some((existing) => existing.toLowerCase() === number.toLowerCase())) {
+      setState("error");
+      return;
+    }
     update((current) => ({
       ...current,
       iphone: {
@@ -112,31 +102,15 @@ export default function ProductVersionsEditor() {
         numbers: uniqueStrings([...current.iphone.numbers, number]),
         modelsByNumber: {
           ...current.iphone.modelsByNumber,
-          [number]: uniqueStrings([...(current.iphone.modelsByNumber[number] || []), ...models]),
+          [number]: models,
+        },
+        storageByNumberModel: {
+          ...current.iphone.storageByNumberModel,
+          [number]: Object.fromEntries(models.map((model) => [model, storage])),
         },
       },
     }));
     setIphoneNumber("");
-  };
-
-  const addIphoneStorage = () => {
-    const number = iphoneStorageNumber.trim();
-    const model = iphoneStorageModel.trim();
-    const values = splitList(iphoneStorageValues);
-    if (!number || !model || !values.length) return;
-    update((current) => ({
-      ...current,
-      iphone: {
-        ...current.iphone,
-        storageByNumberModel: {
-          ...current.iphone.storageByNumberModel,
-          [number]: {
-            ...(current.iphone.storageByNumberModel[number] || {}),
-            [model]: uniqueStrings([...(current.iphone.storageByNumberModel[number]?.[model] || []), ...values]),
-          },
-        },
-      },
-    }));
   };
 
   const addMacbookChip = () => {
@@ -236,33 +210,18 @@ export default function ProductVersionsEditor() {
 
       <section className="rounded-xl border border-gray-200 p-3">
         <h3 className="text-sm font-semibold text-gray-900">iPhone</h3>
-        <div className="mt-2 grid gap-2 lg:grid-cols-[0.9fr_1.2fr_auto]">
+        <div className="mt-2 grid gap-2 lg:grid-cols-[0.7fr_1.2fr_1fr_auto]">
           <Field label="Nuevo numero">
             <input value={iphoneNumber} onChange={(e) => setIphoneNumber(e.target.value)} className={inputClass} placeholder="18" />
           </Field>
           <Field label="Modelos para ese numero">
             <input value={iphoneNumberModels} onChange={(e) => setIphoneNumberModels(e.target.value)} className={inputClass} />
           </Field>
-          <button type="button" onClick={addIphoneNumber} disabled={state === "saving"} className={`${buttonClass} self-end`}>
-            Agregar
-          </button>
-        </div>
-        <div className="mt-2 grid gap-2 lg:grid-cols-[0.7fr_1fr_1.1fr_auto]">
-          <Field label="Numero">
-            <select value={iphoneStorageNumber} onChange={(e) => { setIphoneStorageNumber(e.target.value); setIphoneStorageModel(""); }} className={selectClass}>
-              {config.iphone.numbers.map((number) => <option key={number} value={number}>{number}</option>)}
-            </select>
-          </Field>
-          <Field label="Modelo">
-            <select value={iphoneStorageModel} onChange={(e) => setIphoneStorageModel(e.target.value)} className={selectClass}>
-              {iphoneStorageModels.map((model) => <option key={model} value={model}>{model}</option>)}
-            </select>
-          </Field>
-          <Field label="Almacenamiento extra">
+          <Field label="Almacenamiento">
             <input value={iphoneStorageValues} onChange={(e) => setIphoneStorageValues(e.target.value)} className={inputClass} />
           </Field>
-          <button type="button" onClick={addIphoneStorage} disabled={state === "saving"} className={`${outlineButtonClass} self-end`}>
-            Guardar
+          <button type="button" onClick={addIphoneNumber} disabled={state === "saving"} className={`${buttonClass} self-end`}>
+            Agregar
           </button>
         </div>
       </section>

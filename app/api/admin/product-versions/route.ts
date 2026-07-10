@@ -9,8 +9,13 @@ export async function GET(req: NextRequest) {
   const unauthorized = await requireAdmin(req);
   if (unauthorized) return unauthorized;
 
-  const config = await readProductVersionConfig();
-  return NextResponse.json({ ok: true, config });
+  try {
+    const token = req.cookies.get("token")?.value || "";
+    const config = await readProductVersionConfig(token);
+    return NextResponse.json({ ok: true, config });
+  } catch {
+    return NextResponse.json({ ok: false, message: "No se pudo cargar la configuracion" }, { status: 502 });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -19,7 +24,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const config = await writeProductVersionConfig(body?.config || {});
+    const token = req.cookies.get("token")?.value || "";
+    const config = await writeProductVersionConfig(token, body?.config || {});
     return NextResponse.json({ ok: true, config });
   } catch {
     return NextResponse.json({ ok: false, message: "No se pudo guardar la configuración" }, { status: 400 });
