@@ -641,45 +641,12 @@ export default function PublishModal({
   const iphoneStorageOptions = React.useMemo(() => withCurrentOption(iphoneStorageBase, iphoneStorage), [iphoneStorageBase, iphoneStorage]);
 
   React.useEffect(() => {
-    if (!isMacbook) return;
-    if (gama === "Neo") {
-      if (proc !== "A18 Pro") setProc("A18 Pro");
-      if (tam !== "13") setTam("13");
-      if (ram !== "8") setRam("8");
-      if (alm && !["256", "512"].includes(alm)) setAlm("");
-      return;
-    }
-    if (gama && !versionConfig.macbook.gamas.includes(gama)) setGama("");
-    if (proc && !macbookProcessorBase.includes(proc)) {
-      setProc("");
-      setTam("");
-      setRam("");
-      setAlm("");
-      return;
-    }
-    if (tam && !macbookConfig.sizes.includes(tam)) setTam("");
-    if (ram && !macbookConfig.rams.includes(ram)) setRam("");
-    if (alm && !macbookConfig.ssds.includes(alm)) setAlm("");
-  }, [isMacbook, gama, proc, tam, ram, alm, macbookProcessorBase, macbookConfig, versionConfig.macbook.gamas]);
-
-  React.useEffect(() => {
-    if (!isIpad) return;
-    if (gama && !versionConfig.ipad.gamas.includes(gama)) setGama("");
-    if ((gama === "Normal" || gama === "Mini")) {
-      if (proc) setProc("");
-    } else if (ipadGeneration) {
-      setIpadGeneration("");
-    }
-    if (ipadGeneration && !ipadGenerationBase.includes(ipadGeneration)) setIpadGeneration("");
-    if (proc && !ipadProcessorBase.includes(proc)) {
-      setProc("");
-      setTam("");
-      setAlm("");
-      return;
-    }
-    if (tam && !ipadSizeBase.includes(tam)) setTam("");
-    if (alm && !ipadStorageBase.includes(alm)) setAlm("");
-  }, [isIpad, gama, proc, tam, alm, ipadGeneration, ipadGenerationBase, ipadProcessorBase, ipadSizeBase, ipadStorageBase, versionConfig.ipad.gamas]);
+    if (!isMacbook || gama !== "Neo") return;
+    if (proc !== "A18 Pro") setProc("A18 Pro");
+    if (tam !== "13") setTam("13");
+    if (ram !== "8") setRam("8");
+    if (alm && !["256", "512"].includes(alm)) setAlm("");
+  }, [isMacbook, gama, proc, tam, ram, alm]);
 
   React.useEffect(() => {
     if (!isIphone) return;
@@ -688,15 +655,7 @@ export default function PublishModal({
       if (!iphoneNumber && parsed.number) setIphoneNumber(parsed.number);
       if (!iphoneModel && parsed.model) setIphoneModel(parsed.model);
     }
-    if (iphoneModel && !iphoneModelBase.includes(iphoneModel)) {
-      setIphoneModel("");
-      setIphoneStorage("");
-      return;
-    }
-    if (iphoneStorage && !iphoneStorageBase.includes(iphoneStorage)) {
-      setIphoneStorage("");
-    }
-  }, [isIphone, iphoneNumber, iphoneModel, iphoneStorage, iphoneModelBase, iphoneStorageBase, title]);
+  }, [isIphone, iphoneNumber, iphoneModel, title]);
 
   React.useEffect(() => {
     if (!isIphone) return;
