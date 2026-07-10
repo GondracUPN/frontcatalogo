@@ -1,6 +1,12 @@
 ﻿"use client";
 import React from "react";
 import { updateStaged, publishStaged } from "../../actions";
+import {
+  DEFAULT_PRODUCT_VERSION_CONFIG,
+  normalizeProductVersionConfig,
+  uniqueStrings as uniqueConfigStrings,
+  type ProductVersionConfig,
+} from "@/lib/product-version-config";
 
 type DiscountMode = "percent" | "amount";
 
@@ -60,10 +66,21 @@ function uniqueStrings(values: unknown[]) {
   return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
 }
 
-const SCREEN_SIZES = {
-  macbook: ["13", "14", "15", "16"],
-  ipad: ["10.2", "10.9", "11", "12.9"],
-};
+function getAllMacbookScreenSizes(config: ProductVersionConfig) {
+  return uniqueConfigStrings(
+    Object.values(config.macbook.configByGamaProcessor)
+      .flatMap((processors) => Object.values(processors))
+      .flatMap((processor) => processor.sizes)
+  );
+}
+
+function getAllIpadScreenSizes(config: ProductVersionConfig) {
+  return uniqueConfigStrings(
+    Object.values(config.ipad.sizesByGamaVersion)
+      .flatMap((versions) => Object.values(versions))
+      .flat()
+  );
+}
 
 function toCategory(tipo: string) {
   const t = String(tipo || "").toLowerCase();
@@ -372,6 +389,20 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   const [copiedText, setCopiedText] = React.useState(false);
   const [downloadingPhotos, setDownloadingPhotos] = React.useState(false);
   const detailUploadInFlightRef = React.useRef(false);
+  const [versionConfig, setVersionConfig] = React.useState<ProductVersionConfig>(() => normalizeProductVersionConfig(DEFAULT_PRODUCT_VERSION_CONFIG));
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/admin/product-versions", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((json) => {
+        if (alive && json?.ok) setVersionConfig(normalizeProductVersionConfig(json.config));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     const tipo = specs?.tipo || inferTipoFromTitle(title || item?.title);
@@ -419,6 +450,21 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   const procPlaceholder = "M3 / M4";
   const iphoneNum = Number(iphoneNumber || 0);
   const stockNum = Number(stock || 0);
+  const macbookScreenSizeOptions = React.useMemo(() => getAllMacbookScreenSizes(versionConfig), [versionConfig]);
+  const ipadScreenSizeOptions = React.useMemo(() => getAllIpadScreenSizes(versionConfig), [versionConfig]);
+  const iphoneModelOptions = React.useMemo(
+    () => uniqueConfigStrings([
+      "Normal",
+      "Plus",
+      "Pro",
+      "Pro Max",
+      "Mini",
+      "SE",
+      ...(versionConfig.iphone.modelsByNumber[iphoneNumber] || []),
+      iphoneModel,
+    ]),
+    [iphoneModel, iphoneNumber, versionConfig]
+  );
 
   const errors: string[] = [];
   const requiresBatteryInfo = saleType !== "PREVENTA" && productCondition !== "Nuevo";
@@ -447,7 +493,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     if (!ram?.trim()) errors.push("La RAM es obligatoria");
     if (!alm?.trim()) errors.push("El SSD es obligatorio");
     if (!tam?.trim()) errors.push("El tamaño de pantalla es obligatorio");
-    if (tam && !SCREEN_SIZES.macbook.includes(String(tam))) errors.push("Tamaño de pantalla inválido (MacBook)");
+    if (tam && macbookScreenSizeOptions.length && !macbookScreenSizeOptions.includes(String(tam))) errors.push("Tamaño de pantalla inválido (MacBook)");
     if (requiresBatteryInfo && !ciclos) errors.push("Los ciclos de batería son obligatorios");
     if (requiresBatteryInfo && !salud) errors.push("La salud de batería es obligatoria");
     if (!color?.trim()) errors.push("El color es obligatorio");
@@ -457,7 +503,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     if (!proc?.trim()) errors.push("El procesador es obligatorio");
     if (!gama?.trim()) errors.push("La gama es obligatoria");
     if (!tam?.trim()) errors.push("El tamaño de pantalla es obligatorio");
-    if (tam && !SCREEN_SIZES.ipad.includes(String(tam))) errors.push("Tamaño de pantalla inválido (iPad)");
+    if (tam && ipadScreenSizeOptions.length && !ipadScreenSizeOptions.includes(String(tam))) errors.push("Tamaño de pantalla inválido (iPad)");
     if (!alm?.trim()) errors.push("El almacenamiento es obligatorio");
     if (!ipadConnectivity?.trim()) errors.push("La conectividad es obligatoria");
     if (requiresBatteryInfo && !ciclos) errors.push("Los ciclos de batería son obligatorios");
@@ -468,7 +514,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   if (isIphone) {
     if (!iphoneModel) errors.push("Selecciona el modelo de iPhone");
     if (!iphoneNumber) errors.push("Selecciona el número de iPhone");
-    if (iphoneNumber && ![14, 15, 16].includes(iphoneNum)) errors.push("El número de iPhone debe ser 14, 15 o 16");
+    if (iphoneNumber && !versionConfig.iphone.numbers.includes(iphoneNumber)) errors.push("El número de iPhone es inválido");
     if (!iphoneStorage) errors.push("El almacenamiento es obligatorio");
     if (!iphoneSimType) errors.push("Selecciona si el iPhone usa chip físico o eSIM");
     if (iphoneStorage && Number(iphoneStorage) <= 0) errors.push("El almacenamiento es inválido");
@@ -481,9 +527,9 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   }
   if (isWatch) {
     if (!watchType) errors.push("Selecciona el tipo de Watch");
+    if (!watchConnection) errors.push("Selecciona la conexión");
     if (watchType === "Normal") {
       if (!watchSeries) errors.push("Selecciona la serie");
-      if (!watchConnection) errors.push("Selecciona la conexión");
     }
     if (watchType === "Ultra") {
       if (!watchVersion) errors.push("Selecciona la versión");
@@ -983,7 +1029,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
                   <label className="block text-sm">Tamaño de pantalla</label>
                   <select value={tam} onChange={(e) => setTam(e.target.value)} className="w-full border rounded px-3 py-2 bg-white">
                     <option value="">Seleccionar</option>
-                    {SCREEN_SIZES.macbook.map((s) => (<option key={s} value={s}>{s}</option>))}
+                    {macbookScreenSizeOptions.map((s) => (<option key={s} value={s}>{s}</option>))}
                   </select>
                 </div>
                 <div>
@@ -1028,7 +1074,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
                   <label className="block text-sm">Tamaño de pantalla</label>
                   <select value={tam} onChange={(e) => setTam(e.target.value)} className="w-full border rounded px-3 py-2 bg-white">
                     <option value="">Seleccionar</option>
-                    {SCREEN_SIZES.ipad.map((s) => (<option key={s} value={s}>{s}</option>))}
+                    {ipadScreenSizeOptions.map((s) => (<option key={s} value={s}>{s}</option>))}
                   </select>
                 </div>
                 <div>
@@ -1060,19 +1106,14 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
                   <label className="block text-sm">Modelo iPhone</label>
                   <select value={iphoneModel} onChange={(e) => setIphoneModel(e.target.value)} className="w-full border rounded px-3 py-2 bg-white">
                     <option value="">Seleccionar</option>
-                    <option value="Normal">Normal</option>
-                    <option value="Plus">Plus</option>
-                    <option value="Pro">Pro</option>
-                    <option value="Pro Max">Pro Max</option>
-                    <option value="Mini">Mini</option>
-                    <option value="SE">SE</option>
+                    {iphoneModelOptions.map((model) => (<option key={model} value={model}>{model}</option>))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm">Número</label>
                   <select value={iphoneNumber} onChange={(e) => setIphoneNumber(e.target.value)} className="w-full border rounded px-3 py-2 bg-white">
                     <option value="">Seleccionar</option>
-                    {["14","15","16"].map((n) => (<option key={n} value={n}>{n}</option>))}
+                    {versionConfig.iphone.numbers.map((n) => (<option key={n} value={n}>{n}</option>))}
                   </select>
                 </div>
                 <div>
@@ -1083,8 +1124,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
                   <label className="block text-sm">SIM</label>
                   <select value={iphoneSimType} onChange={(e) => setIphoneSimType(e.target.value)} className="w-full border rounded px-3 py-2 bg-white">
                     <option value="">Seleccionar</option>
-                    <option value="Chip físico">Chip físico</option>
-                    <option value="eSIM">eSIM</option>
+                    {versionConfig.iphone.simTypes.map((s) => (<option key={s} value={s}>{s}</option>))}
                   </select>
                 </div>
                 <div>
@@ -1113,26 +1153,24 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
                     <label className="block text-sm">Serie</label>
                     <select value={watchSeries} onChange={(e) => setWatchSeries(e.target.value)} className="w-full border rounded px-3 py-2 bg-white">
                       <option value="">Seleccionar</option>
-                      {["5","6","7","8","9","10","11"].map((s) => (<option key={s} value={s}>{s}</option>))}
+                      {versionConfig.watch.normalSeries.map((s) => (<option key={s} value={s}>{s}</option>))}
                     </select>
                   </div>
                 )}
-                {watchType === "Normal" && (
-                  <div>
-                    <label className="block text-sm">Conexión</label>
-                    <select value={watchConnection} onChange={(e) => setWatchConnection(e.target.value)} className="w-full border rounded px-3 py-2 bg-white">
-                      <option value="">Seleccionar</option>
-                      <option value="GPS">GPS</option>
-                      <option value="GPS + Cellular">GPS + Cellular</option>
-                    </select>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm">Conexión</label>
+                  <select value={watchConnection} onChange={(e) => setWatchConnection(e.target.value)} className="w-full border rounded px-3 py-2 bg-white">
+                    <option value="">Seleccionar</option>
+                    <option value="GPS">GPS</option>
+                    <option value="GPS + Cellular">GPS + Cellular</option>
+                  </select>
+                </div>
                 {watchType === "Ultra" && (
                   <div>
                     <label className="block text-sm">Versión</label>
                     <select value={watchVersion} onChange={(e) => setWatchVersion(e.target.value)} className="w-full border rounded px-3 py-2 bg-white">
                       <option value="">Seleccionar</option>
-                      {["1","2","3"].map((s) => (<option key={s} value={s}>{s}</option>))}
+                      {versionConfig.watch.ultraVersions.map((s) => (<option key={s} value={s}>{s}</option>))}
                     </select>
                   </div>
                 )}

@@ -1,6 +1,12 @@
 ﻿"use client";
 import React from "react";
 import { createManualPreventaDraft, updateStaged, publishStaged, replacePreventaWithInventory } from "../../actions";
+import {
+  DEFAULT_PRODUCT_VERSION_CONFIG,
+  getIphoneStorageOptionsFromConfig,
+  normalizeProductVersionConfig,
+  type ProductVersionConfig,
+} from "@/lib/product-version-config";
 
 type SaleType = "PREVENTA" | "VENTA_SIMPLE" | "PROMOCION" | "OFERTA";
 type DiscountMode = "percent" | "amount";
@@ -93,127 +99,6 @@ function parseIphoneFromTitle(title?: string) {
 function capitalize(s: string) {
   if (!s) return s;
   return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-const MACBOOK_GAMA_OPTIONS = ["Air", "Pro", "Neo"];
-const MACBOOK_PROCESSORS_AIR = ["M1", "M2", "M3", "M4", "M5"];
-const MACBOOK_PROCESSORS_PRO = [
-  "M1", "M2", "M3", "M4", "M5",
-  "M1 Pro", "M2 Pro", "M3 Pro", "M4 Pro",
-  "M1 Max", "M2 Max", "M3 Max", "M4 Max",
-];
-const MACBOOK_PROCESSORS_NEO = ["A18 Pro"];
-
-function getMacbookConfig(gama: string, procesador: string) {
-  const p = String(procesador || "").trim();
-  let sizes: string[] = [];
-  let rams: string[] = [];
-  let ssds: string[] = [];
-
-  if (gama === "Neo") {
-    if (p === "A18 Pro") { sizes = ["13"]; rams = ["8"]; ssds = ["256", "512"]; }
-  } else if (gama === "Air") {
-    if (p === "M1") { sizes = ["13"]; rams = ["8", "16"]; ssds = ["256", "512", "1TB", "2TB"]; }
-    else if (p === "M2") { sizes = ["13", "15"]; rams = ["8", "16", "24"]; ssds = ["256", "512", "1TB", "2TB"]; }
-    else if (p === "M3") { sizes = ["13", "15"]; rams = ["8", "16", "24"]; ssds = ["256", "512", "1TB", "2TB"]; }
-    else if (p === "M4") { sizes = ["13", "15"]; rams = ["16", "24", "32"]; ssds = ["256", "512", "1TB", "2TB"]; }
-    else if (p === "M5") { sizes = ["13", "15"]; rams = ["16", "24", "32"]; ssds = ["256", "512", "1TB", "2TB"]; }
-  } else if (gama === "Pro") {
-    if (p === "M1") { sizes = ["13"]; rams = ["8", "16"]; ssds = ["256", "512", "1TB", "2TB"]; }
-    else if (p === "M1 Pro") { sizes = ["14", "16"]; rams = ["16", "32"]; ssds = ["512", "1TB", "2TB"]; }
-    else if (p === "M1 Max") { sizes = ["14", "16"]; rams = ["32", "64"]; ssds = ["512", "1TB", "2TB", "4TB", "8TB"]; }
-    else if (p === "M2") { sizes = ["13"]; rams = ["8", "16", "24"]; ssds = ["256", "512", "1TB", "2TB"]; }
-    else if (p === "M2 Pro") { sizes = ["14", "16"]; rams = ["16", "32", "36"]; ssds = ["512", "1TB", "2TB"]; }
-    else if (p === "M2 Max") { sizes = ["14", "16"]; rams = ["32", "64", "96"]; ssds = ["512", "1TB", "2TB", "4TB", "8TB"]; }
-    else if (p === "M3") { sizes = ["14"]; rams = ["8", "16", "24"]; ssds = ["512", "1TB", "2TB"]; }
-    else if (p === "M3 Pro") { sizes = ["14", "16"]; rams = ["18", "36"]; ssds = ["512", "1TB", "2TB", "4TB"]; }
-    else if (p === "M3 Max") { sizes = ["14", "16"]; rams = ["36", "48", "64"]; ssds = ["1TB", "2TB", "4TB", "8TB"]; }
-    else if (p === "M4") { sizes = ["14"]; rams = ["8", "16", "24"]; ssds = ["512", "1TB", "2TB"]; }
-    else if (p === "M4 Pro") { sizes = ["14", "16"]; rams = ["24", "48"]; ssds = ["512", "1TB", "2TB", "4TB"]; }
-    else if (p === "M4 Max") { sizes = ["14", "16"]; rams = ["48", "64", "128"]; ssds = ["1TB", "2TB", "4TB", "8TB"]; }
-    else if (p === "M5") { sizes = ["14"]; rams = ["16", "24"]; ssds = ["512", "1TB", "2TB"]; }
-  }
-  return { sizes, rams, ssds };
-}
-
-const IPAD_GAMA_OPTIONS = ["Normal", "Mini", "Air", "Pro"];
-const IPAD_GENERACIONES_NORMALES = ["8", "9", "10", "11"];
-const IPAD_GENERACIONES_MINI = ["6", "7"];
-const IPAD_PROCESSADORES_AIR = ["M1", "M2", "M3"];
-const IPAD_PROCESSADORES_PRO = ["M1", "M2", "M4", "M5"];
-
-function getIpadProcesadores(gama: string) {
-  if (gama === "Air") return IPAD_PROCESSADORES_AIR;
-  if (gama === "Pro") return IPAD_PROCESSADORES_PRO;
-  return [] as string[];
-}
-
-function getIpadTamanos(gama: string, procesador: string, generacion: string) {
-  if (gama === "Normal") {
-    if (["8", "9"].includes(generacion)) return ["10.2"];
-    if (generacion === "10") return ["10.9"];
-    if (generacion === "11") return ["11"];
-  }
-  if (gama === "Air" && ["M2", "M3"].includes(procesador)) return ["11", "13"];
-  if (gama === "Pro") {
-    if (["M1", "M2"].includes(procesador)) return ["11", "12.9"];
-    if (["M4", "M5"].includes(procesador)) return ["11", "13"];
-  }
-  return [] as string[];
-}
-
-function getIpadAlmacenamiento(gama: string, generacion: string, procesador: string) {
-  if (gama === "Normal") {
-    if (generacion === "8") return ["32", "128"];
-    if (["9", "10"].includes(generacion)) return ["64", "256"];
-    if (generacion === "11") return ["128", "256", "512"];
-    return [] as string[];
-  }
-  if (gama === "Mini") {
-    if (generacion === "6") return ["64", "256"];
-    if (generacion === "7") return ["128", "256", "512"];
-    return [] as string[];
-  }
-  if (gama === "Air") {
-    if (procesador === "M1") return ["64", "128", "256"];
-    if (["M2", "M3"].includes(procesador)) return ["128", "256", "512"];
-  }
-  if (gama === "Pro") {
-    if (["M1", "M2"].includes(procesador)) return ["128", "256", "512", "1TB", "2TB"];
-    if (["M4", "M5"].includes(procesador)) return ["256", "512", "1TB", "2TB"];
-  }
-  return [] as string[];
-}
-
-const IPHONE_NUMBER_OPTIONS = ["11", "12", "13", "14", "15", "16", "17"];
-const IPHONE_MODELS_BY_NUMBER: Record<string, string[]> = {
-  "11": ["Normal", "Pro", "Pro Max"],
-  "12": ["Mini", "Normal", "Pro", "Pro Max"],
-  "13": ["Mini", "Normal", "Pro", "Pro Max"],
-  "14": ["Normal", "Plus", "Pro", "Pro Max"],
-  "15": ["Normal", "Plus", "Pro", "Pro Max"],
-  "16": ["Normal", "Plus", "Pro", "Pro Max", "E"],
-  "17": ["Normal", "Plus", "Pro", "Pro Max", "E"],
-};
-
-function getIphoneModelOptions(numero: string) {
-  return IPHONE_MODELS_BY_NUMBER[String(numero || "")] || [];
-}
-
-function getIphoneStorageOptions(numero: string, modelo: string) {
-  const n = parseInt(String(numero || ""), 10);
-  if (!Number.isFinite(n) || !modelo) return [] as string[];
-  if (n >= 11 && n <= 12) return ["64", "128", "256"];
-  if (n >= 13 && n <= 16) {
-    if (["Pro", "Pro Max"].includes(modelo)) {
-      if (n <= 14) return ["128", "256", "512"];
-      if (n === 16 && modelo === "Pro") return ["128", "256", "512", "1TB"];
-      return ["256", "512", "1TB"];
-    }
-    return ["128", "256", "512"];
-  }
-  if (n === 17) return ["256", "512", "1TB"];
-  return [] as string[];
 }
 
 function parseIphoneStorageGb(value: string) {
@@ -618,6 +503,7 @@ export default function PublishModal({
     String(item?.variant_group || notes?.variantGroup || notes?.variant_group || "")
   );
   const [dragImageIndex, setDragImageIndex] = React.useState<number | null>(null);
+  const [versionConfig, setVersionConfig] = React.useState<ProductVersionConfig>(() => normalizeProductVersionConfig(DEFAULT_PRODUCT_VERSION_CONFIG));
   const detailUploadInFlightRef = React.useRef(false);
   const replacementCandidates = React.useMemo<ReplacementCandidate[]>(() => {
     const candidates = Array.isArray(item?.__replacementCandidates) ? item.__replacementCandidates : [];
@@ -636,6 +522,19 @@ export default function PublishModal({
   const canReplacePreventa = Boolean(item?.__isPublishedPreventa && item?.__catalogProductId && replacementCandidates.length);
 
   const keepTypeUnselectedOnManualPreventa = !item?.id && String(item?.category ?? "") === "";
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/admin/product-versions", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((json) => {
+        if (alive && json?.ok) setVersionConfig(normalizeProductVersionConfig(json.config));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!catTouched && !keepTypeUnselectedOnManualPreventa) setCategory((c) => c || inferCategoryFromTitle(title));
@@ -711,31 +610,33 @@ export default function PublishModal({
     []
   );
   const macbookProcessorBase = React.useMemo(() => {
-    if (gama === "Air") return MACBOOK_PROCESSORS_AIR;
-    if (gama === "Pro") return MACBOOK_PROCESSORS_PRO;
-    if (gama === "Neo") return MACBOOK_PROCESSORS_NEO;
-    return [] as string[];
-  }, [gama]);
-  const macbookConfig = React.useMemo(() => getMacbookConfig(gama, proc), [gama, proc]);
+    return versionConfig.macbook.processorsByGama[gama] || [];
+  }, [gama, versionConfig]);
+  const macbookConfig = React.useMemo(
+    () => versionConfig.macbook.configByGamaProcessor[gama]?.[proc] || { sizes: [], rams: [], ssds: [] },
+    [gama, proc, versionConfig]
+  );
   const macbookProcessorOptions = React.useMemo(() => withCurrentOption(macbookProcessorBase, proc), [macbookProcessorBase, proc]);
   const macbookSizeOptions = React.useMemo(() => withCurrentOption(macbookConfig.sizes, tam), [macbookConfig.sizes, tam]);
   const macbookRamOptions = React.useMemo(() => withCurrentOption(macbookConfig.rams, ram), [macbookConfig.rams, ram]);
   const macbookSsdOptions = React.useMemo(() => withCurrentOption(macbookConfig.ssds, alm), [macbookConfig.ssds, alm]);
 
   const ipadGenerationBase = React.useMemo(() => {
-    if (gama === "Normal") return IPAD_GENERACIONES_NORMALES;
-    if (gama === "Mini") return IPAD_GENERACIONES_MINI;
-    return [] as string[];
-  }, [gama]);
-  const ipadProcessorBase = React.useMemo(() => getIpadProcesadores(gama), [gama]);
-  const ipadSizeBase = React.useMemo(() => getIpadTamanos(gama, proc, ipadGeneration), [gama, proc, ipadGeneration]);
-  const ipadStorageBase = React.useMemo(() => getIpadAlmacenamiento(gama, ipadGeneration, proc), [gama, ipadGeneration, proc]);
+    return versionConfig.ipad.generationsByGama[gama] || [];
+  }, [gama, versionConfig]);
+  const ipadProcessorBase = React.useMemo(() => versionConfig.ipad.processorsByGama[gama] || [], [gama, versionConfig]);
+  const ipadVersionKey = gama === "Normal" || gama === "Mini" ? ipadGeneration : proc;
+  const ipadSizeBase = React.useMemo(() => versionConfig.ipad.sizesByGamaVersion[gama]?.[ipadVersionKey] || [], [gama, ipadVersionKey, versionConfig]);
+  const ipadStorageBase = React.useMemo(() => versionConfig.ipad.storageByGamaVersion[gama]?.[ipadVersionKey] || [], [gama, ipadVersionKey, versionConfig]);
   const ipadGenerationOptions = React.useMemo(() => withCurrentOption(ipadGenerationBase, ipadGeneration), [ipadGenerationBase, ipadGeneration]);
   const ipadProcessorOptions = React.useMemo(() => withCurrentOption(ipadProcessorBase, proc), [ipadProcessorBase, proc]);
   const ipadSizeOptions = React.useMemo(() => withCurrentOption(ipadSizeBase, tam), [ipadSizeBase, tam]);
   const ipadStorageOptions = React.useMemo(() => withCurrentOption(ipadStorageBase, alm), [ipadStorageBase, alm]);
-  const iphoneModelBase = React.useMemo(() => getIphoneModelOptions(iphoneNumber), [iphoneNumber]);
-  const iphoneStorageBase = React.useMemo(() => getIphoneStorageOptions(iphoneNumber, iphoneModel), [iphoneNumber, iphoneModel]);
+  const iphoneModelBase = React.useMemo(() => versionConfig.iphone.modelsByNumber[iphoneNumber] || [], [iphoneNumber, versionConfig]);
+  const iphoneStorageBase = React.useMemo(
+    () => getIphoneStorageOptionsFromConfig(versionConfig, iphoneNumber, iphoneModel),
+    [iphoneNumber, iphoneModel, versionConfig]
+  );
   const iphoneModelOptions = React.useMemo(() => withCurrentOption(iphoneModelBase, iphoneModel), [iphoneModelBase, iphoneModel]);
   const iphoneStorageOptions = React.useMemo(() => withCurrentOption(iphoneStorageBase, iphoneStorage), [iphoneStorageBase, iphoneStorage]);
 
@@ -748,7 +649,7 @@ export default function PublishModal({
       if (alm && !["256", "512"].includes(alm)) setAlm("");
       return;
     }
-    if (gama && !MACBOOK_GAMA_OPTIONS.includes(gama)) setGama("");
+    if (gama && !versionConfig.macbook.gamas.includes(gama)) setGama("");
     if (proc && !macbookProcessorBase.includes(proc)) {
       setProc("");
       setTam("");
@@ -759,11 +660,11 @@ export default function PublishModal({
     if (tam && !macbookConfig.sizes.includes(tam)) setTam("");
     if (ram && !macbookConfig.rams.includes(ram)) setRam("");
     if (alm && !macbookConfig.ssds.includes(alm)) setAlm("");
-  }, [isMacbook, gama, proc, tam, ram, alm, macbookProcessorBase, macbookConfig]);
+  }, [isMacbook, gama, proc, tam, ram, alm, macbookProcessorBase, macbookConfig, versionConfig.macbook.gamas]);
 
   React.useEffect(() => {
     if (!isIpad) return;
-    if (gama && !IPAD_GAMA_OPTIONS.includes(gama)) setGama("");
+    if (gama && !versionConfig.ipad.gamas.includes(gama)) setGama("");
     if ((gama === "Normal" || gama === "Mini")) {
       if (proc) setProc("");
     } else if (ipadGeneration) {
@@ -778,7 +679,7 @@ export default function PublishModal({
     }
     if (tam && !ipadSizeBase.includes(tam)) setTam("");
     if (alm && !ipadStorageBase.includes(alm)) setAlm("");
-  }, [isIpad, gama, proc, tam, alm, ipadGeneration, ipadGenerationBase, ipadProcessorBase, ipadSizeBase, ipadStorageBase]);
+  }, [isIpad, gama, proc, tam, alm, ipadGeneration, ipadGenerationBase, ipadProcessorBase, ipadSizeBase, ipadStorageBase, versionConfig.ipad.gamas]);
 
   React.useEffect(() => {
     if (!isIphone) return;
@@ -858,7 +759,7 @@ export default function PublishModal({
     const iphoneStorageParsed = parseIphoneStorageGb(iphoneStorage);
     if (!iphoneModel) errors.push("Selecciona el modelo de iPhone");
     if (!iphoneNumber) errors.push("Selecciona el número de iPhone");
-    if (iphoneNumber && !IPHONE_NUMBER_OPTIONS.includes(iphoneNumber)) errors.push("El número de iPhone es inválido");
+    if (iphoneNumber && !versionConfig.iphone.numbers.includes(iphoneNumber)) errors.push("El número de iPhone es inválido");
     if (iphoneModel && iphoneModelBase.length && !iphoneModelBase.includes(iphoneModel)) errors.push("El modelo no aplica para ese número de iPhone");
     if (!iphoneStorage) errors.push("El almacenamiento es obligatorio");
     if (!iphoneSimType) errors.push("Selecciona si el iPhone usa chip físico o eSIM");
@@ -881,9 +782,9 @@ export default function PublishModal({
   }
   if (isWatch) {
     if (!watchType) errors.push("Selecciona el tipo de Watch");
+    if (!watchConnection) errors.push("Selecciona la conexión");
     if (watchType === "Normal") {
       if (!watchSeries) errors.push("Selecciona la serie");
-      if (!watchConnection) errors.push("Selecciona la conexión");
     }
     if (watchType === "Ultra") {
       if (!watchVersion) errors.push("Selecciona la versión");
@@ -1580,7 +1481,7 @@ export default function PublishModal({
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
                   >
                     <option value="">Seleccione</option>
-                    {MACBOOK_GAMA_OPTIONS.map((g) => (<option key={g} value={g}>{g}</option>))}
+                    {versionConfig.macbook.gamas.map((g) => (<option key={g} value={g}>{g}</option>))}
                   </select>
                 </div>
                 <div>
@@ -1671,7 +1572,7 @@ export default function PublishModal({
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
                   >
                     <option value="">Seleccione</option>
-                    {IPAD_GAMA_OPTIONS.map((g) => (<option key={g} value={g}>{g}</option>))}
+                    {versionConfig.ipad.gamas.map((g) => (<option key={g} value={g}>{g}</option>))}
                   </select>
                 </div>
                 {(gama === "Normal" || gama === "Mini") && (
@@ -1772,7 +1673,7 @@ export default function PublishModal({
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
                   >
                     <option value="">Seleccione</option>
-                    {IPHONE_NUMBER_OPTIONS.map((n) => (<option key={n} value={n}>{n}</option>))}
+                    {versionConfig.iphone.numbers.map((n) => (<option key={n} value={n}>{n}</option>))}
                   </select>
                 </div>
                 <div>
@@ -1812,8 +1713,7 @@ export default function PublishModal({
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
                   >
                     <option value="">Seleccione</option>
-                    <option value="Chip físico">Chip físico</option>
-                    <option value="eSIM">eSIM</option>
+                    {versionConfig.iphone.simTypes.map((s) => (<option key={s} value={s}>{s}</option>))}
                   </select>
                 </div>
                 <div>
@@ -1856,26 +1756,24 @@ export default function PublishModal({
                     <label className="block text-sm text-gray-700">Serie</label>
                     <select value={watchSeries} onChange={(e) => setWatchSeries(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
                       <option value="">Seleccionar</option>
-                      {["5","6","7","8","9","10","11"].map((s) => (<option key={s} value={s}>{s}</option>))}
+                      {versionConfig.watch.normalSeries.map((s) => (<option key={s} value={s}>{s}</option>))}
                     </select>
                   </div>
                 )}
-                {watchType === "Normal" && (
-                  <div>
-                    <label className="block text-sm text-gray-700">Conexión</label>
-                    <select value={watchConnection} onChange={(e) => setWatchConnection(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
-                      <option value="">Seleccionar</option>
-                      <option value="GPS">GPS</option>
-                      <option value="GPS + Cellular">GPS + Cellular</option>
-                    </select>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm text-gray-700">Conexión</label>
+                  <select value={watchConnection} onChange={(e) => setWatchConnection(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                    <option value="">Seleccionar</option>
+                    <option value="GPS">GPS</option>
+                    <option value="GPS + Cellular">GPS + Cellular</option>
+                  </select>
+                </div>
                 {watchType === "Ultra" && (
                   <div>
                     <label className="block text-sm text-gray-700">Versión</label>
                     <select value={watchVersion} onChange={(e) => setWatchVersion(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
                       <option value="">Seleccionar</option>
-                      {["1","2","3"].map((s) => (<option key={s} value={s}>{s}</option>))}
+                      {versionConfig.watch.ultraVersions.map((s) => (<option key={s} value={s}>{s}</option>))}
                     </select>
                   </div>
                 )}

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "../../actions";
 import ClientesUploader from "./ClientesUploader";
+import ProductVersionsEditor from "./ProductVersionsEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function ContenidosAdminPage() {
           Volver a servicios
         </a>
       </div>
-      <p className="text-sm text-gray-600">Pantalla para definir Banner/Promo y Clientes (fotos).</p>
+      <p className="text-sm text-gray-600">Pantalla para definir Banner/Promo, Clientes y versiones de productos.</p>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border bg-white p-4">
           <h2 className="font-semibold text-gray-900">Banner / Promo</h2>
@@ -29,6 +30,9 @@ export default async function ContenidosAdminPage() {
             <ClientesUploader />
           </div>
         </div>
+      </div>
+      <div className="rounded-2xl border bg-white p-4">
+        <ProductVersionsEditor />
       </div>
     </div>
   );
