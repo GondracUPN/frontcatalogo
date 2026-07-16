@@ -21,6 +21,9 @@ type CatalogRow = {
 };
 
 type SortMode = "upload" | "sku";
+type CatalogDisplayRow =
+  | { kind: "group"; key: string; rows: CatalogRow[]; unitCount: number }
+  | { kind: "product"; row: CatalogRow; nested: boolean };
 
 const CATEGORY_OPTIONS = [
   { value: "all", label: "Todos" },
@@ -99,6 +102,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [sortMode, setSortMode] = React.useState<SortMode>("upload");
   const [search, setSearch] = React.useState("");
+  const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
   const [open, setOpen] = React.useState<any | null>(null);
   const [soldModal, setSoldModal] = React.useState<{
     row: CatalogRow;
@@ -241,6 +245,34 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
     ].filter(Boolean).join(" · ");
   };
 
+  const catalogDisplayRows = React.useMemo<CatalogDisplayRow[]>(() => {
+    const groups = new Map<string, CatalogRow[]>();
+    filteredItems.forEach((row) => {
+      const title = String(row.product?.title || row.staged?.title || row.slug || "Producto").trim();
+      const group = String(row.product?.variant_group || row.staged?.variant_group || title).trim().toLowerCase();
+      const key = group || `row:${row.id}`;
+      groups.set(key, [...(groups.get(key) || []), row]);
+    });
+    return Array.from(groups.entries()).flatMap(([key, rows]) => {
+      const unitCount = rows.reduce((total, row) => total + Math.max(1, Number(row.product?.stock || 0), linkedSkuRowsFor(row).length + 1), 0);
+      const shouldGroup = rows.length > 1 || rows.some((row) => linkedSkuRowsFor(row).length > 0);
+      if (!shouldGroup) return [{ kind: "product" as const, row: rows[0], nested: false }];
+      const summary: CatalogDisplayRow = { kind: "group", key, rows, unitCount };
+      return expandedGroups.has(key)
+        ? [summary, ...rows.map((row) => ({ kind: "product" as const, row, nested: true }))]
+        : [summary];
+    });
+  }, [expandedGroups, filteredItems]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   return (
     <div className="overflow-auto">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -291,12 +323,33 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
           </tr>
         </thead>
         <tbody>
-          {filteredItems.map((row) => {
+          {catalogDisplayRows.map((entry) => {
+            if (entry.kind === "group") {
+              const first = entry.rows[0];
+              const expanded = expandedGroups.has(entry.key);
+              return (
+                <tr key={`group-${entry.key}`} className="border-t bg-gray-50/80">
+                  <td className="p-2 font-semibold text-gray-900">
+                    {first.product?.title || first.staged?.title || first.slug}
+                    <div className="mt-1 text-xs font-medium text-gray-500">{entry.unitCount} unidades · {entry.rows.length} variante{entry.rows.length === 1 ? "" : "s"}</div>
+                  </td>
+                  <td className="p-2 text-gray-500">—</td>
+                  <td className="p-2 text-gray-900">Desde S/ {Math.min(...entry.rows.map((row) => Number(row.product?.price || 0))).toFixed(2)}</td>
+                  <td className="p-2 text-xs text-gray-500">Grupo automático</td>
+                  <td className="p-2">
+                    <button onClick={() => toggleGroup(entry.key)} className="rounded bg-gray-900 px-3 py-1 text-white">
+                      {expanded ? "Ocultar" : "Ver más"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            }
+            const row = entry.row;
             const linkedRows = linkedSkuRowsFor(row);
             const showUpdated = hasMeaningfulPeruUpdate(row.created_at, row.updated_at);
             return (
               <React.Fragment key={row.id}>
-                <tr className="border-t">
+                <tr className={`border-t ${entry.nested ? "bg-white" : ""}`}>
                   <td className="p-2 text-gray-900 font-medium">
                     <div>{row.product?.title || row.staged?.title || row.slug}</div>
                     {variantLabel(row) && <div className="mt-1 text-xs font-normal text-gray-500">{variantLabel(row)}</div>}

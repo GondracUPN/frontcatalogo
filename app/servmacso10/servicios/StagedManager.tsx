@@ -113,11 +113,24 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
   };
 
   const openForPublish = (it: any, siblings: any[]) => {
+    const mainNotes = parseNotes(it);
+    const mainColor = String(it?.color || mainNotes?.color || "").trim().toLowerCase();
+    const mainCondition = String(it?.product_condition || mainNotes?.productCondition || mainNotes?.estado || "").trim();
+    const sameVariant = mainCondition === "Nuevo"
+      ? siblings.filter((row) => {
+          const rowNotes = parseNotes(row);
+          const rowColor = String(row?.color || rowNotes?.color || "").trim().toLowerCase();
+          const rowCondition = String(row?.product_condition || rowNotes?.productCondition || rowNotes?.estado || "").trim();
+          return rowCondition === "Nuevo" && rowColor === mainColor;
+        })
+      : [it];
+    const linkedRows = sameVariant.filter((row) => String(row.id) !== String(it.id));
     setOpen({
       ...it,
-      __mergeStock: 1,
-      __mergeStagedIds: [],
-      __mergeCandidates: siblings.length > 1 ? siblings.filter((row) => String(row.id) !== String(it.id)) : undefined,
+      __mergeStock: Math.max(1, sameVariant.length),
+      __mergeStagedIds: linkedRows.map((row) => String(row.id)),
+      __mergeInitialSkus: linkedRows.map((row) => String(row.sku || "").trim()).filter(Boolean),
+      __mergeCandidates: linkedRows.length ? linkedRows : undefined,
     });
   };
 
