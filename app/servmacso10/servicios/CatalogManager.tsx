@@ -98,6 +98,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
   const [inventoryRows, setInventoryRows] = React.useState<any[]>(inventoryItems || []);
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [sortMode, setSortMode] = React.useState<SortMode>("upload");
+  const [search, setSearch] = React.useState("");
   const [open, setOpen] = React.useState<any | null>(null);
   const [soldModal, setSoldModal] = React.useState<{
     row: CatalogRow;
@@ -206,10 +207,17 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
   };
 
   const filteredItems = React.useMemo(() => {
-    const rows = items.filter((row) => categoryFilter === "all" || rowCategory(row) === categoryFilter);
+    const term = search.trim().toLowerCase();
+    const rows = items
+      .filter((row) => categoryFilter === "all" || rowCategory(row) === categoryFilter)
+      .filter((row) => {
+        if (!term) return true;
+        const mainSku = displaySku(row.product?.sku || row.staged?.sku).toLowerCase();
+        return mainSku.includes(term) || linkedSkuRowsFor(row).some((linked: any) => displaySku(linked?.sku).toLowerCase().includes(term));
+      });
     if (sortMode === "sku") return rows.slice().sort(compareSkuRows);
     return rows;
-  }, [categoryFilter, items, sortMode]);
+  }, [categoryFilter, items, search, sortMode]);
 
   const variantLabel = (row: CatalogRow) => {
     const staged = (row.staged || {}) as any;
@@ -237,6 +245,10 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
     <div className="overflow-auto">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Buscar por SKU</label>
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ej. MS-266" className="mt-1 w-full min-w-[180px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900" />
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Filtrar por tipo</label>
             <select

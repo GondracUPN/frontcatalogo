@@ -9,6 +9,10 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
   const [items, setItems] = React.useState<any[]>(initialItems || []);
   const [open, setOpen] = React.useState<null | any>(null);
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+  const [search, setSearch] = React.useState("");
+
+  const displaySku = (value: unknown) => String(value || "").trim().replace(/^svc(?=[-_\s]*\d)/i, "MS");
+  const timeOf = (it: any) => new Date(it?.created_at || it?.updated_at || 0).getTime() || 0;
 
   React.useEffect(() => {
     const refreshStaged = async () => {
@@ -76,11 +80,16 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
 
   const groupedItems = (() => {
     const map = new Map<string, any[]>();
-    items.forEach((it) => {
+    const term = search.trim().toLowerCase();
+    items
+      .filter((it) => !term || displaySku(it?.sku).toLowerCase().includes(term) || String(it?.title || "").toLowerCase().includes(term))
+      .forEach((it) => {
       const key = groupKeyFor(it);
       map.set(key, [...(map.get(key) || []), it]);
     });
-    return Array.from(map.entries()).map(([key, rows]) => ({ key, rows }));
+    return Array.from(map.entries())
+      .map(([key, rows]) => ({ key, rows: rows.slice().sort((a, b) => timeOf(b) - timeOf(a)) }))
+      .sort((a, b) => timeOf(b.rows[0]) - timeOf(a.rows[0]));
   })();
 
   const toggleGroup = (key: string) => {
@@ -115,7 +124,7 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
   const renderItemRow = (it: any, nested = false, siblings: any[] = [it]) => (
     <tr key={it.id} className={`border-t ${nested ? "bg-white" : ""}`}>
       <td className={`p-2 text-gray-900 font-medium ${nested ? "pl-6" : ""}`}>{it.title}</td>
-      <td className="p-2 text-gray-900">{it.sku}</td>
+      <td className="p-2 text-gray-900">{displaySku(it.sku)}</td>
       <td className="p-2 text-gray-900">{costoCompra(it)}</td>
       <td className="p-2 text-gray-900">{it.price}</td>
       <td className="p-2"><span className="px-2 py-1 rounded bg-gray-100 text-gray-900">{it.status}</span></td>
@@ -128,6 +137,15 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
 
   return (
     <div className="overflow-auto">
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700">Buscar por SKU</label>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Ej. MS-266"
+          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+        />
+      </div>
       <table className="min-w-full text-sm">
         <thead>
           <tr className="text-left text-gray-700">
@@ -146,7 +164,7 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
             const expanded = expandedGroups.has(key);
             if (!isGrouped) return renderItemRow(first, false, rows);
 
-            const skus = rows.map((it) => String(it.sku || "").trim()).filter(Boolean);
+            const skus = rows.map((it) => displaySku(it.sku)).filter(Boolean);
             const statuses = Array.from(new Set(rows.map((it) => String(it.status || "").trim()).filter(Boolean))).join(", ");
 
             return (
@@ -172,6 +190,9 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
               </React.Fragment>
             );
           })}
+          {!groupedItems.length && (
+            <tr><td className="p-3 text-gray-500" colSpan={6}>No se encontraron productos.</td></tr>
+          )}
         </tbody>
       </table>
 

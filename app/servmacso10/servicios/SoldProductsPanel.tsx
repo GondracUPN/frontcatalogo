@@ -29,6 +29,10 @@ function phone(value: unknown) {
   return String(value || "").replace(/\D+/g, "") || "-";
 }
 
+function displaySku(value: unknown) {
+  return String(value || "").trim().replace(/^svc(?=[-_\s]*\d)/i, "MS");
+}
+
 function salePlace(sale: Sale) {
   const type = String(sale.sale_place_type || "").trim();
   const location = String(sale.sale_location || "").trim();
@@ -137,7 +141,7 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
             {recentSales.map((sale) => (
               <tr key={sale.id} className="border-t">
                 <td className="p-2 text-gray-900">{sale.title || "-"}</td>
-                <td className="p-2 text-gray-900">{sale.sku || "-"}</td>
+                <td className="p-2 text-gray-900">{displaySku(sale.sku) || "-"}</td>
                 <td className="p-2 text-gray-900">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
                 <td className="p-2 text-gray-900">{formatDate(sale.sold_at)}</td>
                 <td className="p-2">
@@ -188,7 +192,7 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                 {sales.map((sale) => (
                   <tr key={sale.id} className="border-t">
                     <td className="p-2">{sale.title || "-"}</td>
-                    <td className="p-2">{sale.sku || "-"}</td>
+                    <td className="p-2">{displaySku(sale.sku) || "-"}</td>
                     <td className="p-2">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
                     <td className="p-2">{formatDate(sale.sold_at)}</td>
                     <td className="p-2">{sale.customer_name || "-"}</td>

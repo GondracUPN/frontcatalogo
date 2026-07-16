@@ -1,6 +1,6 @@
 ﻿"use client";
 import React from "react";
-import { createManualPreventaDraft, updateStaged, publishStaged, replacePreventaWithInventory } from "../../actions";
+import { createManualPreventaDraft, deleteStaged, updateStaged, publishStaged, replacePreventaWithInventory } from "../../actions";
 import {
   DEFAULT_PRODUCT_VERSION_CONFIG,
   getIphoneStorageOptionsFromConfig,
@@ -134,6 +134,14 @@ function normalizeManualSku(value: unknown) {
   if (/^MS-\d+$/i.test(raw)) return raw.toUpperCase();
   const number = raw.match(/\d+/)?.[0] || "";
   return number ? `MS-${number}` : raw;
+}
+
+function displaySku(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw
+    .replace(/^prev[-_\s]*svc(?=[-_\s]*\d)/i, "PREV-MS")
+    .replace(/^svc(?=[-_\s]*\d)/i, "MS");
 }
 
 function withCurrentOption(options: string[], current: string) {
@@ -385,8 +393,8 @@ export default function PublishModal({
     if (/otro/i.test(raw)) return "Otro";
     return raw;
   });
-  const [ciclos, setCiclos] = React.useState<string>(notes?.bateria?.ciclos || "");
-  const [salud, setSalud] = React.useState<string>(notes?.bateria?.salud || "");
+  const [ciclos, setCiclos] = React.useState<string>(String(item?.battery_cycles ?? notes?.batteryCycles ?? notes?.bateria?.ciclos ?? ""));
+  const [salud, setSalud] = React.useState<string>(String(item?.battery_health ?? notes?.batteryHealth ?? notes?.bateria?.salud ?? ""));
   const [color, setColor] = React.useState<string>(item?.color || notes?.color || "");
   const [productCondition, setProductCondition] = React.useState<string>(item?.product_condition || notes?.productCondition || notes?.estado || "");
   const [hasWarranty, setHasWarranty] = React.useState<boolean>(() => {
@@ -579,7 +587,7 @@ export default function PublishModal({
     const auto = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity, ipadGeneration);
     const base = auto || title;
     if (base) {
-      const withPrefix = saleType === "PREVENTA" && !/^preventa\\s+/i.test(base) ? `Preventa ${base}` : base;
+      const withPrefix = saleType === "PREVENTA" && !/^preventa\s+/i.test(base) ? `Preventa ${base}` : base;
       setTitle(capitalize(withPrefix));
     }
   }, [category, gama, proc, tam, ipadConnectivity, ipadGeneration, titleManual, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, saleType, title]);
@@ -669,6 +677,10 @@ export default function PublishModal({
   const errors: string[] = [];
   const requiresBatteryInfo = saleType !== "PREVENTA" && productCondition !== "Nuevo";
   const normalizedManualSku = normalizeManualSku(manualSku);
+  const headerSku = displaySku(
+    item?.sku || (normalizedManualSku ? (saleType === "PREVENTA" ? `PREV-${normalizedManualSku}` : normalizedManualSku) : "")
+  );
+  const isCatalogEdit = Boolean(item?.__catalogProductId || String(item?.status || "").toLowerCase() === "published");
   if (!category) errors.push("Selecciona el tipo de producto");
   if (!saleType) errors.push("Selecciona el tipo de venta");
   if (!salePrice || salePrice <= 0) errors.push("El precio de venta es obligatorio");
@@ -959,6 +971,7 @@ export default function PublishModal({
     if (!canPublish) return;
     setSaving(true);
     setSubmitError("");
+    let createdManualDraftId = "";
     try {
       const iphoneStorageGbParsed = parseIphoneStorageGb(iphoneStorage);
       const iphoneStorageValue = iphoneStorage ? String(iphoneStorage).trim().toUpperCase() : "";
@@ -1050,7 +1063,7 @@ export default function PublishModal({
         const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity, ipadGeneration);
         baseTitle = autoTitle || title;
       }
-      if (saleType === "PREVENTA" && baseTitle && !/^preventa\\s+/i.test(baseTitle)) {
+      if (saleType === "PREVENTA" && baseTitle && !/^preventa\s+/i.test(baseTitle)) {
         baseTitle = `Preventa ${baseTitle}`;
       }
       const fixedTitle = capitalize(baseTitle.trim());
@@ -1067,6 +1080,7 @@ export default function PublishModal({
         const newId = String((created?.item as any)?.id || "").trim();
         if (!created?.ok || !newId) throw new Error("No se pudo crear el borrador de preventa");
         stagedId = newId;
+        createdManualDraftId = newId;
       }
       await updateStaged(stagedId, {
         title: fixedTitle,
@@ -1125,6 +1139,9 @@ export default function PublishModal({
         __mergeStagedIds: mergeStagedIds,
       });
     } catch (err) {
+      if (createdManualDraftId) {
+        await deleteStaged(createdManualDraftId).catch(() => {});
+      }
       setSubmitError(err instanceof Error ? err.message : "No se pudo publicar el producto");
     } finally {
       setSaving(false);
@@ -1237,7 +1254,14 @@ export default function PublishModal({
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4">
       <div className="bg-white rounded-2xl w-full max-w-4xl shadow-xl text-gray-900 max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 z-10 bg-white border-b px-4 sm:px-6 py-4 flex items-center justify-between">
-          <h3 className="text-xl sm:text-2xl font-semibold">Publicar producto</h3>
+          <div className="flex min-w-0 items-center gap-3">
+            <h3 className="text-xl font-semibold sm:text-2xl">{isCatalogEdit ? "Editar producto" : "Publicar producto"}</h3>
+            {headerSku && (
+              <span className="shrink-0 rounded-full bg-gray-100 px-3 py-1 font-mono text-sm font-semibold text-gray-700">
+                {headerSku}
+              </span>
+            )}
+          </div>
           <button onClick={onClose} className="h-9 w-9 rounded-full border border-gray-200 text-gray-500 hover:text-gray-700" aria-label="Cerrar">×</button>
         </div>
 
