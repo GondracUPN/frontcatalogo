@@ -543,9 +543,6 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
                   style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}
                 />
               </div>
-              <div className="pointer-events-none absolute bottom-3 left-1/2 z-[3] -translate-x-1/2 rounded-full border border-black/8 bg-white/85 px-3 py-1.5 text-center text-[11px] font-medium text-neutral-700 shadow-sm backdrop-blur-xl">
-                {zoom > 1 ? `${Math.round(zoom * 100)}% · Arrastra para recorrer` : "Pellizca con dos dedos para acercar"}
-              </div>
             </div>
           </div>
         </div>
