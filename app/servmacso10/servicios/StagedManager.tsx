@@ -13,6 +13,10 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
 
   const displaySku = (value: unknown) => String(value || "").trim().replace(/^svc(?=[-_\s]*\d)/i, "MS");
   const timeOf = (it: any) => new Date(it?.created_at || it?.updated_at || 0).getTime() || 0;
+  const matchesSearch = (value: unknown, term: string) => {
+    const text = String(value || "").toLowerCase();
+    return term.toLowerCase().split(/\s+/).filter(Boolean).every((part) => text.includes(part));
+  };
 
   React.useEffect(() => {
     const refreshStaged = async () => {
@@ -82,7 +86,7 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
     const map = new Map<string, any[]>();
     const term = search.trim().toLowerCase();
     items
-      .filter((it) => !term || displaySku(it?.sku).toLowerCase().includes(term) || String(it?.title || "").toLowerCase().includes(term))
+      .filter((it) => !term || displaySku(it?.sku).toLowerCase().includes(term) || matchesSearch(it?.title, term))
       .forEach((it) => {
       const key = groupKeyFor(it);
       map.set(key, [...(map.get(key) || []), it]);
@@ -112,29 +116,17 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
     }
   };
 
-  const openForPublish = (it: any, siblings: any[]) => {
-    const mainNotes = parseNotes(it);
-    const mainColor = String(it?.color || mainNotes?.color || "").trim().toLowerCase();
-    const mainCondition = String(it?.product_condition || mainNotes?.productCondition || mainNotes?.estado || "").trim();
-    const sameVariant = mainCondition === "Nuevo"
-      ? siblings.filter((row) => {
-          const rowNotes = parseNotes(row);
-          const rowColor = String(row?.color || rowNotes?.color || "").trim().toLowerCase();
-          const rowCondition = String(row?.product_condition || rowNotes?.productCondition || rowNotes?.estado || "").trim();
-          return rowCondition === "Nuevo" && rowColor === mainColor;
-        })
-      : [it];
-    const linkedRows = sameVariant.filter((row) => String(row.id) !== String(it.id));
+  const openForPublish = (it: any) => {
     setOpen({
       ...it,
-      __mergeStock: Math.max(1, sameVariant.length),
-      __mergeStagedIds: linkedRows.map((row) => String(row.id)),
-      __mergeInitialSkus: linkedRows.map((row) => String(row.sku || "").trim()).filter(Boolean),
-      __mergeCandidates: linkedRows.length ? linkedRows : undefined,
+      __mergeStock: 1,
+      __mergeStagedIds: [],
+      __mergeInitialSkus: [],
+      __mergeCandidates: undefined,
     });
   };
 
-  const renderItemRow = (it: any, nested = false, siblings: any[] = [it]) => (
+  const renderItemRow = (it: any, nested = false) => (
     <tr key={it.id} className={`border-t ${nested ? "bg-white" : ""}`}>
       <td className={`p-2 text-gray-900 font-medium ${nested ? "pl-6" : ""}`}>{it.title}</td>
       <td className="p-2 text-gray-900">{displaySku(it.sku)}</td>
@@ -142,7 +134,7 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
       <td className="p-2 text-gray-900">{it.price}</td>
       <td className="p-2"><span className="px-2 py-1 rounded bg-gray-100 text-gray-900">{it.status}</span></td>
       <td className="p-2 flex gap-2">
-        <button onClick={() => openForPublish(it, siblings)} className="px-3 py-1 rounded bg-emerald-600 text-white">Publicar</button>
+        <button onClick={() => openForPublish(it)} className="px-3 py-1 rounded bg-emerald-600 text-white">Publicar</button>
         <button onClick={() => deleteItem(it)} className="px-3 py-1 rounded bg-red-600 text-white">Eliminar</button>
       </td>
     </tr>
@@ -151,11 +143,11 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
   return (
     <div className="overflow-auto">
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700">Buscar por SKU</label>
+        <label className="block text-sm font-medium text-gray-700">Buscar por SKU o título</label>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Ej. MS-266"
+          placeholder="Ej. MS-266, MacBook Pro, M5 o 13"
           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
         />
       </div>
@@ -175,7 +167,7 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
             const first = rows[0];
             const isGrouped = rows.length > 1;
             const expanded = expandedGroups.has(key);
-            if (!isGrouped) return renderItemRow(first, false, rows);
+            if (!isGrouped) return renderItemRow(first, false);
 
             const skus = rows.map((it) => displaySku(it.sku)).filter(Boolean);
             const statuses = Array.from(new Set(rows.map((it) => String(it.status || "").trim()).filter(Boolean))).join(", ");
@@ -199,7 +191,7 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
                     </button>
                   </td>
                 </tr>
-                {expanded && rows.map((it) => renderItemRow(it, true, rows))}
+                {expanded && rows.map((it) => renderItemRow(it, true))}
               </React.Fragment>
             );
           })}

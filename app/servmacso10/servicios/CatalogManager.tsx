@@ -15,7 +15,7 @@ type CatalogRow = {
   created_at?: string;
   updated_at?: string;
   images?: string[];
-  product?: { id: string; sku: string; title: string; price: string; stock?: number; status?: string; variant_group?: string | null };
+  product?: { id: string; sku: string; title: string; price: string; stock?: number; status?: string; variant_group?: string | null; product_condition?: string | null };
   staged?: any;
   linkedStaged?: any[];
 };
@@ -59,12 +59,50 @@ function saleTypeOf(value: any) {
   return String(value?.sale_type || notes?.saleType || "").toUpperCase();
 }
 
+function conditionOf(row: CatalogRow) {
+  const notes = parseNotes(row.staged?.notes);
+  return String(row.product?.product_condition || row.staged?.product_condition || notes?.productCondition || notes?.estado || "").trim();
+}
+
+function conditionLabel(value: unknown) {
+  const condition = String(value || "").trim();
+  if (/^nuevo$/i.test(condition)) return "Sellado";
+  if (/usad/i.test(condition)) return "Usado";
+  return condition || "Sin estado";
+}
+
+function groupConditionSummary(rows: CatalogRow[]) {
+  const count = (pattern: RegExp) => rows
+    .filter((row) => pattern.test(conditionOf(row)))
+    .reduce((sum, row) => sum + Math.max(1, Number(row.product?.stock || 0)), 0);
+  const sealed = count(/^nuevo$/i);
+  const used = count(/usad/i);
+  const openBox = count(/open box/i);
+  return [
+    sealed ? `${sealed} sellado${sealed === 1 ? "" : "s"}` : "",
+    used ? `${used} usado${used === 1 ? "" : "s"}` : "",
+    openBox ? `${openBox} open box` : "",
+  ].filter(Boolean).join(" · ");
+}
+
 function linkedSkuRowsFor(row: CatalogRow) {
   if (Array.isArray(row.linkedStaged)) return row.linkedStaged;
   const staged = row.staged || {};
   const notes = parseNotes(staged?.notes);
   const skus = Array.isArray(notes?.linkedSkus) ? notes.linkedSkus : [];
   return skus.map((sku: unknown) => ({ sku: String(sku || "").trim() })).filter((linked: any) => linked.sku);
+}
+
+function unitDetails(value: any) {
+  const notes = parseNotes(value?.notes);
+  return [
+    value?.color || notes?.color ? `Color: ${value?.color || notes?.color}` : "",
+    value?.includes || notes?.includes ? `Incluye: ${value?.includes || notes?.includes}` : "",
+    value?.keyboard_layout || notes?.keyboardLayout ? `Teclado: ${value?.keyboard_layout || notes?.keyboardLayout}` : "",
+    value?.battery_health || notes?.batteryHealth || notes?.bateria?.salud
+      ? `Batería: ${value?.battery_health || notes?.batteryHealth || notes?.bateria?.salud}%`
+      : "",
+  ].filter(Boolean).join(" · ");
 }
 
 function displaySku(value: unknown) {
@@ -75,6 +113,11 @@ function displaySku(value: unknown) {
   const legacy = raw.match(/^svc[-_\s]*(\d+)$/i);
   if (legacy) return `MS-${legacy[1]}`;
   return raw;
+}
+
+function matchesSearch(value: unknown, search: string) {
+  const text = String(value || "").toLowerCase();
+  return search.toLowerCase().split(/\s+/).filter(Boolean).every((term) => text.includes(term));
 }
 
 function skuSortValue(row: CatalogRow) {
@@ -217,7 +260,10 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
       .filter((row) => {
         if (!term) return true;
         const mainSku = displaySku(row.product?.sku || row.staged?.sku).toLowerCase();
-        return mainSku.includes(term) || linkedSkuRowsFor(row).some((linked: any) => displaySku(linked?.sku).toLowerCase().includes(term));
+        const title = String(row.product?.title || row.staged?.title || row.slug || "");
+        return matchesSearch(title, term) || mainSku.includes(term) || linkedSkuRowsFor(row).some((linked: any) =>
+          displaySku(linked?.sku).toLowerCase().includes(term) || matchesSearch(linked?.title, term)
+        );
       });
     if (sortMode === "sku") return rows.slice().sort(compareSkuRows);
     return rows;
@@ -235,6 +281,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
     })();
     return [
       product.variant_group || staged.variant_group ? `Grupo: ${product.variant_group || staged.variant_group}` : "",
+      `Estado: ${conditionLabel(conditionOf(row))}`,
       product.sku || staged.sku ? `SKU: ${displaySku(product.sku || staged.sku)}` : "",
       product.title || staged.title ? "" : "",
       product.stock ? `Stock: ${product.stock}` : "",
@@ -249,7 +296,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
     const groups = new Map<string, CatalogRow[]>();
     filteredItems.forEach((row) => {
       const title = String(row.product?.title || row.staged?.title || row.slug || "Producto").trim();
-      const group = String(row.product?.variant_group || row.staged?.variant_group || title).trim().toLowerCase();
+      const group = title.toLowerCase();
       const key = group || `row:${row.id}`;
       groups.set(key, [...(groups.get(key) || []), row]);
     });
@@ -278,15 +325,15 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Buscar por SKU</label>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ej. MS-266" className="mt-1 w-full min-w-[180px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900" />
+            <label className="block text-sm font-medium text-gray-700">Buscar por SKU o título</label>
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ej. MS-266, MacBook Pro, M5 o 13" className="mt-1 w-full min-w-[260px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Filtrar por tipo</label>
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="mt-1 w-full min-w-[220px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              className="mt-1 w-40 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
             >
               {CATEGORY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -331,7 +378,10 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
                 <tr key={`group-${entry.key}`} className="border-t bg-gray-50/80">
                   <td className="p-2 font-semibold text-gray-900">
                     {first.product?.title || first.staged?.title || first.slug}
-                    <div className="mt-1 text-xs font-medium text-gray-500">{entry.unitCount} unidades · {entry.rows.length} variante{entry.rows.length === 1 ? "" : "s"}</div>
+                    <div className="mt-1 text-xs font-medium text-gray-500">
+                      {entry.unitCount} unidades · {entry.rows.length} variante{entry.rows.length === 1 ? "" : "s"}
+                      {groupConditionSummary(entry.rows) ? ` · ${groupConditionSummary(entry.rows)}` : ""}
+                    </div>
                   </td>
                   <td className="p-2 text-gray-500">—</td>
                   <td className="p-2 text-gray-900">Desde S/ {Math.min(...entry.rows.map((row) => Number(row.product?.price || 0))).toFixed(2)}</td>
@@ -349,7 +399,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
             const showUpdated = hasMeaningfulPeruUpdate(row.created_at, row.updated_at);
             return (
               <React.Fragment key={row.id}>
-                <tr className={`border-t ${entry.nested ? "bg-white" : ""}`}>
+                <tr className={`border-t ${entry.nested ? "bg-gray-200" : ""}`}>
                   <td className="p-2 text-gray-900 font-medium">
                     <div>{row.product?.title || row.staged?.title || row.slug}</div>
                     {variantLabel(row) && <div className="mt-1 text-xs font-normal text-gray-500">{variantLabel(row)}</div>}
@@ -358,7 +408,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
                     <div>{displaySku(row.product?.sku || row.staged?.sku) || "-"}</div>
                     {linkedRows.length > 0 && (
                       <div className="mt-1 text-xs text-gray-500">
-                        +{linkedRows.length} vinculado{linkedRows.length === 1 ? "" : "s"}
+                        +{linkedRows.length} unidad{linkedRows.length === 1 ? "" : "es"} del mismo stock
                       </div>
                     )}
                   </td>
@@ -425,15 +475,17 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
                   </td>
                 </tr>
                 {linkedRows.map((linked: any) => (
-                  <tr key={`linked-${row.id}-${linked.id || linked.sku}`} className="border-t bg-emerald-50/40">
+                  <tr key={`linked-${row.id}-${linked.id || linked.sku}`} className="border-t bg-gray-300">
                     <td className="p-2 pl-6 text-gray-900">
                       <div className="text-sm font-medium">{linked.title || row.product?.title || row.staged?.title || row.slug}</div>
-                      <div className="mt-1 text-xs text-gray-500">Vinculado a {displaySku(row.product?.sku || row.staged?.sku) || "-"}</div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {unitDetails(linked) || "Misma variante"}
+                      </div>
                     </td>
                     <td className="p-2 font-mono text-xs text-gray-900">{displaySku(linked.sku) || "-"}</td>
                     <td className="p-2 text-gray-900">S/ {Number(linked.price || row.product?.price || 0).toFixed(2)}</td>
                     <td className="p-2 text-xs text-gray-500">-</td>
-                    <td className="p-2 text-xs text-gray-500">Incluido en stock</td>
+                    <td className="p-2 text-xs text-gray-500">Unidad del grupo</td>
                   </tr>
                 ))}
               </React.Fragment>
