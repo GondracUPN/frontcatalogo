@@ -298,6 +298,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
 
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
     if (event.touches.length === 2) {
+      event.preventDefault();
       pinchRef.current = { distance: getTouchDistance(event.touches), zoom };
       return;
     }
@@ -518,7 +519,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
 
               <div
                 ref={stageRef}
-                className={`flex h-full items-center justify-center overflow-hidden p-4 select-none sm:p-8 ${zoom > 1 ? "cursor-grab active:cursor-grabbing touch-none" : "cursor-zoom-in"}`}
+                className={`flex h-full touch-none items-center justify-center overflow-hidden p-4 select-none sm:p-8 ${zoom > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"}`}
                 onWheel={handleWheel}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
@@ -535,11 +536,15 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
                 onTouchCancel={handleTouchEnd}
               >
                 <img
+                  key={`viewer-${safeIndex(viewerIndex)}`}
                   src={imgs[safeIndex(viewerIndex)]}
                   alt=""
-                  className="max-h-full w-auto max-w-full object-contain transition-transform duration-150"
+                  className="product-photo-enter max-h-full w-auto max-w-full object-contain transition-transform duration-300 ease-out"
                   style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}
                 />
+              </div>
+              <div className="pointer-events-none absolute bottom-3 left-1/2 z-[3] -translate-x-1/2 rounded-full border border-black/8 bg-white/85 px-3 py-1.5 text-center text-[11px] font-medium text-neutral-700 shadow-sm backdrop-blur-xl">
+                {zoom > 1 ? `${Math.round(zoom * 100)}% · Arrastra para recorrer` : "Pellizca con dos dedos para acercar"}
               </div>
             </div>
           </div>

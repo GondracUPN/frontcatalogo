@@ -218,7 +218,7 @@ export default function ProductDetailPhotos({ images }: { images: string[] }) {
                     transformOrigin: "center center",
                   }}
                 >
-                  <Image src={current} alt="" fill sizes="100vw" className="object-contain p-3 sm:p-6" draggable={false} />
+                  <Image key={`detail-${active}`} src={current} alt="" fill sizes="100vw" className="product-photo-enter object-contain p-3 sm:p-6" draggable={false} />
                 </div>
               </div>
 
