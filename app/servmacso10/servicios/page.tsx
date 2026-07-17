@@ -29,7 +29,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 export default async function ServiciosPage() {
   const me = await getSessionUser();
-  if (!me || me.role !== "admin") redirect("/servmacso10?next=/servmacso10/servicios");
+  if (!me || !["admin", "vendedor"].includes(String(me.role).toLowerCase())) redirect("/servmacso10?next=/servmacso10/servicios");
+  const isAdmin = String(me.role).toLowerCase() === "admin";
   const [{ items }, { items: published }] = await Promise.all([
     listStaged({ pageSize: "all" }),
     listAdminCatalog().catch(() => ({ items: [] as any[] })),
@@ -44,10 +45,10 @@ export default async function ServiciosPage() {
             <Stat label="Usuario" value={me.username} />
             <Stat label="Rol" value={me.role} />
           </div>
-          <AdminToolbar />
-          <PreventaManualButton />
-          <a href="/servmacso10/analisis" className="bg-[#0071e3] hover:bg-[#0a84ff] text-white rounded px-4 py-2">Analisis</a>
-          <a href="/servmacso10/contenidos" className="bg-gray-900 hover:bg-black text-white rounded px-4 py-2">Configurar contenidos</a>
+          {isAdmin && <AdminToolbar />}
+          {isAdmin && <PreventaManualButton />}
+          {isAdmin && <a href="/servmacso10/analisis" className="bg-[#0071e3] hover:bg-[#0a84ff] text-white rounded px-4 py-2">Analisis</a>}
+          {isAdmin && <a href="/servmacso10/contenidos" className="bg-gray-900 hover:bg-black text-white rounded px-4 py-2">Configurar contenidos</a>}
           <form action={logoutAction}>
             <input type="hidden" name="next" value="/servmacso10" />
             <button className="bg-red-600 hover:bg-red-700 text-white rounded px-4 py-2">Cerrar sesión</button>
@@ -62,10 +63,10 @@ export default async function ServiciosPage() {
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Section title="Inventario">
-          <StagedManager initialItems={items} />
+          <StagedManager initialItems={items} canDelete={isAdmin} />
         </Section>
         <Section title="Catálogo">
-          <CatalogManager initialItems={published} inventoryItems={items} />
+          <CatalogManager initialItems={published} inventoryItems={items} canDelete={isAdmin} />
         </Section>
       </div>
     </div>

@@ -5,7 +5,7 @@ import { deleteStaged, listStaged } from "../../actions";
 
 const StagedPublishModal = dynamic(() => import("./PublishModal"), { ssr: false });
 
-export default function StagedManager({ initialItems }: { initialItems: any[] }) {
+export default function StagedManager({ initialItems, canDelete = true }: { initialItems: any[]; canDelete?: boolean }) {
   const [items, setItems] = React.useState<any[]>(initialItems || []);
   const [open, setOpen] = React.useState<null | any>(null);
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
@@ -135,7 +135,7 @@ export default function StagedManager({ initialItems }: { initialItems: any[] })
       <td className="p-2"><span className="px-2 py-1 rounded bg-gray-100 text-gray-900">{it.status}</span></td>
       <td className="p-2 flex gap-2">
         <button onClick={() => openForPublish(it)} className="px-3 py-1 rounded bg-emerald-600 text-white">Publicar</button>
-        <button onClick={() => deleteItem(it)} className="px-3 py-1 rounded bg-red-600 text-white">Eliminar</button>
+        {canDelete && <button onClick={() => deleteItem(it)} className="px-3 py-1 rounded bg-red-600 text-white">Eliminar</button>}
       </td>
     </tr>
   );

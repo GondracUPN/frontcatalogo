@@ -139,7 +139,7 @@ function compareSkuRows(a: CatalogRow, b: CatalogRow) {
   return left.raw.localeCompare(right.raw);
 }
 
-export default function CatalogManager({ initialItems, inventoryItems = [] }: { initialItems: CatalogRow[]; inventoryItems?: any[] }) {
+export default function CatalogManager({ initialItems, inventoryItems = [], canDelete = true }: { initialItems: CatalogRow[]; inventoryItems?: any[]; canDelete?: boolean }) {
   const [items, setItems] = React.useState<CatalogRow[]>(initialItems || []);
   const [inventoryRows, setInventoryRows] = React.useState<any[]>(inventoryItems || []);
   const [categoryFilter, setCategoryFilter] = React.useState("all");
@@ -457,7 +457,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
                     >
                       Vendido
                     </button>
-                    <button
+                    {canDelete && <button
                       onClick={async () => {
                         try {
                           await unpublishProduct(row.product?.id || row.id);
@@ -469,7 +469,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [] }: { 
                       className="px-3 py-1 rounded bg-red-600 text-white"
                     >
                       Eliminar
-                    </button>
+                    </button>}
                   </div>
                 </div>
                   </td>

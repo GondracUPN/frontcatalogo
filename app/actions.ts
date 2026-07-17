@@ -113,12 +113,44 @@ export async function createUserAction(formData: FormData) {
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "").trim();
   const role = String(formData.get("role") || "cliente");
-  await apiFetch("/auth/register", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ username, password, role }),
-  });
-  redirect("/servmacso10/servicios");
+  try {
+    const user = await apiFetch<{ id: number; username: string; role: string }>("/auth/register", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ username, password, role }),
+    });
+    return { ok: true as const, user };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : "No se pudo crear el usuario" };
+  }
+}
+
+export async function updateUserAction(id: number, data: { username: string; role: string; password?: string }) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) return { ok: false as const, error: "Sesión vencida" };
+  try {
+    const user = await apiFetch<{ id: number; username: string; role: string }>(`/auth/users/${id}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+    return { ok: true as const, user };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : "No se pudo editar el usuario" };
+  }
+}
+
+export async function deleteUserAction(id: number) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) return { ok: false as const, error: "Sesión vencida" };
+  try {
+    await apiFetch(`/auth/users/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    return { ok: true as const };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : "No se pudo eliminar el usuario" };
+  }
 }
 
 // ----- Products (admin only) -----
