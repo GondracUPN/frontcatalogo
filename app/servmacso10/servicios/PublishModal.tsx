@@ -13,8 +13,85 @@ type DiscountMode = "percent" | "amount";
 type MergeCandidate = { id: string; sku: string; title: string };
 type ReplacementCandidate = { id: string; sku: string; title: string; price?: string | number; status?: string };
 
-function includesAccessory(value: string, accessory: "Cubo" | "Cable") {
+type AccessoryName = "Caja" | "Cubo" | "Cable";
+
+function includesAccessory(value: string, accessory: AccessoryName) {
   return new RegExp(`\\b${accessory}\\b`, "i").test(String(value || ""));
+}
+
+function includesFromFlags(caja: boolean, cubo: boolean, cable: boolean) {
+  const selected = [caja ? "Caja" : "", cubo ? "Cubo" : "", cable ? "Cable" : ""].filter(Boolean);
+  if (!selected.length) return "Ninguno";
+  if (selected.length === 1) {
+    if (caja) return "Caja sola";
+    if (cubo) return "Cubo solo";
+    return "Cable solo";
+  }
+  return selected.join(" + ");
+}
+
+function parseStoredBoolean(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (value === null || value === undefined || value === "") return null;
+  const raw = String(value).trim().toLowerCase();
+  if (["1", "true", "si", "sí", "yes", "on", "fake", "generico", "genérico"].includes(raw)) return true;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  return null;
+}
+
+function deriveIncludesValue(item: any, notes: any) {
+  const incluye = notes?.incluye;
+  const raw = [item?.includes, notes?.includes, typeof incluye === "string" ? incluye : "", notes?.accesoriosTexto]
+    .map((value) => String(value || "").trim())
+    .find(Boolean) || "";
+  if (/\botros?\b/i.test(raw)) return "Otros";
+  if (/\bningun|\bno incluye/i.test(raw)) return "Ninguno";
+  const flagObject = incluye && typeof incluye === "object" ? incluye : {};
+  const cajaFlag = parseStoredBoolean(flagObject?.caja ?? notes?.accessories?.caja ?? notes?.accesorios?.caja);
+  const cuboFlag = parseStoredBoolean(flagObject?.cubo ?? notes?.accessories?.cubo ?? notes?.accesorios?.cubo);
+  const cableFlag = parseStoredBoolean(flagObject?.cable ?? notes?.accessories?.cable ?? notes?.accesorios?.cable);
+  const caja = cajaFlag ?? /\bcaja\b/i.test(raw);
+  const cubo = cuboFlag ?? /\bcubo\b|\bcargador\b/i.test(raw);
+  const cable = cableFlag ?? /\bcable\b/i.test(raw);
+  if (caja || cubo || cable) return includesFromFlags(caja, cubo, cable);
+  return raw;
+}
+
+function deriveAccessoryFake(accessory: "cubo" | "cable", item: any, notes: any) {
+  const incluye = notes?.incluye && typeof notes.incluye === "object" ? notes.incluye : {};
+  const key = `${accessory}Fake`;
+  const explicit = parseStoredBoolean(notes?.[key] ?? incluye?.[key] ?? notes?.accessories?.[key] ?? notes?.accesorios?.[key]);
+  if (explicit !== null) return explicit;
+  const raw = [item?.includes, notes?.includes, typeof notes?.incluye === "string" ? notes.incluye : ""]
+    .map((value) => String(value || ""))
+    .join(" ");
+  return new RegExp(`${accessory}\\s*(fake|gen[eé]rico)`, "i").test(raw);
+}
+
+function storedWarranty(notes: any, productCondition: string) {
+  const warrantyObject = [notes?.warranty, notes?.garantiaDetalle, notes?.garantia]
+    .find((value) => value && typeof value === "object") || {};
+  const firstText = (...values: unknown[]) => values
+    .map((value) => typeof value === "string" || typeof value === "number" ? String(value).trim() : "")
+    .find(Boolean) || "";
+  const type = firstText(notes?.warrantyType, notes?.garantiaTipo, notes?.tipoGarantia, warrantyObject?.type, warrantyObject?.tipo);
+  const date = firstText(
+    notes?.warrantyDate,
+    notes?.garantiaFecha,
+    warrantyObject?.date,
+    warrantyObject?.fecha,
+    warrantyObject?.hasta,
+    warrantyObject?.detalle,
+    typeof notes?.garantia === "string" ? notes.garantia : "",
+  );
+  const enabledFlag = parseStoredBoolean(notes?.warrantyEnabled ?? notes?.garantiaActiva ?? warrantyObject?.enabled ?? warrantyObject?.activa);
+  const isNew = productCondition === "Nuevo";
+  return {
+    enabled: isNew || (enabledFlag ?? Boolean(type || date)),
+    type: type || (isNew ? "Fabricante" : (date ? "Sin especificar" : "")),
+    date: date || (isNew ? "1 año de garantía" : ""),
+  };
 }
 
 function formatIncludesAccessories(value: string, cuboFake: boolean, cableFake: boolean) {
@@ -408,16 +485,10 @@ export default function PublishModal({
   const [salud, setSalud] = React.useState<string>(String(item?.battery_health ?? notes?.batteryHealth ?? notes?.bateria?.salud ?? ""));
   const [color, setColor] = React.useState<string>(item?.color || notes?.color || "");
   const [productCondition, setProductCondition] = React.useState<string>(item?.product_condition || notes?.productCondition || notes?.estado || "");
-  const [hasWarranty, setHasWarranty] = React.useState<boolean>(() => {
-    if (productCondition === "Nuevo") return true;
-    const raw = notes?.warrantyEnabled ?? notes?.garantiaActiva;
-    return Boolean(raw);
-  });
-  const [warrantyDate, setWarrantyDate] = React.useState<string>(() => {
-    if (productCondition === "Nuevo") return "1 año de garantía";
-    const raw = notes?.warrantyDate ?? notes?.garantiaFecha ?? notes?.garantia ?? "";
-    return String(raw || "");
-  });
+  const initialWarranty = storedWarranty(notes, productCondition);
+  const [hasWarranty, setHasWarranty] = React.useState<boolean>(() => initialWarranty.enabled);
+  const [warrantyType, setWarrantyType] = React.useState<string>(() => initialWarranty.type);
+  const [warrantyDate, setWarrantyDate] = React.useState<string>(() => initialWarranty.date);
   const [stock, setStock] = React.useState<number>(() => {
     const initial = Number(item?.__mergeStock ?? item?.stock ?? 1);
     return isFinite(initial) && initial > 0 ? initial : 1;
@@ -467,10 +538,10 @@ export default function PublishModal({
   const [watchVersion, setWatchVersion] = React.useState<string>(String(notes?.watchVersion || ""));
   const [watchAccessories, setWatchAccessories] = React.useState<string>(String(notes?.watchAccessories || ""));
   const [watchIncludes, setWatchIncludes] = React.useState<string>(String(notes?.watchIncludes || ""));
-  const [includesValue, setIncludesValue] = React.useState<string>(item?.includes || notes?.includes || "");
+  const [includesValue, setIncludesValue] = React.useState<string>(() => deriveIncludesValue(item, notes));
   const [includesExtra, setIncludesExtra] = React.useState<string>(item?.includes_extra || notes?.includesExtra || "");
-  const [cuboFake, setCuboFake] = React.useState<boolean>(() => notes?.cuboFake === true || notes?.cuboFake === "true");
-  const [cableFake, setCableFake] = React.useState<boolean>(() => notes?.cableFake === true || notes?.cableFake === "true");
+  const [cuboFake, setCuboFake] = React.useState<boolean>(() => deriveAccessoryFake("cubo", item, notes));
+  const [cableFake, setCableFake] = React.useState<boolean>(() => deriveAccessoryFake("cable", item, notes));
   const [descriptionOther, setDescriptionOther] = React.useState<string>(detalle?.descripcionOtro || notes?.descripcionOtro || "");
   const [productDetails, setProductDetails] = React.useState<string>(
     String(detalle?.detalles || detalle?.productDetails || notes?.productDetails || notes?.detalles || "")
@@ -586,14 +657,17 @@ export default function PublishModal({
       setCiclos("");
       setSalud("");
       setHasWarranty(true);
-      setWarrantyDate("1 año de garantía");
+      setWarrantyType((current) => current || "Fabricante");
+      setWarrantyDate((current) => current || "1 año de garantía");
     }
   }, [productCondition]);
 
   React.useEffect(() => {
-    if (productCondition !== "Nuevo" && !hasWarranty) setWarrantyDate("");
-    if (productCondition !== "Nuevo" && warrantyDate === "1 año de garantía") setWarrantyDate("");
-  }, [productCondition, hasWarranty, warrantyDate]);
+    if (productCondition !== "Nuevo" && !hasWarranty) {
+      setWarrantyType("");
+      setWarrantyDate("");
+    }
+  }, [productCondition, hasWarranty]);
 
   React.useEffect(() => {
     if (forceSaleType && saleType !== forceSaleType) {
@@ -683,10 +757,6 @@ export default function PublishModal({
     });
   }, [requiredMergeSkuCount]);
 
-  const iphoneIncludesOptions = React.useMemo(
-    () => ["Caja + Cable", "Caja sola", "Cable solo", "Otros", "Ninguno"],
-    []
-  );
   const macbookProcessorBase = React.useMemo(() => {
     return versionConfig.macbook.processorsByGama[gama] || [];
   }, [gama, versionConfig]);
@@ -734,14 +804,6 @@ export default function PublishModal({
       if (!iphoneModel && parsed.model) setIphoneModel(parsed.model);
     }
   }, [isIphone, iphoneNumber, iphoneModel, title]);
-
-  React.useEffect(() => {
-    if (!isIphone) return;
-    if (includesValue && !iphoneIncludesOptions.includes(includesValue)) {
-      setIncludesValue("");
-      setIncludesExtra("");
-    }
-  }, [isIphone, includesValue, iphoneIncludesOptions]);
 
   const errors: string[] = [];
   const requiresBatteryInfo = saleType !== "PREVENTA" && productCondition !== "Nuevo";
@@ -902,6 +964,19 @@ export default function PublishModal({
     }
   };
 
+  const setAccessoryIncluded = (accessory: AccessoryName, checked: boolean) => {
+    const flags = {
+      Caja: includesAccessory(includesValue, "Caja"),
+      Cubo: includesAccessory(includesValue, "Cubo"),
+      Cable: includesAccessory(includesValue, "Cable"),
+    };
+    flags[accessory] = checked;
+    setIncludesValue(includesFromFlags(flags.Caja, flags.Cubo, flags.Cable));
+    setIncludesExtra("");
+    if (!checked && accessory === "Cubo") setCuboFake(false);
+    if (!checked && accessory === "Cable") setCableFake(false);
+  };
+
   const moveImage = React.useCallback((from: number, to: number) => {
     if (from === to || from < 0 || to < 0) return;
     setImages((arr) => {
@@ -938,6 +1013,10 @@ export default function PublishModal({
     };
     const titleValue = getCurrentTitle();
     if (titleValue) lines.push(titleValue);
+    add("SKU", headerSku);
+    if (selectedMergeSkus.length) {
+      add("SKU adicionales del stock", selectedMergeSkus.map(displaySku).join(", "));
+    }
     add("Tipo", categoryLabel(category));
     if (isMacbook) {
       add("Gama", gama);
@@ -976,7 +1055,10 @@ export default function PublishModal({
       add("Ciclos de carga", ciclos);
     }
     add("Incluye", includesValue === "Otros" ? includesExtra : formatIncludesAccessories(includesValue, cuboFake, cableFake));
-    if (hasWarranty) add("Garantia", warrantyDate);
+    if (productCondition === "Nuevo" || hasWarranty) {
+      add("Tipo de garantia", warrantyType);
+      add("Garantia", warrantyDate);
+    }
     if (showProductDetails) add("Detalles", productDetails);
     if (salePrice) add("Precio", `S/ ${Number(salePrice || 0).toFixed(2)}`);
     if (saleType === "PROMOCION" && finalPrice !== null) add("Precio promocional", `S/ ${Number(finalPrice || 0).toFixed(2)}`);
@@ -1046,14 +1128,17 @@ export default function PublishModal({
       const iphoneStorageValue = iphoneStorage ? String(iphoneStorage).trim().toUpperCase() : "";
       const iphoneStorageGb = Number.isFinite(iphoneStorageGbParsed) ? iphoneStorageGbParsed : null;
       const includesFlags = {
-        caja: includesValue === "Caja + Cubo + Cable" || includesValue === "Caja + Cable" || includesValue === "Caja sola",
-        cubo: includesValue === "Caja + Cubo + Cable" || includesValue === "Cubo + Cable",
-        cable: includesValue === "Caja + Cubo + Cable" || includesValue === "Cubo + Cable" || includesValue === "Solo Cable" || includesValue === "Caja + Cable" || includesValue === "Cable solo",
+        caja: includesAccessory(includesValue, "Caja"),
+        cubo: includesAccessory(includesValue, "Cubo"),
+        cable: includesAccessory(includesValue, "Cable"),
       };
       const warrantyEnabled = productCondition === "Nuevo" ? true : hasWarranty;
-      const warrantyValue = productCondition === "Nuevo"
-        ? "1 año de garantía"
-        : (hasWarranty ? warrantyDate.trim() : null);
+      const warrantyValue = warrantyEnabled
+        ? (warrantyDate.trim() || (productCondition === "Nuevo" ? "1 año de garantía" : null))
+        : null;
+      const warrantyTypeValue = warrantyEnabled
+        ? (warrantyType.trim() || (productCondition === "Nuevo" ? "Fabricante" : "Sin especificar"))
+        : null;
       const almacenamientoVal = isIphone ? iphoneStorageValue : normalizeUnit(alm, "GB");
       const productDetailsValue = showProductDetails ? productDetails.trim() : "";
       const detailImageValues = showProductDetails ? uniqueStrings(detailImages) : [];
@@ -1089,6 +1174,16 @@ export default function PublishModal({
         includesExtra,
         cuboFake: includesAccessory(includesValue, "Cubo") && cuboFake,
         cableFake: includesAccessory(includesValue, "Cable") && cableFake,
+        accessories: {
+          ...includesFlags,
+          cuboFake: includesAccessory(includesValue, "Cubo") && cuboFake,
+          cableFake: includesAccessory(includesValue, "Cable") && cableFake,
+        },
+        accesorios: {
+          ...includesFlags,
+          cuboFake: includesAccessory(includesValue, "Cubo") && cuboFake,
+          cableFake: includesAccessory(includesValue, "Cable") && cableFake,
+        },
         productDetails: productDetailsValue || null,
         detalles: productDetailsValue || null,
         detailImages: detailImageValues,
@@ -1097,10 +1192,14 @@ export default function PublishModal({
         preventaDateTo: saleType === "PREVENTA" ? preventaDateTo : null,
         preventa: saleType === "PREVENTA" ? { from: preventaDateFrom, to: preventaDateTo } : null,
         warrantyEnabled,
+        warrantyType: warrantyTypeValue,
         warrantyDate: warrantyValue,
         garantiaActiva: warrantyEnabled,
+        garantiaTipo: warrantyTypeValue,
         garantiaFecha: warrantyValue,
         garantia: warrantyValue,
+        warranty: { enabled: warrantyEnabled, type: warrantyTypeValue, date: warrantyValue },
+        garantiaDetalle: { activa: warrantyEnabled, tipo: warrantyTypeValue, fecha: warrantyValue },
         iphoneModel,
         iphoneNumber: iphoneNumber ? Number(iphoneNumber) : null,
         storageGb: iphoneStorage ? iphoneStorageGb : null,
@@ -1899,19 +1998,38 @@ export default function PublishModal({
                     className="h-4 w-4"
                   />
                   <span className="text-sm text-gray-700">
-                    {productCondition === "Nuevo" ? "1 año de garantía" : "Sí, tiene garantía"}
+                    {productCondition === "Nuevo" ? "Sí, producto nuevo" : "Sí, tiene garantía"}
                   </span>
                 </label>
               </div>
               {(productCondition === "Nuevo" || hasWarranty) && (
                 <div>
-                  <label className="block text-sm text-gray-700">Fecha de garantía</label>
+                  <label className="block text-sm text-gray-700">Tipo de garantía</label>
+                  <select
+                    value={warrantyType}
+                    onChange={(e) => setWarrantyType(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
+                  >
+                    <option value="">Seleccionar</option>
+                    {warrantyType && !["Fabricante", "Tienda", "Proveedor", "Sin especificar", "Otra"].includes(warrantyType) && (
+                      <option value={warrantyType}>{warrantyType}</option>
+                    )}
+                    <option value="Fabricante">Fabricante</option>
+                    <option value="Tienda">Tienda</option>
+                    <option value="Proveedor">Proveedor</option>
+                    <option value="Sin especificar">Sin especificar</option>
+                    <option value="Otra">Otra</option>
+                  </select>
+                </div>
+              )}
+              {(productCondition === "Nuevo" || hasWarranty) && (
+                <div>
+                  <label className="block text-sm text-gray-700">Fecha o detalle de garantía</label>
                   <input
-                    value={productCondition === "Nuevo" ? "1 año de garantía" : warrantyDate}
+                    value={warrantyDate}
                     onChange={(e) => setWarrantyDate(e.target.value)}
-                    readOnly={productCondition === "Nuevo"}
-                    placeholder="19 de febrero del 2026"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff] read-only:bg-gray-100 read-only:text-gray-600"
+                    placeholder="Ej.: hasta 19/02/2027 o 1 año"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
                   />
                 </div>
               )}
@@ -1919,54 +2037,63 @@ export default function PublishModal({
                 <label className="block text-sm text-gray-700">Color</label>
                 <input value={color} onChange={(e) => setColor(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" placeholder="Midnight / Silver" />
               </div>
-              {!isWatch && productCondition !== "Nuevo" && (
-                <div>
-                  <label className="block text-sm text-gray-700">Incluye</label>
-                  <select
-                    value={includesValue}
-                    onChange={(e) => {
-                      const nextValue = e.target.value;
-                      setIncludesValue(nextValue);
-                      if (!includesAccessory(nextValue, "Cubo")) setCuboFake(false);
-                      if (!includesAccessory(nextValue, "Cable")) setCableFake(false);
-                    }}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
-                  >
-                    <option value="">Seleccionar</option>
-                    {isIphone ? (
-                      <>
-                        <option value="Caja + Cable">Caja + Cable</option>
-                        <option value="Caja sola">Caja sola</option>
-                        <option value="Cable solo">Cable solo</option>
-                        <option value="Otros">Otros</option>
-                        <option value="Ninguno">Ninguno</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="Caja + Cubo + Cable">Caja + Cubo + Cable</option>
-                        <option value="Cubo + Cable">Cubo + Cable</option>
-                        <option value="Solo Cable">Solo Cable</option>
-                        <option value="Ninguno">Ninguno</option>
-                        <option value="Otros">Otros</option>
-                      </>
-                    )}
-                  </select>
-                  {(includesAccessory(includesValue, "Cubo") || includesAccessory(includesValue, "Cable")) && (
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-                      {includesAccessory(includesValue, "Cubo") && (
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                          <input type="checkbox" checked={cuboFake} onChange={(e) => setCuboFake(e.target.checked)} />
-                          Cubo Fake
-                        </label>
-                      )}
-                      {includesAccessory(includesValue, "Cable") && (
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                          <input type="checkbox" checked={cableFake} onChange={(e) => setCableFake(e.target.checked)} />
-                          Cable Fake
-                        </label>
-                      )}
-                    </div>
-                  )}
+              {!isWatch && (
+                <div className="col-span-2 rounded-xl border border-gray-200 bg-white/80 p-3">
+                  <label className="block text-sm font-medium text-gray-800">¿Qué incluye?</label>
+                  <p className="mt-0.5 text-xs text-gray-500">Marca cada accesorio. Puedes combinar Caja, Cubo y Cable libremente.</p>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {(["Caja", "Cubo", "Cable"] as AccessoryName[]).map((accessory) => {
+                      const included = includesAccessory(includesValue, accessory);
+                      return (
+                        <div key={accessory} className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-800">
+                            <input
+                              type="checkbox"
+                              checked={included}
+                              onChange={(e) => setAccessoryIncluded(accessory, e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            {accessory}
+                          </label>
+                          {included && accessory !== "Caja" && (
+                            <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-gray-600">
+                              <input
+                                type="checkbox"
+                                checked={accessory === "Cubo" ? cuboFake : cableFake}
+                                onChange={(e) => accessory === "Cubo" ? setCuboFake(e.target.checked) : setCableFake(e.target.checked)}
+                              />
+                              Genérico / fake
+                            </label>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIncludesValue("Ninguno");
+                        setIncludesExtra("");
+                        setCuboFake(false);
+                        setCableFake(false);
+                      }}
+                      className={`rounded-lg border px-3 py-1.5 text-sm ${includesValue === "Ninguno" ? "border-gray-700 bg-gray-100 text-gray-900" : "border-gray-300 bg-white text-gray-700"}`}
+                    >
+                      Ninguno
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIncludesValue("Otros");
+                        setCuboFake(false);
+                        setCableFake(false);
+                      }}
+                      className={`rounded-lg border px-3 py-1.5 text-sm ${includesValue === "Otros" ? "border-gray-700 bg-gray-100 text-gray-900" : "border-gray-300 bg-white text-gray-700"}`}
+                    >
+                      Otros
+                    </button>
+                  </div>
                   {includesValue === "Otros" && (
                     <input
                       value={includesExtra}
@@ -1974,6 +2101,11 @@ export default function PublishModal({
                       className="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
                       placeholder="Especifica"
                     />
+                  )}
+                  {includesValue && includesValue !== "Otros" && (
+                    <p className="mt-2 text-xs text-gray-600">
+                      Se guardará: <span className="font-medium text-gray-800">{formatIncludesAccessories(includesValue, cuboFake, cableFake)}</span>
+                    </p>
                   )}
                 </div>
               )}

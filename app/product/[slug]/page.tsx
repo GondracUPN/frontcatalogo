@@ -228,12 +228,27 @@ export default async function ProductPage({
   const watchAccessories = notes?.watchAccessories || "";
   const productCondition = product?.product_condition || staged?.product_condition || notes?.productCondition || notes?.estado || notes?.specs?.estado || "";
   const isSealed = String(productCondition || "").toLowerCase().includes("nuevo");
-  const rawWarrantyValue = notes?.warrantyDate ?? notes?.garantiaFecha ?? notes?.garantia ?? "";
-  const warrantyFlag = parseWarrantyFlag(notes?.warrantyEnabled ?? notes?.garantiaActiva);
-  const hasWarranty = isSealed ? true : warrantyFlag ?? Boolean(String(rawWarrantyValue || "").trim());
-  const warrantyDisplay = hasWarranty
-    ? formatWarrantyValue(isSealed ? (rawWarrantyValue || "1 año de garantía") : rawWarrantyValue)
-    : "";
+  const warrantyObject = [notes?.warranty, notes?.garantiaDetalle, notes?.garantia]
+    .find((value) => value && typeof value === "object") || {};
+  const rawWarrantyValue = notes?.warrantyDate
+    ?? notes?.garantiaFecha
+    ?? warrantyObject?.date
+    ?? warrantyObject?.fecha
+    ?? warrantyObject?.hasta
+    ?? warrantyObject?.detalle
+    ?? (typeof notes?.garantia === "string" ? notes.garantia : "");
+  const warrantyType = notes?.warrantyType
+    ?? notes?.garantiaTipo
+    ?? notes?.tipoGarantia
+    ?? warrantyObject?.type
+    ?? warrantyObject?.tipo
+    ?? "";
+  const warrantyFlag = parseWarrantyFlag(
+    notes?.warrantyEnabled ?? notes?.garantiaActiva ?? warrantyObject?.enabled ?? warrantyObject?.activa,
+  );
+  const hasWarranty = isSealed ? true : warrantyFlag ?? Boolean(String(rawWarrantyValue || warrantyType || "").trim());
+  const warrantyDetail = formatWarrantyValue(isSealed ? (rawWarrantyValue || "1 año de garantía") : rawWarrantyValue);
+  const warrantyDisplay = hasWarranty ? [warrantyType, warrantyDetail].filter(Boolean).join(" · ") : "";
 
   const especs: Array<{ label: string; value: any }> = [];
   if (productCondition) especs.push({ label: "Estado", value: productCondition });

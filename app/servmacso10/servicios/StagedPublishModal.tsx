@@ -618,6 +618,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     };
     const titleValue = getCurrentTitle();
     if (titleValue) lines.push(titleValue);
+    add("SKU", String(item?.sku || "").trim().replace(/^svc(?=[-_\s]*\d)/i, "MS"));
     add("Tipo", tipoForLabel);
     if (isMacbook) {
       add("Gama", gama);
