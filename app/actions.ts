@@ -226,31 +226,39 @@ export async function createManualPreventaDraft(seed?: {
   const title = String(seed?.title || "Preventa").trim() || "Preventa";
   const stock = Math.max(1, Number(seed?.stock || 1) || 1);
   const price = Number(seed?.price || 0) || 0;
-  return apiFetch<{ ok: boolean; item: Record<string, unknown> }>(`/admin/staged/manual`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({
-      saleType,
-      category,
-      sku,
-      title,
-      stock,
-      price,
-    }),
-  });
+  try {
+    return await apiFetch<{ ok: boolean; item: Record<string, unknown>; error?: string }>(`/admin/staged/manual`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        saleType,
+        category,
+        sku,
+        title,
+        stock,
+        price,
+      }),
+    });
+  } catch (error) {
+    return { ok: false, item: {}, error: error instanceof Error ? error.message : "No se pudo crear el producto" };
+  }
 }
 
 export async function updateStaged(id: string, patch: any) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
-  await apiFetch(`/admin/staged/${id}`, {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify(patch),
-  });
-  revalidateTag("catalog-products");
-  return { ok: true };
+  try {
+    await apiFetch(`/admin/staged/${id}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(patch),
+    });
+    revalidateTag("catalog-products");
+    return { ok: true as const };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : "No se pudo guardar el producto" };
+  }
 }
 
 export async function deleteStaged(id: string) {
@@ -268,13 +276,17 @@ export async function publishStaged(id: string, data: { slug?: string; mergeStag
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
-  await apiFetch(`/admin/staged/${id}/publish`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify(data || {}),
-  });
-  revalidateTag("catalog-products");
-  return { ok: true };
+  try {
+    await apiFetch(`/admin/staged/${id}/publish`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data || {}),
+    });
+    revalidateTag("catalog-products");
+    return { ok: true as const };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : "No se pudo publicar el producto" };
+  }
 }
 
 export async function bulkStaged(ids: string[], action: string) {

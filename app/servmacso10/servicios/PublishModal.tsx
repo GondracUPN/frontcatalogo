@@ -1147,11 +1147,11 @@ export default function PublishModal({
           price: Number(salePrice || 0),
         });
         const newId = String((created?.item as any)?.id || "").trim();
-        if (!created?.ok || !newId) throw new Error("No se pudo crear el borrador de preventa");
+        if (!created?.ok || !newId) throw new Error(created?.error || "No se pudo crear el borrador de preventa");
         stagedId = newId;
         createdManualDraftId = newId;
       }
-      await updateStaged(stagedId, {
+      const updateResult = await updateStaged(stagedId, {
         title: fixedTitle,
         price: String(salePrice),
         images,
@@ -1175,13 +1175,15 @@ export default function PublishModal({
         finalPrice: saleType === "PROMOCION" ? finalPrice : null,
         minOfferPrice: saleType === "OFERTA" ? minOfferPrice : null,
       });
+      if (!updateResult.ok) throw new Error(updateResult.error || "No se pudo guardar el producto");
       const mergeStagedIds = productCondition === "Nuevo" && Number(stock || 1) > 1
         ? selectedMergeIds
         : [];
       const mergeStagedSkus = productCondition === "Nuevo" && Number(stock || 1) > 1
         ? selectedMergeSkus
         : [];
-      await publishStaged(stagedId, { slug: toSlug(fixedTitle), mergeStagedIds, mergeStagedSkus });
+      const publishResult = await publishStaged(stagedId, { slug: toSlug(fixedTitle), mergeStagedIds, mergeStagedSkus });
+      if (!publishResult.ok) throw new Error(publishResult.error || "No se pudo publicar el producto");
       onSaved({
         ...item,
         id: stagedId,

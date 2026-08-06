@@ -789,7 +789,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         baseTitle = `Preventa ${baseTitle}`;
       }
       const fixedTitle = capitalize(baseTitle.trim());
-      await updateStaged(item.id, {
+      const updateResult = await updateStaged(item.id, {
         title: fixedTitle,
         price: String(salePrice),
         images,
@@ -812,7 +812,9 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         finalPrice: saleType === "PROMOCION" ? finalPrice : null,
         minOfferPrice: saleType === "OFERTA" ? minOfferPrice : null,
       });
-      await publishStaged(item.id, { slug: toSlug(fixedTitle) });
+      if (!updateResult.ok) throw new Error(updateResult.error || "No se pudo guardar el producto");
+      const publishResult = await publishStaged(item.id, { slug: toSlug(fixedTitle) });
+      if (!publishResult.ok) throw new Error(publishResult.error || "No se pudo publicar el producto");
       onSaved({
         ...item,
         title: fixedTitle,
