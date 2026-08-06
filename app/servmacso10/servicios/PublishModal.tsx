@@ -42,6 +42,17 @@ function inferCategoryFromTitle(title?: string) {
   return "otros";
 }
 
+function normalizeCategory(value: unknown) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw.includes("mac")) return "macbook";
+  if (raw.includes("ipad")) return "ipad";
+  if (raw.includes("iphone")) return "iphone";
+  if (raw.includes("watch")) return "watch";
+  if (raw.includes("accesorio") || raw.includes("airpod")) return "accesorios";
+  if (raw.includes("otro")) return "otros";
+  return raw;
+}
+
 function categoryLabel(cat: string) {
   switch (cat) {
     case "macbook": return "MacBook";
@@ -529,6 +540,24 @@ export default function PublishModal({
   const [replacementStagedId, setReplacementStagedId] = React.useState("");
   const [replacingPreventa, setReplacingPreventa] = React.useState(false);
   const canReplacePreventa = Boolean(item?.__isPublishedPreventa && item?.__catalogProductId && replacementCandidates.length);
+  const sealedPresets = React.useMemo(() => {
+    const seen = new Set<string>();
+    return (Array.isArray(item?.__sealedPresets) ? item.__sealedPresets : [])
+      .filter((candidate: any) => String(candidate?.id || "") !== String(item?.id || ""))
+      .filter((candidate: any) => {
+        const candidateNotes = (() => {
+          try { return typeof candidate?.notes === "string" ? JSON.parse(candidate.notes) : candidate?.notes || {}; } catch { return {}; }
+        })();
+        return String(candidate?.product_condition || candidateNotes?.productCondition || candidateNotes?.estado || "") === "Nuevo";
+      })
+      .filter((candidate: any) => {
+        const key = `${candidate?.title || ""}|${candidate?.color || ""}|${JSON.stringify(candidate?.images || [])}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [item]);
+  const [sealedPresetId, setSealedPresetId] = React.useState("");
 
   const keepTypeUnselectedOnManualPreventa = !item?.id && String(item?.category ?? "") === "";
 
@@ -605,6 +634,46 @@ export default function PublishModal({
     .map((sku) => mergeCandidateBySku.get(sku)?.id || "")
     .filter(Boolean);
   const selectedMergeSkus = mergeSkuValues.filter(Boolean);
+
+  const applySealedPreset = (presetId: string) => {
+    setSealedPresetId(presetId);
+    const preset = sealedPresets.find((candidate: any) => String(candidate?.id || "") === presetId);
+    if (!preset) return;
+    let presetNotes: any = {};
+    try { presetNotes = typeof preset.notes === "string" ? JSON.parse(preset.notes) : preset.notes || {}; } catch {}
+    const presetSpecs = presetNotes?.specs || presetNotes;
+    const presetDetail = presetSpecs?.detalle || presetNotes?.detalle || {};
+    const presetCategory = String(preset.category || presetNotes?.category || presetSpecs?.tipo || inferCategoryFromTitle(preset.title));
+    setProductCondition("Nuevo");
+    setCategory(normalizeCategory(presetCategory));
+    setCatTouched(true);
+    setTitle(capitalize(String(preset.title || "")));
+    setTitleManual(false);
+    setGama(String(presetDetail?.gama || ""));
+    setProc(String(presetDetail?.procesador || ""));
+    setTam(String(presetDetail?.["tamaño"] || presetDetail?.tamanio || presetDetail?.tamano || ""));
+    setRam(normalizeUnit(presetDetail?.ram || "", "GB"));
+    setAlm(normalizeUnit(presetDetail?.almacenamiento || "", "GB"));
+    setIpadGeneration(String(presetDetail?.generacion || presetNotes?.generacion || ""));
+    setIpadConnectivity(normalizeIpadConnectivity(presetDetail?.conectividad || presetNotes?.conectividad || ""));
+    setKeyboardLayout(String(preset.keyboard_layout || presetDetail?.teclado || ""));
+    setColor(String(preset.color || presetNotes?.color || ""));
+    setIphoneNumber(String(preset.iphone_number ?? presetNotes?.iphoneNumber ?? ""));
+    setIphoneModel(String(preset.iphone_model || presetNotes?.iphoneModel || ""));
+    setIphoneStorage(normalizeIphoneStorageInput(preset.storage_gb ?? presetNotes?.storageGb ?? ""));
+    setIphoneSimType(String(presetNotes?.iphoneSimType || presetNotes?.simType || presetDetail?.sim || ""));
+    setWatchType(String(presetNotes?.watchType || ""));
+    setWatchSeries(String(presetNotes?.watchSeries || ""));
+    setWatchConnection(String(presetNotes?.watchConnection || ""));
+    setWatchVersion(String(presetNotes?.watchVersion || ""));
+    setWatchAccessories(String(presetNotes?.watchAccessories || ""));
+    setWatchIncludes(String(presetNotes?.watchIncludes || ""));
+    setDescriptionOther(String(presetDetail?.descripcionOtro || presetNotes?.descripcionOtro || ""));
+    setProductDetails(String(presetDetail?.detalles || presetNotes?.productDetails || presetNotes?.detalles || ""));
+    setImages(Array.isArray(preset.images) ? preset.images : []);
+    setDetailImages(uniqueStrings([...(Array.isArray(presetNotes?.detailImages) ? presetNotes.detailImages : []), ...(Array.isArray(presetDetail?.detailImages) ? presetDetail.detailImages : [])]));
+    setVariantGroup(String(preset.variant_group || presetNotes?.variantGroup || preset.title || ""));
+  };
 
   React.useEffect(() => {
     setMergeSkuInputs((current) => {
@@ -1357,6 +1426,50 @@ export default function PublishModal({
               <p className="text-xs text-gray-500 mt-1">Se autocompleta desde el titulo; puedes ajustarlo.</p>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-700">Estado</label>
+                <select value={productCondition} onChange={(e) => setProductCondition(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                  <option value="">Seleccionar</option>
+                  <option value="Nuevo">Sellado (Nuevo)</option>
+                  <option value="Usado">Usado</option>
+                  <option value="Open Box">Open Box</option>
+                  <option value="Arreglado">Arreglado</option>
+                </select>
+              </div>
+              {productCondition === "Nuevo" && (
+                <div>
+                  <label className="block text-sm text-gray-700">Stock</label>
+                  <input type="number" min={1} value={stock} onChange={(e) => setStock(Math.max(1, Number(e.target.value || 1)))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" />
+                </div>
+              )}
+              {productCondition === "Nuevo" && sealedPresets.length > 0 && (
+                <div className="col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                  <label className="block text-sm font-medium text-gray-800">Reutilizar datos de un producto sellado</label>
+                  <select value={sealedPresetId} onChange={(e) => applySealedPreset(e.target.value)} className="mt-1 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-gray-900">
+                    <option value="">Seleccionar producto anterior</option>
+                    {sealedPresets.map((preset: any) => (
+                      <option key={preset.id} value={preset.id}>{displaySku(preset.sku)} · {preset.title}{preset.color ? ` · ${preset.color}` : ""}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-600">Copia características, color y fotos; conserva el SKU y el precio del producto actual.</p>
+                </div>
+              )}
+              {productCondition === "Nuevo" && requiredMergeSkuCount > 0 && (
+                <div className="col-span-2 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                  <div className="text-sm font-medium text-gray-800">SKU adicionales para este stock</div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {mergeSkuInputs.map((value, index) => (
+                      <input key={index} value={value} list={`merge-skus-${String(item?.id || "nuevo")}`} onChange={(e) => { const next = mergeSkuInputs.slice(); next[index] = e.target.value; setMergeSkuInputs(next); }} className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-gray-900" placeholder={`SKU adicional ${index + 1}`} />
+                    ))}
+                  </div>
+                  <datalist id={`merge-skus-${String(item?.id || "nuevo")}`}>
+                    {mergeCandidates.map((candidate) => <option key={candidate.id} value={candidate.sku}>{candidate.title || candidate.sku}</option>)}
+                  </datalist>
+                </div>
+              )}
+            </div>
+
             <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm font-medium text-gray-800">
               <input
                 type="checkbox"
@@ -1773,65 +1886,6 @@ export default function PublishModal({
             )}
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm text-gray-700">Estado</label>
-                <select
-                  value={productCondition}
-                  onChange={(e) => setProductCondition(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
-                >
-                  <option value="">Seleccionar</option>
-                  <option value="Nuevo">Nuevo</option>
-                  <option value="Usado">Usado</option>
-                  <option value="Open Box">Open Box</option>
-                  <option value="Arreglado">Arreglado</option>
-                </select>
-              </div>
-              {productCondition === "Nuevo" && (
-                <div>
-                  <label className="block text-sm text-gray-700">Stock</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={stock}
-                    onChange={(e) => setStock(Math.max(1, Number(e.target.value || 1)))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
-                  />
-                </div>
-              )}
-              {productCondition === "Nuevo" && requiredMergeSkuCount > 0 && (
-                <div className="col-span-2 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
-                  <div className="text-sm font-medium text-gray-800">SKU adicionales para este stock</div>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {mergeSkuInputs.map((value, index) => (
-                      <input
-                        key={index}
-                        value={value}
-                        list={`merge-skus-${String(item?.id || "nuevo")}`}
-                        onChange={(e) => {
-                          const next = mergeSkuInputs.slice();
-                          next[index] = e.target.value;
-                          setMergeSkuInputs(next);
-                        }}
-                        className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
-                        placeholder={`SKU adicional ${index + 1}`}
-                      />
-                    ))}
-                  </div>
-                  <datalist id={`merge-skus-${String(item?.id || "nuevo")}`}>
-                    {mergeCandidates.map((candidate) => (
-                      <option key={candidate.id} value={candidate.sku}>
-                        {candidate.title || candidate.sku}
-                      </option>
-                    ))}
-                  </datalist>
-                  {mergeCandidates.length > 0 && (
-                    <p className="mt-2 text-xs text-gray-600">
-                      Disponibles: {mergeCandidates.map((candidate) => candidate.sku).join(", ")}
-                    </p>
-                  )}
-                </div>
-              )}
               <div>
                 <label className="block text-sm text-gray-700">¿Garantía?</label>
                 <label className="inline-flex items-center gap-2 h-10">

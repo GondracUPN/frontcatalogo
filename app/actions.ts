@@ -312,6 +312,48 @@ export async function listAdminCatalog() {
   });
 }
 
+export type CatalogRepairItem = {
+  publicId: string;
+  productId: string;
+  title: string;
+  sku: string;
+  slug: string;
+  category: string;
+  price: number;
+  severity: "warning" | "critical";
+  updatedAt?: string;
+  issues: Array<{
+    code: string;
+    label: string;
+    severity: "warning" | "critical";
+  }>;
+};
+
+export async function listCatalogRepairs() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) return { items: [] as CatalogRepairItem[], total: 0 };
+  return apiFetch<{ items: CatalogRepairItem[]; total: number }>("/admin/catalog-repairs", {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+}
+
+export async function returnCatalogRepairToInventory(publicId: string) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) redirect("/servmacso10?next=/servmacso10/contenidos");
+  const result = await apiFetch<{ ok: boolean; inventoryIds: string[] }>(
+    `/admin/catalog-repairs/${encodeURIComponent(publicId)}/return-to-inventory`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  revalidateTag("catalog-products");
+  return result;
+}
+
 export async function getHomeCatalog() {
   return apiFetch<{
     items: Array<{
@@ -389,6 +431,31 @@ export async function markProductSold(
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
   await apiFetch(`/admin/public/${productId}/sold`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ saleDate: saleDate || null, salePrice: salePrice ?? undefined, ...(customer || {}) }),
+  });
+  revalidateTag("catalog-products");
+  return { ok: true };
+}
+
+// ----- Admin: vender directamente una unidad del inventario -----
+export async function markStagedProductSold(
+  stagedId: string,
+  saleDate?: string,
+  salePrice?: string | number,
+  customer?: {
+    name?: string;
+    phone?: string;
+    customerKind?: string;
+    salePlaceType?: string;
+    saleLocation?: string;
+  }
+) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
+  await apiFetch(`/admin/staged/${encodeURIComponent(stagedId)}/sold`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ saleDate: saleDate || null, salePrice: salePrice ?? undefined, ...(customer || {}) }),

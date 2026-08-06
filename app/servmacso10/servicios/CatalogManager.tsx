@@ -3,6 +3,7 @@ import React from "react";
 import dynamic from "next/dynamic";
 import { listAdminCatalog, listStaged, markProductSold, unpublishProduct } from "../../actions";
 import { dateInputInPeru, formatPeruDate, hasMeaningfulPeruUpdate } from "../../utils/peruTime";
+import { DeleteIcon, SellIcon } from "./ActionIcons";
 
 const StagedPublishModal = dynamic(() => import("./PublishModal"), { ssr: false });
 
@@ -91,6 +92,15 @@ function linkedSkuRowsFor(row: CatalogRow) {
   const notes = parseNotes(staged?.notes);
   const skus = Array.isArray(notes?.linkedSkus) ? notes.linkedSkus : [];
   return skus.map((sku: unknown) => ({ sku: String(sku || "").trim() })).filter((linked: any) => linked.sku);
+}
+
+function catalogRowPrices(row: CatalogRow) {
+  const fallback = Number(row.product?.price || row.staged?.price || 0);
+  const values = [
+    fallback,
+    ...linkedSkuRowsFor(row).map((linked: any) => Number(linked?.price ?? fallback)),
+  ];
+  return values.filter((price) => Number.isFinite(price) && price > 0);
 }
 
 function unitDetails(value: any) {
@@ -217,6 +227,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
     base.__catalogSlug = row.slug || "";
     base.__isPublishedPreventa = currentSaleType === "PREVENTA";
     base.__replacementCandidates = replacementCandidates;
+    base.__sealedPresets = [...inventoryRows, ...items.map((catalogRow) => catalogRow.staged).filter(Boolean)];
     const baseNotes = (() => {
       try {
         return base?.notes && typeof base.notes === "string" ? JSON.parse(base.notes) : base?.notes || {};
@@ -374,21 +385,27 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
             if (entry.kind === "group") {
               const first = entry.rows[0];
               const expanded = expandedGroups.has(entry.key);
+              const groupPrices = entry.rows.flatMap(catalogRowPrices);
+              const groupMinPrice = groupPrices.length ? Math.min(...groupPrices) : 0;
               return (
                 <tr key={`group-${entry.key}`} className="border-t bg-gray-50/80">
                   <td className="p-2 font-semibold text-gray-900">
                     {first.product?.title || first.staged?.title || first.slug}
                     <div className="mt-1 text-xs font-medium text-gray-500">
-                      {entry.unitCount} unidades · {entry.rows.length} variante{entry.rows.length === 1 ? "" : "s"}
+                      {entry.unitCount} unidades · {entry.rows.reduce((total, row) => total + linkedSkuRowsFor(row).length + 1, 0)} SKU
                       {groupConditionSummary(entry.rows) ? ` · ${groupConditionSummary(entry.rows)}` : ""}
                     </div>
                   </td>
-                  <td className="p-2 text-gray-500">—</td>
-                  <td className="p-2 text-gray-900">Desde S/ {Math.min(...entry.rows.map((row) => Number(row.product?.price || 0))).toFixed(2)}</td>
+                  <td className="p-2 text-xs text-gray-600">
+                    {entry.rows.map((row) => displaySku(row.product?.sku || row.staged?.sku)).filter(Boolean).join(", ") || "-"}
+                  </td>
+                  <td className="p-2 text-gray-900">
+                    Desde S/ {groupMinPrice.toFixed(2)}
+                  </td>
                   <td className="p-2 text-xs text-gray-500">Grupo automático</td>
                   <td className="p-2">
                     <button onClick={() => toggleGroup(entry.key)} className="rounded bg-gray-900 px-3 py-1 text-white">
-                      {expanded ? "Ocultar" : "Ver más"}
+                      {expanded ? "Ocultar equipos" : "Ver equipos"}
                     </button>
                   </td>
                 </tr>
@@ -453,9 +470,11 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                         salePlaceType: "",
                         saleLocation: "",
                       })}
-                      className="px-3 py-1 rounded bg-amber-600 text-white"
+                      className="rounded bg-amber-600 p-2 text-white hover:bg-amber-700"
+                      aria-label="Marcar producto como vendido"
+                      title="Vendido"
                     >
-                      Vendido
+                      <SellIcon />
                     </button>
                     {canDelete && <button
                       onClick={async () => {
@@ -466,9 +485,11 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                           alert("No se pudo despublicar");
                         }
                       }}
-                      className="px-3 py-1 rounded bg-red-600 text-white"
+                      className="rounded bg-red-600 p-2 text-white hover:bg-red-700"
+                      aria-label="Eliminar producto del catalogo"
+                      title="Eliminar"
                     >
-                      Eliminar
+                      <DeleteIcon />
                     </button>}
                   </div>
                 </div>
@@ -484,7 +505,10 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                     </td>
                     <td className="p-2 font-mono text-xs text-gray-900">{displaySku(linked.sku) || "-"}</td>
                     <td className="p-2 text-gray-900">S/ {Number(linked.price || row.product?.price || 0).toFixed(2)}</td>
-                    <td className="p-2 text-xs text-gray-500">-</td>
+                    <td className="p-2 text-xs leading-5 text-gray-600">
+                      <div>Subida: {formatPeruDate(linked.created_at)}</div>
+                      {hasMeaningfulPeruUpdate(linked.created_at, linked.updated_at) && <div>Actualizada: {formatPeruDate(linked.updated_at)}</div>}
+                    </td>
                     <td className="p-2 text-xs text-gray-500">Unidad del grupo</td>
                   </tr>
                 ))}

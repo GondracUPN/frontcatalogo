@@ -1,15 +1,27 @@
 "use client";
 import React from "react";
 import dynamic from "next/dynamic";
-import { deleteStaged, listStaged } from "../../actions";
+import { deleteStaged, listStaged, markStagedProductSold } from "../../actions";
+import { dateInputInPeru } from "../../utils/peruTime";
+import { DeleteIcon, PublishIcon, SellIcon } from "./ActionIcons";
 
 const StagedPublishModal = dynamic(() => import("./PublishModal"), { ssr: false });
 
-export default function StagedManager({ initialItems, canDelete = true }: { initialItems: any[]; canDelete?: boolean }) {
+export default function StagedManager({ initialItems, sealedPresets = [], canDelete = true }: { initialItems: any[]; sealedPresets?: any[]; canDelete?: boolean }) {
   const [items, setItems] = React.useState<any[]>(initialItems || []);
   const [open, setOpen] = React.useState<null | any>(null);
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
   const [search, setSearch] = React.useState("");
+  const [soldModal, setSoldModal] = React.useState<null | {
+    item: any;
+    date: string;
+    price: string;
+    customerName: string;
+    customerPhone: string;
+    customerKind: "tranquilo" | "regateador";
+    salePlaceType: "" | "almacen" | "otro";
+    saleLocation: string;
+  }>(null);
 
   const displaySku = (value: unknown) => String(value || "").trim().replace(/^svc(?=[-_\s]*\d)/i, "MS");
   const timeOf = (it: any) => new Date(it?.created_at || it?.updated_at || 0).getTime() || 0;
@@ -119,10 +131,11 @@ export default function StagedManager({ initialItems, canDelete = true }: { init
   const openForPublish = (it: any) => {
     setOpen({
       ...it,
+      __sealedPresets: sealedPresets,
       __mergeStock: 1,
       __mergeStagedIds: [],
       __mergeInitialSkus: [],
-      __mergeCandidates: undefined,
+      __mergeCandidates: items.filter((candidate) => String(candidate?.id || "") !== String(it?.id || "")),
     });
   };
 
@@ -134,8 +147,41 @@ export default function StagedManager({ initialItems, canDelete = true }: { init
       <td className="p-2 text-gray-900">{it.price}</td>
       <td className="p-2"><span className="px-2 py-1 rounded bg-gray-100 text-gray-900">{it.status}</span></td>
       <td className="p-2 flex gap-2">
-        <button onClick={() => openForPublish(it)} className="px-3 py-1 rounded bg-emerald-600 text-white">Publicar</button>
-        {canDelete && <button onClick={() => deleteItem(it)} className="px-3 py-1 rounded bg-red-600 text-white">Eliminar</button>}
+        <button
+          onClick={() => openForPublish(it)}
+          className="rounded bg-emerald-600 p-2 text-white hover:bg-emerald-700"
+          aria-label="Publicar producto"
+          title="Publicar"
+        >
+          <PublishIcon />
+        </button>
+        <button
+          onClick={() => setSoldModal({
+            item: it,
+            date: dateInputInPeru(),
+            price: String(it?.price || 0),
+            customerName: "",
+            customerPhone: "",
+            customerKind: "tranquilo",
+            salePlaceType: "",
+            saleLocation: "",
+          })}
+          className="rounded bg-amber-600 p-2 text-white hover:bg-amber-700"
+          aria-label="Vender producto"
+          title="Vender"
+        >
+          <SellIcon />
+        </button>
+        {canDelete && (
+          <button
+            onClick={() => deleteItem(it)}
+            className="rounded bg-red-600 p-2 text-white hover:bg-red-700"
+            aria-label="Eliminar producto"
+            title="Eliminar"
+          >
+            <DeleteIcon />
+          </button>
+        )}
       </td>
     </tr>
   );
@@ -213,6 +259,79 @@ export default function StagedManager({ initialItems, canDelete = true }: { init
             window.dispatchEvent(new Event("catalog-products-updated"));
           }}
         />
+      )}
+
+      {soldModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Vender desde inventario</h3>
+                <p className="text-sm text-gray-600">{soldModal.item?.title} · {displaySku(soldModal.item?.sku)}</p>
+              </div>
+              <button onClick={() => setSoldModal(null)} aria-label="Cerrar" className="text-xl text-gray-500">×</button>
+            </div>
+            <label className="mb-1 block text-sm text-gray-700">Fecha de venta</label>
+            <input type="date" value={soldModal.date} onChange={(e) => setSoldModal({ ...soldModal, date: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" />
+            <label className="mb-1 block text-sm text-gray-700">Precio de venta</label>
+            <input type="number" min="0" step="0.01" value={soldModal.price} onChange={(e) => setSoldModal({ ...soldModal, price: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" />
+            <label className="mb-1 block text-sm text-gray-700">Nombre del cliente</label>
+            <input value={soldModal.customerName} onChange={(e) => setSoldModal({ ...soldModal, customerName: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" placeholder="Nombre y apellido" />
+            <label className="mb-1 block text-sm text-gray-700">Telefono del cliente</label>
+            <input value={soldModal.customerPhone} onChange={(e) => setSoldModal({ ...soldModal, customerPhone: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" placeholder="999 999 999" />
+            <label className="mb-1 block text-sm text-gray-700">Tipo de cliente</label>
+            <select value={soldModal.customerKind} onChange={(e) => setSoldModal({ ...soldModal, customerKind: e.target.value as any })} className="mb-3 w-full rounded border px-3 py-2">
+              <option value="tranquilo">Tranquilo</option>
+              <option value="regateador">Regateador</option>
+            </select>
+            <label className="mb-1 block text-sm text-gray-700">Lugar de venta</label>
+            <select value={soldModal.salePlaceType} onChange={(e) => setSoldModal({ ...soldModal, salePlaceType: e.target.value as any, saleLocation: e.target.value === "almacen" ? "" : soldModal.saleLocation })} className="mb-3 w-full rounded border px-3 py-2">
+              <option value="">Seleccionar</option>
+              <option value="almacen">Almacen</option>
+              <option value="otro">Otro lugar</option>
+            </select>
+            {soldModal.salePlaceType === "otro" && (
+              <>
+                <label className="mb-1 block text-sm text-gray-700">Ubicacion de la venta</label>
+                <input value={soldModal.saleLocation} onChange={(e) => setSoldModal({ ...soldModal, saleLocation: e.target.value })} className="mb-4 w-full rounded border px-3 py-2" placeholder="Ej: Miraflores, Jockey Plaza..." />
+              </>
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setSoldModal(null)} className="rounded border px-3 py-1">Cancelar</button>
+              <button
+                className="rounded bg-amber-600 px-3 py-1 text-white"
+                onClick={async () => {
+                  if (!soldModal.date || !soldModal.price || Number(soldModal.price) < 0) {
+                    alert("Completa la fecha y el precio de venta");
+                    return;
+                  }
+                  if (!soldModal.customerName.trim() || !soldModal.customerPhone.replace(/\D+/g, "")) {
+                    alert("Completa el nombre y telefono del cliente");
+                    return;
+                  }
+                  try {
+                    await markStagedProductSold(soldModal.item.id, soldModal.date, soldModal.price, {
+                      name: soldModal.customerName,
+                      phone: soldModal.customerPhone,
+                      customerKind: soldModal.customerKind,
+                      salePlaceType: soldModal.salePlaceType,
+                      saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
+                    });
+                    const res = await listStaged({ pageSize: "all" });
+                    setItems(Array.isArray(res?.items) ? res.items : []);
+                    window.dispatchEvent(new Event("staged-products-updated"));
+                    window.dispatchEvent(new Event("sales-updated"));
+                    setSoldModal(null);
+                  } catch {
+                    alert("No se pudo registrar la venta");
+                  }
+                }}
+              >
+                Registrar venta
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

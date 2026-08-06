@@ -35,6 +35,7 @@ export default async function ServiciosPage() {
     listStaged({ pageSize: "all" }),
     listAdminCatalog().catch(() => ({ items: [] as any[] })),
   ]);
+  const sealedPresets = [...items, ...published.map((row: any) => row?.staged).filter(Boolean)];
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -63,7 +64,7 @@ export default async function ServiciosPage() {
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Section title="Inventario">
-          <StagedManager initialItems={items} canDelete={isAdmin} />
+          <StagedManager initialItems={items} sealedPresets={sealedPresets} canDelete={isAdmin} />
         </Section>
         <Section title="Catálogo">
           <CatalogManager initialItems={published} inventoryItems={items} canDelete={isAdmin} />
