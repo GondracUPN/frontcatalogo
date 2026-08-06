@@ -159,6 +159,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
   const [open, setOpen] = React.useState<any | null>(null);
   const [soldModal, setSoldModal] = React.useState<{
     row: CatalogRow;
+    unit?: any;
     date: string;
     price: string;
     customerName: string;
@@ -509,7 +510,26 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                       <div>Subida: {formatPeruDate(linked.created_at)}</div>
                       {hasMeaningfulPeruUpdate(linked.created_at, linked.updated_at) && <div>Actualizada: {formatPeruDate(linked.updated_at)}</div>}
                     </td>
-                    <td className="p-2 text-xs text-gray-500">Unidad del grupo</td>
+                    <td className="p-2">
+                      <button
+                        onClick={() => setSoldModal({
+                          row,
+                          unit: linked,
+                          date: dateInputInPeru(),
+                          price: String(linked.price || row.product?.price || 0),
+                          customerName: "",
+                          customerPhone: "",
+                          customerKind: "tranquilo",
+                          salePlaceType: "",
+                          saleLocation: "",
+                        })}
+                        className="rounded bg-amber-600 p-2 text-white hover:bg-amber-700"
+                        aria-label={`Marcar ${displaySku(linked.sku)} como vendido`}
+                        title={`Vender ${displaySku(linked.sku)}`}
+                      >
+                        <SellIcon />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </React.Fragment>
@@ -545,7 +565,12 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md p-5 text-gray-900">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold">Marcar como vendido</h3>
+              <div>
+                <h3 className="text-lg font-semibold">Marcar como vendido</h3>
+                {soldModal.unit?.sku && (
+                  <p className="text-sm text-gray-600">Unidad exacta: {displaySku(soldModal.unit.sku)}</p>
+                )}
+              </div>
               <button onClick={() => setSoldModal(null)} aria-label="Cerrar">
                 ×
               </button>
@@ -624,6 +649,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                         customerKind: soldModal.customerKind,
                         salePlaceType: soldModal.salePlaceType,
                         saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
+                        stagedId: soldModal.unit?.id || undefined,
                       });
                       try {
                         const { items } = await listAdminCatalog();

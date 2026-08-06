@@ -425,6 +425,7 @@ export async function markProductSold(
     customerKind?: string;
     salePlaceType?: string;
     saleLocation?: string;
+    stagedId?: string;
   }
 ) {
   const cookieStore = await cookies();
