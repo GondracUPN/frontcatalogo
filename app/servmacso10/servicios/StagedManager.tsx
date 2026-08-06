@@ -22,6 +22,8 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
     salePlaceType: "" | "almacen" | "otro";
     saleLocation: string;
   }>(null);
+  const [selling, setSelling] = React.useState(false);
+  const sellingRef = React.useRef(false);
 
   const displaySku = (value: unknown) => String(value || "").trim().replace(/^svc(?=[-_\s]*\d)/i, "MS");
   const timeOf = (it: any) => new Date(it?.created_at || it?.updated_at || 0).getTime() || 0;
@@ -269,7 +271,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                 <h3 className="text-lg font-semibold text-gray-900">Vender desde inventario</h3>
                 <p className="text-sm text-gray-600">{soldModal.item?.title} · {displaySku(soldModal.item?.sku)}</p>
               </div>
-              <button onClick={() => setSoldModal(null)} aria-label="Cerrar" className="text-xl text-gray-500">×</button>
+              <button disabled={selling} onClick={() => setSoldModal(null)} aria-label="Cerrar" className="text-xl text-gray-500 disabled:opacity-40">×</button>
             </div>
             <label className="mb-1 block text-sm text-gray-700">Fecha de venta</label>
             <input type="date" value={soldModal.date} onChange={(e) => setSoldModal({ ...soldModal, date: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" />
@@ -297,10 +299,12 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
               </>
             )}
             <div className="flex justify-end gap-2">
-              <button onClick={() => setSoldModal(null)} className="rounded border px-3 py-1">Cancelar</button>
+              <button disabled={selling} onClick={() => setSoldModal(null)} className="rounded border px-3 py-1 disabled:opacity-50">Cancelar</button>
               <button
-                className="rounded bg-amber-600 px-3 py-1 text-white"
+                disabled={selling}
+                className="rounded bg-amber-600 px-3 py-1 text-white disabled:cursor-wait disabled:opacity-60"
                 onClick={async () => {
+                  if (sellingRef.current) return;
                   if (!soldModal.date || !soldModal.price || Number(soldModal.price) < 0) {
                     alert("Completa la fecha y el precio de venta");
                     return;
@@ -309,6 +313,8 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                     alert("Completa el nombre y telefono del cliente");
                     return;
                   }
+                  sellingRef.current = true;
+                  setSelling(true);
                   try {
                     await markStagedProductSold(soldModal.item.id, soldModal.date, soldModal.price, {
                       name: soldModal.customerName,
@@ -324,10 +330,13 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                     setSoldModal(null);
                   } catch {
                     alert("No se pudo registrar la venta");
+                  } finally {
+                    sellingRef.current = false;
+                    setSelling(false);
                   }
                 }}
               >
-                Registrar venta
+                {selling ? "Registrando..." : "Registrar venta"}
               </button>
             </div>
           </div>
