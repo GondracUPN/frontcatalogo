@@ -328,12 +328,21 @@ export async function listAdminCatalog() {
 export async function prepareMarketplaceBridge(data: MarketplaceData) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
-  if (!token) throw new Error("Sesión administrativa no disponible");
-  return apiFetch<{ token: string; expiresAt: string }>("/marketplace-bridge", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify(data),
-  });
+  if (!token) return { ok: false as const, message: "Sesión administrativa no disponible" };
+  try {
+    const prepared = await apiFetch<{ token: string; expiresAt: string }>("/marketplace-bridge", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+    return { ok: true as const, ...prepared };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "No se pudo contactar con el backend";
+    const message = /API \/marketplace-bridge 404/i.test(detail)
+      ? "El backend de producción todavía no tiene activa la función de Marketplace. Vuelve a desplegar el backend en Render."
+      : detail;
+    return { ok: false as const, message };
+  }
 }
 
 export type CatalogRepairItem = {

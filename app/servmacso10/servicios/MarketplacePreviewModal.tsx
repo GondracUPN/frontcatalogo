@@ -48,7 +48,8 @@ export default function MarketplacePreviewModal({ initialData, onClose }: { init
           catch { return url; }
         }),
       };
-      await prepareMarketplaceBridge(payload);
+      const result = await prepareMarketplaceBridge(payload);
+      if (!result.ok) throw new Error(result.message);
       setMessage("Producto enviado a Tampermonkey. Ya puedes abrir Facebook Marketplace cuando quieras.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo preparar el producto en el backend");
@@ -60,12 +61,18 @@ export default function MarketplacePreviewModal({ initialData, onClose }: { init
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-3" role="dialog" aria-modal="true" aria-labelledby="marketplace-title">
       <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 text-gray-900 shadow-2xl sm:p-6">
-        <div className="flex items-start justify-between gap-4">
+        <button
+          onClick={onClose}
+          className="sticky top-3 z-20 -mb-8 ml-auto flex h-9 w-9 items-center justify-center rounded-full bg-white text-2xl leading-none text-gray-500 shadow-md ring-1 ring-gray-200 hover:bg-gray-100"
+          aria-label="Cerrar"
+        >
+          ×
+        </button>
+        <div className="flex items-start justify-between gap-4 pr-12">
           <div>
             <h3 id="marketplace-title" className="text-xl font-semibold">Facebook Marketplace</h3>
             <p className="mt-1 text-sm text-gray-600">SKU: <span className="font-mono font-semibold text-gray-900">{data.sku || "Sin SKU"}</span></p>
           </div>
-          <button onClick={onClose} className="rounded-lg px-3 py-1 text-2xl leading-none text-gray-500 hover:bg-gray-100" aria-label="Cerrar">×</button>
         </div>
 
         <div className="mt-5 grid gap-4">

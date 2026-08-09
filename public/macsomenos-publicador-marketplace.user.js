@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MacsoMenos - Publicador de Facebook Marketplace
 // @namespace    macsomenos-marketplace
-// @version      4.3.3
+// @version      4.4.1
 // @description  Recupera productos preparados desde MacsoMenos y rellena Facebook Marketplace sin publicar
 // @match        https://www.facebook.com/*
 // @match        https://facebook.com/*
@@ -27,7 +27,7 @@
     "http://127.0.0.1:3101",
     "http://localhost:3101",
   ];
-  const CACHE_KEY = "macsomenos_marketplace_product_v3";
+  const CACHE_KEY = "macsomenos_marketplace_product_v4";
   const FACEBOOK_CREATE_URL = "https://www.facebook.com/marketplace/create/item";
   const OPEN_AFTER_NAVIGATION_KEY = "macsomenos_marketplace_open_after_navigation";
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -584,10 +584,10 @@
     panel.style.cssText = "position:fixed;right:18px;bottom:18px;width:350px;max-height:82vh;overflow:auto;z-index:2147483647;padding:16px;border-radius:14px;background:#fff;color:#101828;font:14px Arial,sans-serif;box-shadow:0 8px 35px rgba(0,0,0,.35)";
     if (!product) {
       panel.innerHTML = `
-        <div style="display:flex;justify-content:space-between;gap:10px"><div><strong style="font-size:17px">Publicador de Marketplace</strong><div style="margin-top:4px;color:#067647;font-size:11px;font-weight:bold">Tampermonkey activo · v4.3.3</div></div><button id="mm-minimize-empty" title="Minimizar" aria-label="Minimizar" style="width:32px;height:32px;border:0;border-radius:999px;background:#e4e6eb;font-size:22px;line-height:1;cursor:pointer">−</button></div>
+        <div style="display:flex;justify-content:space-between;gap:10px"><div><strong style="font-size:17px">Publicador de Marketplace</strong><div style="margin-top:4px;color:#067647;font-size:11px;font-weight:bold">Tampermonkey activo · v4.4.1</div></div><button id="mm-minimize-empty" title="Minimizar" aria-label="Minimizar" style="width:32px;height:32px;border:0;border-radius:999px;background:#e4e6eb;font-size:22px;line-height:1;cursor:pointer">−</button></div>
         <p style="color:#b42318;line-height:1.5;word-break:break-word">${escapeHtml(error || "No se encontró un producto preparado.")}</p>
         <button id="mm-retry" style="width:100%;padding:10px;border:0;border-radius:8px;background:#1877f2;color:#fff;font-weight:700;cursor:pointer">Probar conexión con el backend</button>
-        <div style="margin-top:8px;color:#667085;font-size:11px">Servidor: backcatalogo.onrender.com</div>`;
+        <div style="margin-top:8px;color:#667085;font-size:11px">Servidor: producción con respaldo local</div>`;
       document.body.appendChild(panel);
       document.getElementById("mm-minimize-empty").onclick = () => minimizePanel(panel);
       document.getElementById("mm-retry").onclick = async function () {
@@ -600,7 +600,7 @@
       return;
     }
     panel.innerHTML = `
-      <div style="display:flex;justify-content:space-between;gap:10px"><div><strong style="font-size:17px">Publicador de Marketplace</strong><div style="margin-top:4px;color:#667085;font-size:12px">SKU: <strong>${escapeHtml(product.sku)}</strong></div></div><button id="mm-minimize" title="Minimizar" aria-label="Minimizar" style="width:32px;height:32px;border:0;border-radius:999px;background:#e4e6eb;font-size:22px;line-height:1;cursor:pointer">−</button></div>
+      <div style="display:flex;justify-content:space-between;gap:10px"><div><strong style="font-size:17px">Publicador de Marketplace</strong><div style="margin-top:4px;color:#667085;font-size:12px">SKU: <strong>${escapeHtml(product.sku)}</strong></div></div><button id="mm-minimize" title="Minimizar" aria-label="Minimizar" style="width:32px;height:32px;line-height:1;border:0;border-radius:999px;background:#e4e6eb;font-size:22px;cursor:pointer">−</button></div>
       <div style="margin:12px 0;padding:10px;border-radius:9px;background:#f2f4f7;font-size:12px;line-height:1.5"><strong>Título</strong><br>${escapeHtml(product.titulo)}<br><br><strong>Precio</strong><br>S/ ${escapeHtml(product.precio)}</div>
       <button id="mm-fill" style="width:100%;padding:11px;border:0;border-radius:8px;background:#1877f2;color:#fff;font-weight:700;cursor:pointer">Rellenar Marketplace</button>
       <button id="mm-refresh" style="width:100%;margin-top:8px;padding:9px;border:0;border-radius:8px;background:#e4e6eb;cursor:pointer">Actualizar producto</button>
@@ -641,7 +641,7 @@
       if (openAfterNavigation) sessionStorage.removeItem(OPEN_AFTER_NAVIGATION_KEY);
     } catch {}
     const startMinimized = !openAfterNavigation;
-    console.log("[MacsoMenos Marketplace] Publicador activo v4.3.3 en", location.href);
+    console.log("[MacsoMenos Marketplace] Publicador activo v4.4.1 en", location.href);
     new MutationObserver(scheduleQuickChatButtonUpdate).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-label", "contenteditable"] });
     updateQuickChatButton();
     createPanel(null, "Tampermonkey está activo. Consultando el backend...", startMinimized);
