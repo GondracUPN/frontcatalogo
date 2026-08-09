@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         MacsoMenos - Publicador de Marketplace (PRODUCCIÓN)
+// @name         Macsomenos Publicaciones Market P
 // @namespace    macsomenos-marketplace
-// @version      4.4.3
+// @version      4.4.5
 // @description  Recupera productos preparados desde MacsoMenos y rellena Facebook Marketplace sin publicar
 // @match        https://www.facebook.com/*
 // @match        https://facebook.com/*
@@ -21,7 +21,7 @@
 (function () {
   "use strict";
 
-  const DEVELOPMENT_MODE = typeof GM_info !== "undefined" && /\b(?:local|desarrollo)\b/i.test(String(GM_info.script?.name || ""));
+  const DEVELOPMENT_MODE = typeof GM_info !== "undefined" && /(?:\b(?:local|desarrollo)\b|\bmarket\s+l\b)/i.test(String(GM_info.script?.name || ""));
   const API_BASES = DEVELOPMENT_MODE
     ? ["http://127.0.0.1:3101", "http://localhost:3101"]
     : ["https://backcatalogo.onrender.com"];
@@ -303,17 +303,35 @@
   }
 
   async function fillBrand() {
-    const input = findControlInExactLabel("Marca", "input") || findControlInExactLabel("Brand", "input");
+    const input = await waitFor(() => (
+      findControlInExactLabel("Marca", "input")
+      || findControlInExactLabel("Brand", "input")
+      || [findInput("Marca"), findInput("Brand")]
+        .find((candidate) => candidate && !/(?:etiqueta|product tag)/.test(relatedText(candidate)))
+    ), 2500, 80);
     if (input) {
+      if (normalize(input.value) === "apple") return true;
       setInput(input, "Apple");
-      const appleOption = await waitFor(() => [...document.querySelectorAll('[role="option"],[role="menuitem"],[role="button"],span,div')]
-        .filter(visible)
-        .find((element) => normalize(element.textContent) === "apple"), 600);
+      await sleep(180);
+      const brandLabel = input.closest("label");
+      const appleOption = await waitFor(() => {
+        const semanticOption = [...document.querySelectorAll('[role="option"],[role="menuitem"],[role="menuitemradio"]')]
+          .filter(visible)
+          .find((element) => normalize(element.textContent) === "apple");
+        if (semanticOption) return semanticOption;
+        return [...document.querySelectorAll('button,[role="button"],span,div')]
+          .filter((element) => visible(element) && !brandLabel?.contains(element) && normalize(element.textContent) === "apple")
+          .sort((left, right) => left.childElementCount - right.childElementCount)[0] || null;
+      }, 2200, 80);
       if (appleOption) {
         (appleOption.closest('[role="option"],[role="menuitem"],[role="button"],button') || appleOption).click();
-        await sleep(80);
+        await sleep(220);
       }
-      return true;
+      if (normalize(input.value) === "apple" || normalize(brandLabel?.textContent).includes("apple")) return true;
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", code: "Tab", keyCode: 9, which: 9, bubbles: true }));
+      input.blur();
+      await sleep(150);
+      return normalize(input.value) === "apple" || normalize(brandLabel?.textContent).includes("apple");
     }
     return selectOption("Marca", ["Apple"]);
   }
@@ -370,12 +388,12 @@
     const category = await selectOption("Categoría", ["Electrónica e informática"]);
     results.push(category ? "Categoría ✅" : "Categoría ⚠️");
     await sleep(120);
-    const brand = await fillBrand();
-    results.push(brand ? "Marca: Apple ✅" : "Marca: Apple ⚠️");
     const isNew = normalize(product.estadoMarketplace).includes("nuevo") && !normalize(product.estadoMarketplace).includes("usado");
     const condition = await selectOption("Estado", isNew ? ["Nuevo"] : ["Usado: como nuevo", "Usado - Como nuevo", "Usado como nuevo"]);
     results.push(condition ? "Estado ✅" : "Estado ⚠️");
     await openMoreDetails();
+    const brand = await fillBrand();
+    results.push(brand ? "Marca: Apple ✅" : "Marca: Apple ⚠️");
     const skuInput = findInput("SKU") || findInput("Número de SKU") || findInput("Numero de SKU");
     results.push(setInput(skuInput, product.sku) ? "SKU ✅" : "SKU ⚠️");
     await sleep(80);
@@ -584,7 +602,7 @@
     panel.style.cssText = "position:fixed;right:18px;bottom:18px;width:350px;max-height:82vh;overflow:auto;z-index:2147483647;padding:16px;border-radius:14px;background:#fff;color:#101828;font:14px Arial,sans-serif;box-shadow:0 8px 35px rgba(0,0,0,.35)";
     if (!product) {
       panel.innerHTML = `
-        <div style="display:flex;justify-content:space-between;gap:10px"><div><strong style="font-size:17px">Publicador · ${MODE_LABEL}</strong><div style="margin-top:4px;color:#067647;font-size:11px;font-weight:bold">Tampermonkey activo · v4.4.3</div></div><button id="mm-minimize-empty" title="Minimizar" aria-label="Minimizar" style="width:32px;height:32px;border:0;border-radius:999px;background:#e4e6eb;font-size:22px;line-height:1;cursor:pointer">−</button></div>
+        <div style="display:flex;justify-content:space-between;gap:10px"><div><strong style="font-size:17px">Publicador · ${MODE_LABEL}</strong><div style="margin-top:4px;color:#067647;font-size:11px;font-weight:bold">Tampermonkey activo · v4.4.5</div></div><button id="mm-minimize-empty" title="Minimizar" aria-label="Minimizar" style="width:32px;height:32px;border:0;border-radius:999px;background:#e4e6eb;font-size:22px;line-height:1;cursor:pointer">−</button></div>
         <p style="color:#b42318;line-height:1.5;word-break:break-word">${escapeHtml(error || "No se encontró un producto preparado.")}</p>
         <button id="mm-retry" style="width:100%;padding:10px;border:0;border-radius:8px;background:#1877f2;color:#fff;font-weight:700;cursor:pointer">Probar conexión con el backend</button>
         <div style="margin-top:8px;color:#667085;font-size:11px">Servidor: ${SERVER_LABEL}</div>`;
@@ -650,7 +668,7 @@
       if (openAfterNavigation) sessionStorage.removeItem(OPEN_AFTER_NAVIGATION_KEY);
     } catch {}
     const startMinimized = !openAfterNavigation;
-    console.log(`[MacsoMenos Marketplace] ${MODE_LABEL} activo v4.4.3 en`, location.href);
+    console.log(`[MacsoMenos Marketplace] ${MODE_LABEL} activo v4.4.5 en`, location.href);
     new MutationObserver(scheduleQuickChatButtonUpdate).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-label", "contenteditable"] });
     updateQuickChatButton();
     createPanel(null, "Tampermonkey está activo. Consultando el backend...", startMinimized);
