@@ -23,10 +23,10 @@ export default async function ContenidosAdminPage() {
         <div className="flex flex-wrap items-center justify-end gap-2">
           <a
             href="/api/tampermonkey-script"
-            download="macsomenos-publicador-marketplace.user.js"
+            download="macsomenos-publicador-marketplace-produccion.user.js"
             className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
-            Descargar publicador de Marketplace
+            Descargar publicador de Marketplace (Producción)
           </a>
           <a href="/servmacso10/servicios" className="inline-flex items-center rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Volver a servicios

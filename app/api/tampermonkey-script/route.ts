@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const fileName = "macsomenos-publicador-marketplace.user.js";
+  const fileName = "macsomenos-publicador-marketplace-produccion.user.js";
   const scriptPath = path.resolve(process.cwd(), "public", fileName);
 
   try {
