@@ -20,9 +20,18 @@ export default async function ContenidosAdminPage() {
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold text-gray-900">Configurar contenidos</h1>
-        <a href="/servmacso10/servicios" className="inline-flex items-center rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-          Volver a servicios
-        </a>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <a
+            href="/api/tampermonkey-script"
+            download="macsomenos-publicador-marketplace.user.js"
+            className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Descargar publicador de Marketplace
+          </a>
+          <a href="/servmacso10/servicios" className="inline-flex items-center rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+            Volver a servicios
+          </a>
+        </div>
       </div>
       <p className="text-sm text-gray-600">Revisa problemas del catálogo, clientes y versiones de productos.</p>
 

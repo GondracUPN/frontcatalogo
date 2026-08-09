@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidateTag } from "next/cache";
+import type { MarketplaceData } from "@/lib/marketplace";
 
 // Base URL de la API Nest (sin secretos)
 function apiBase() {
@@ -321,6 +322,17 @@ export async function listAdminCatalog() {
   return apiFetch<{ items: any[] }>(`/admin/catalog`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
+  });
+}
+
+export async function prepareMarketplaceBridge(data: MarketplaceData) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) throw new Error("Sesión administrativa no disponible");
+  return apiFetch<{ token: string; expiresAt: string }>("/marketplace-bridge", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(data),
   });
 }
 

@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import { listAdminCatalog, listStaged, markProductSold, unpublishProduct } from "../../actions";
 import { dateInputInPeru, formatPeruDate, hasMeaningfulPeruUpdate } from "../../utils/peruTime";
 import { DeleteIcon, SellIcon } from "./ActionIcons";
+import MarketplacePreviewModal from "./MarketplacePreviewModal";
+import { generateMarketplaceData, type MarketplaceProduct } from "@/lib/marketplace";
 
 const StagedPublishModal = dynamic(() => import("./PublishModal"), { ssr: false });
 
@@ -157,6 +159,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
   const [search, setSearch] = React.useState("");
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
   const [open, setOpen] = React.useState<any | null>(null);
+  const [marketplaceData, setMarketplaceData] = React.useState<ReturnType<typeof generateMarketplaceData> | null>(null);
   const [soldModal, setSoldModal] = React.useState<{
     row: CatalogRow;
     unit?: any;
@@ -332,6 +335,22 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
     });
   };
 
+  const prepareMarketplace = (row: CatalogRow, unit?: any) => {
+    const source = unit || row.staged || {};
+    const product: MarketplaceProduct = {
+      ...(row.staged || {}),
+      ...source,
+      category: source.category || row.category || row.staged?.category,
+      title: source.title || row.product?.title || row.staged?.title || row.slug || "",
+      sku: source.sku || row.product?.sku || row.staged?.sku || "",
+      price: source.price || row.product?.price || row.staged?.price || 0,
+      product_condition: source.product_condition || row.product?.product_condition || row.staged?.product_condition,
+      notes: source.notes || row.staged?.notes,
+      images: Array.isArray(source.images) && source.images.length ? source.images : row.images || row.staged?.images || [],
+    };
+    setMarketplaceData(generateMarketplaceData(product));
+  };
+
   return (
     <div className="overflow-auto">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -459,6 +478,12 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                       </a>
                     )}
                   </div>
+                  <button
+                    onClick={() => prepareMarketplace(row)}
+                    className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700"
+                  >
+                    Preparar Marketplace
+                  </button>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setSoldModal({
@@ -511,6 +536,13 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                       {hasMeaningfulPeruUpdate(linked.created_at, linked.updated_at) && <div>Actualizada: {formatPeruDate(linked.updated_at)}</div>}
                     </td>
                     <td className="p-2">
+                      <div className="flex flex-col items-start gap-2">
+                      <button
+                        onClick={() => prepareMarketplace(row, linked)}
+                        className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700"
+                      >
+                        Preparar Marketplace
+                      </button>
                       <button
                         onClick={() => setSoldModal({
                           row,
@@ -529,6 +561,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                       >
                         <SellIcon />
                       </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -559,6 +592,9 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
             setOpen(null);
           }}
         />
+      )}
+      {marketplaceData && (
+        <MarketplacePreviewModal initialData={marketplaceData} onClose={() => setMarketplaceData(null)} />
       )}
 
       {soldModal && (
