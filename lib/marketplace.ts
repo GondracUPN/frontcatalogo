@@ -63,6 +63,10 @@ function storedBoolean(value: unknown) {
   return /^(?:1|true|si|sí|yes)$/i.test(text(value));
 }
 
+function genericAccessoryFlag(...values: unknown[]) {
+  return values.some((value) => storedBoolean(value) || /^(?:fake|gen[eé]rico)$/i.test(text(value)));
+}
+
 function numberOnly(value: unknown) {
   const match = text(value).replace(",", ".").match(/\d+(?:\.\d+)?/);
   return match?.[0] || "";
@@ -222,7 +226,17 @@ export function normalizeAccessories(product: MarketplaceProduct) {
   const raw = `${facts.includes} ${facts.includesExtra}`.trim();
   const flagObject = notes.incluye;
   const available = mainAccessories(facts);
-  if (isSealed(facts)) return { included: available, missing: [] as string[], extra: "" };
+  const generic = {
+    cubo: !isSealed(facts) && (
+      genericAccessoryFlag(product.cuboFake, notes.cuboFake, notes.accessories?.cuboFake, notes.accesorios?.cuboFake, flagObject?.cuboFake)
+      || /\b(?:cubo|cargador)\s+(?:fake|gen[eé]rico)\b|\b(?:fake|gen[eé]rico)\s+(?:cubo|cargador)\b/i.test(raw)
+    ),
+    cable: !isSealed(facts) && (
+      genericAccessoryFlag(product.cableFake, notes.cableFake, notes.accessories?.cableFake, notes.accesorios?.cableFake, flagObject?.cableFake)
+      || /\bcable\s+(?:fake|gen[eé]rico)\b|\b(?:fake|gen[eé]rico)\s+cable\b/i.test(raw)
+    ),
+  };
+  if (isSealed(facts)) return { included: available, missing: [] as string[], extra: "", generic };
   const has = (name: string) => {
     if (["caja", "cubo", "cable"].includes(name) && flagObject && typeof flagObject === "object" && typeof flagObject[name] === "boolean") {
       return flagObject[name];
@@ -244,7 +258,7 @@ export function normalizeAccessories(product: MarketplaceProduct) {
   if (/\bningun|\bno incluye/i.test(raw)) included.splice(0);
   const missing = available.filter((item) => !included.includes(item));
   const extra = /otros/i.test(facts.includes) ? facts.includesExtra : "";
-  return { included, missing, extra };
+  return { included, missing, extra, generic };
 }
 
 export function normalizeProductDetails(value: unknown) {
@@ -332,7 +346,15 @@ function accessoryLines(product: MarketplaceProduct, facts: ProductFacts) {
     return raw ? [`Accesorios: Incluye ${raw}`] : [];
   }
   const accessories = normalizeAccessories(product);
-  const included = [...accessories.included, accessories.extra].filter(Boolean);
+  const included = [
+    ...accessories.included.map((accessory) => {
+      if (accessory === "cubo" && accessories.generic.cubo) return "cubo genérico";
+      if (accessory === "cable" && accessories.generic.cable) return "cable genérico";
+      if (accessory === "cable de poder" && accessories.generic.cable) return "cable de poder genérico";
+      return accessory;
+    }),
+    accessories.extra,
+  ].filter(Boolean);
   const lines = [included.length ? `Accesorios: Incluye ${joinSpanish(included)}` : "Accesorios: No incluye"];
   if (accessories.missing.length) lines.push(`No incluye: ${accessories.missing.join(", ")}`);
   return lines;
