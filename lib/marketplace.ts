@@ -387,9 +387,9 @@ export function generateMarketplaceDescription(product: MarketplaceProduct) {
     operative,
     `Estado estético: ${aestheticState(facts)}`,
     "Se entrega boleta de compra USA",
-    "Producto sin igv , si requiere boleta o factura + 18% igv",
-    "Aceptamos pagos con tarjeta 💳",
-    "🔸 Contraentrega en Centros Comerciales o en mi domicilio 🔸",
+    "Producto sin igv , si requiere boleta o factura + 18% igv al precio final acordado",
+    "Aceptamos pagos con tarjeta de crédito +3.5% 💳",
+    "🔸 Contraentrega en Centros Comerciales o en mi Almacén 🔸",
     "🛑 No Mercado Pago 🛑",
   ];
   return [
