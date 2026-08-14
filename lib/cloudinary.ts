@@ -12,6 +12,15 @@ type CloudinaryResource = {
   url?: string;
 };
 
+function asCloudinaryError(error: unknown) {
+  if (error instanceof Error) return error;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = String((error as { message?: unknown }).message || "").trim();
+    if (message) return new Error(message);
+  }
+  return new Error("Cloudinary rechazó la subida sin indicar el motivo");
+}
+
 export function isCloudinaryConfigured() {
   return Boolean(
     getCloudinaryUrl() ||
@@ -68,7 +77,7 @@ export async function uploadImageToCloudinary(
         unique_filename: true,
       },
       (error, result) => {
-        if (error) return reject(error);
+        if (error) return reject(asCloudinaryError(error));
         if (!result) return reject(new Error("Cloudinary no devolvió resultado"));
         resolve(result);
       }

@@ -69,13 +69,82 @@ function deriveAccessoryFake(accessory: "cubo" | "cable", item: any, notes: any)
   return new RegExp(`${accessory}\\s*(fake|gen[eé]rico)`, "i").test(raw);
 }
 
-function storedWarranty(notes: any, productCondition: string) {
+const LIMITED_APPLE_WARRANTY = "Garantía limitada de Apple";
+const APPLE_CARE_WARRANTY = "AppleCare";
+const UNACTIVATED_WARRANTY = "1 año de garantía";
+
+function normalizeWarrantyType(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/apple\s*care/i.test(raw)) return APPLE_CARE_WARRANTY;
+  if (/limitad|fabricante|manufacturer|apple/i.test(raw)) return LIMITED_APPLE_WARRANTY;
+  return "";
+}
+
+function findNestedWarrantyValue(root: any, kind: "type" | "date") {
+  const seen = new Set<unknown>();
+  const visit = (value: any, path: string[], warrantyContext: boolean): string => {
+    if (value === null || value === undefined || seen.has(value)) return "";
+    if (typeof value !== "object") {
+      const text = typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+      if (!text) return "";
+      const key = path.at(-1) || "";
+      if (kind === "type" && (/(?:type|tipo|plan|coverage)/i.test(key) || warrantyContext) && /apple\s*care|garant[ií]a\s*limitada|limited\s*warranty/i.test(text)) return text;
+      if (kind === "date" && (/(?:date|fecha|hasta|venc|expir|end)/i.test(key) && warrantyContext)) return text;
+      return "";
+    }
+    seen.add(value);
+    for (const [key, child] of Object.entries(value)) {
+      const nextContext = warrantyContext || /warranty|garant|applecare|coverage|cobertura/i.test(key);
+      const found = visit(child, [...path, key], nextContext);
+      if (found) return found;
+    }
+    return "";
+  };
+  return visit(root, [], false);
+}
+
+function normalizeWatchSize(value: unknown) {
+  const match = String(value || "").match(/\b(40|41|42|44|45|46|49)\s*(?:mm)?\b/i);
+  return match?.[1] || "";
+}
+
+function normalizeWatchConnection(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return /cel/i.test(raw) ? "GPS + Cellular" : (/gps/i.test(raw) ? "GPS" : raw);
+}
+
+function deriveWatchMetadata(item: any, notes: any, detail: any) {
+  const line = String(notes?.watchType || detail?.watchType || detail?.gama || "").trim();
+  const generation = String(notes?.watchSeries || notes?.watchVersion || detail?.watchSeries || detail?.watchVersion || detail?.generacion || "").trim();
+  const title = String(item?.title || "");
+  const type = /ultra/i.test(line || title) ? "Ultra" : (/watch/i.test(title) || /series|se|normal/i.test(line) ? "Normal" : "");
+  const number = generation.replace(/^(?:series|ultra|se)\s*/i, "").trim();
+  return {
+    type,
+    series: type === "Normal" ? number : "",
+    version: type === "Ultra" ? number : "",
+    connection: normalizeWatchConnection(notes?.watchConnection || detail?.watchConnection || detail?.conexion || detail?.conectividad),
+    size: normalizeWatchSize(notes?.watchSize || detail?.["tamaño"] || detail?.tamanio || detail?.tamano || title),
+  };
+}
+
+function normalizeOpenBoxType(value: unknown) {
+  const raw = String(value || "").trim();
+  if (/sin\s*uso|unused|sin\s*activar/i.test(raw)) return "Sin uso";
+  if (/poco\s*uso|ligero\s*uso|lightly\s*used/i.test(raw)) return "Con muy poco uso";
+  return "";
+}
+
+function storedWarranty(notes: any, item: any, productCondition: string) {
   const warrantyObject = [notes?.warranty, notes?.garantiaDetalle, notes?.garantia]
     .find((value) => value && typeof value === "object") || {};
   const firstText = (...values: unknown[]) => values
     .map((value) => typeof value === "string" || typeof value === "number" ? String(value).trim() : "")
     .find(Boolean) || "";
-  const type = firstText(notes?.warrantyType, notes?.garantiaTipo, notes?.tipoGarantia, warrantyObject?.type, warrantyObject?.tipo);
+  const rawType = firstText(notes?.warrantyType, notes?.garantiaTipo, notes?.tipoGarantia, warrantyObject?.type, warrantyObject?.tipo, findNestedWarrantyValue({ notes, item }, "type"));
+  const type = normalizeWarrantyType(rawType);
   const date = firstText(
     notes?.warrantyDate,
     notes?.garantiaFecha,
@@ -84,13 +153,14 @@ function storedWarranty(notes: any, productCondition: string) {
     warrantyObject?.hasta,
     warrantyObject?.detalle,
     typeof notes?.garantia === "string" ? notes.garantia : "",
+    findNestedWarrantyValue({ notes, item }, "date"),
   );
   const enabledFlag = parseStoredBoolean(notes?.warrantyEnabled ?? notes?.garantiaActiva ?? warrantyObject?.enabled ?? warrantyObject?.activa);
   const isNew = productCondition === "Nuevo";
   return {
     enabled: isNew || (enabledFlag ?? Boolean(type || date)),
-    type: type || (isNew ? "Fabricante" : (date ? "Sin especificar" : "")),
-    date: date || (isNew ? "1 año de garantía" : ""),
+    type: type || (isNew ? LIMITED_APPLE_WARRANTY : (date ? LIMITED_APPLE_WARRANTY : "")),
+    date: date || (isNew ? UNACTIVATED_WARRANTY : ""),
   };
 }
 
@@ -99,6 +169,84 @@ function formatIncludesAccessories(value: string, cuboFake: boolean, cableFake: 
   if (cuboFake && includesAccessory(formatted, "Cubo")) formatted = formatted.replace(/\bCubo\b/i, "Cubo Fake");
   if (cableFake && includesAccessory(formatted, "Cable")) formatted = formatted.replace(/\bCable\b/i, "Cable Fake");
   return formatted;
+}
+
+type WatchAccessoryName = "Caja" | "Cable" | "Cable fake" | "Correa" | "Correa fake" | "Otros";
+
+const WATCH_ACCESSORY_OPTIONS: WatchAccessoryName[] = ["Caja", "Cable", "Cable fake", "Correa", "Correa fake", "Otros"];
+
+function includesWatchAccessory(value: string, accessory: WatchAccessoryName) {
+  if (accessory === "Otros") return /\botros?\b/i.test(String(value || ""));
+  if (accessory === "Cable fake") return /\bcable\s*(?:fake|gen[eé]rico)\b/i.test(String(value || ""));
+  if (accessory === "Correa fake") return /\bcorrea\s*(?:fake|gen[eé]rica)\b/i.test(String(value || ""));
+  if (accessory === "Cable") return /\bcable\b(?!\s*(?:fake|gen[eé]rico))/i.test(String(value || ""));
+  if (accessory === "Correa") return /\bcorrea\b(?!\s*(?:fake|gen[eé]rica))/i.test(String(value || ""));
+  return /\bcaja\b/i.test(String(value || ""));
+}
+
+function toggleWatchAccessory(value: string, accessory: WatchAccessoryName, checked: boolean) {
+  const selected = WATCH_ACCESSORY_OPTIONS.filter((option) => includesWatchAccessory(value, option));
+  let next = checked
+    ? Array.from(new Set([...selected, accessory]))
+    : selected.filter((option) => option !== accessory);
+  if (checked && ["Cable", "Cable fake"].includes(accessory)) {
+    next = next.filter((option) => option === accessory || !["Cable", "Cable fake"].includes(option));
+  }
+  if (checked && ["Correa", "Correa fake"].includes(accessory)) {
+    next = next.filter((option) => option === accessory || !["Correa", "Correa fake"].includes(option));
+  }
+  return next.length ? next.join(" + ") : "";
+}
+
+function sealedWatchIncludes(current: string) {
+  const cable = includesWatchAccessory(current, "Cable fake") ? "Cable fake" : "Cable";
+  const strap = includesWatchAccessory(current, "Correa fake") ? "Correa fake" : "Correa";
+  return ["Caja", cable, strap].join(" + ");
+}
+
+function sealedBasicIncludes(category: string) {
+  if (["macbook", "ipad", "iphone"].includes(category)) return "Caja + Cubo + Cable";
+  return "Caja sola";
+}
+
+function deriveWatchIncludes(item: any, notes: any, detail: any) {
+  const selected = new Set<WatchAccessoryName>();
+  const inspect = (value: any) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(inspect);
+      return;
+    }
+    if (typeof value === "object") {
+      for (const [key, enabled] of Object.entries(value)) {
+        if (parseStoredBoolean(enabled) === false) continue;
+        inspect(key);
+      }
+      return;
+    }
+    const raw = String(value);
+    if (/\bcaja\b/i.test(raw)) selected.add("Caja");
+    if (/\bcable\s*(?:fake|gen[eé]rico)\b/i.test(raw)) selected.add("Cable fake");
+    else if (/\bcable\b|cargador/i.test(raw)) selected.add("Cable");
+    if (/\bcorrea\s*(?:fake|gen[eé]rica)\b/i.test(raw)) selected.add("Correa fake");
+    else if (/\bcorrea\b|band|strap/i.test(raw)) selected.add("Correa");
+    if (/\botros?\b/i.test(raw)) selected.add("Otros");
+  };
+  [
+    notes?.watchIncludes,
+    item?.includes,
+    notes?.includes,
+    notes?.incluye,
+    notes?.accessories,
+    notes?.accesorios,
+    detail?.includes,
+    detail?.incluye,
+    detail?.accessories,
+    detail?.accesorios,
+  ].forEach(inspect);
+  return WATCH_ACCESSORY_OPTIONS
+    .filter((option) => selected.has(option))
+    .join(" + ");
 }
 
 function toSlug(s: string) {
@@ -439,7 +587,7 @@ export default function PublishModal({
       const auto = buildIphoneTitle(item?.iphone_number ?? notes?.iphoneNumber, item?.iphone_model || notes?.iphoneModel, item?.storage_gb ?? notes?.storageGb ?? notes?.storage, item?.color || notes?.color || "");
       if (auto) return auto;
     }
-    const connectivity0 = detalle?.conectividad || notes?.conectividad || "";
+    const connectivity0 = detalle?.conectividad || detalle?.conexion || notes?.conectividad || "";
     const generation0 = detalle?.generacion || notes?.generacion || "";
     const raw = buildTitle(tipo, gama0, proc0, tam0, item?.iphone_model || notes?.iphoneModel, connectivity0, generation0);
     return raw ? capitalize(raw) : "";
@@ -473,19 +621,20 @@ export default function PublishModal({
   const [ram, setRam] = React.useState<string>(normalizeUnit(detalle?.ram || "", "GB"));
   const [alm, setAlm] = React.useState<string>(normalizeUnit(detalle?.almacenamiento || "", "GB"));
   const [ipadGeneration, setIpadGeneration] = React.useState<string>(String(detalle?.generacion || notes?.generacion || ""));
-  const [ipadConnectivity, setIpadConnectivity] = React.useState<string>(normalizeIpadConnectivity(detalle?.conectividad || notes?.conectividad || ""));
+  const [ipadConnectivity, setIpadConnectivity] = React.useState<string>(normalizeIpadConnectivity(detalle?.conectividad || detalle?.conexion || notes?.conectividad || ""));
   const [keyboardLayout, setKeyboardLayout] = React.useState<string>(() => {
     const raw = String(item?.keyboard_layout || detalle?.teclado || "");
     if (/espanol|español/i.test(raw)) return "Espanol";
     if (/ingles|inglés/i.test(raw)) return "Ingles";
     if (/otro/i.test(raw)) return "Otro";
-    return raw;
+    return raw || (category === "macbook" ? "Ingles" : "");
   });
   const [ciclos, setCiclos] = React.useState<string>(String(item?.battery_cycles ?? notes?.batteryCycles ?? notes?.bateria?.ciclos ?? ""));
   const [salud, setSalud] = React.useState<string>(String(item?.battery_health ?? notes?.batteryHealth ?? notes?.bateria?.salud ?? ""));
-  const [color, setColor] = React.useState<string>(item?.color || notes?.color || "");
+  const [color, setColor] = React.useState<string>(item?.color || notes?.color || specs?.color || detalle?.color || "");
   const [productCondition, setProductCondition] = React.useState<string>(item?.product_condition || notes?.productCondition || notes?.estado || "");
-  const initialWarranty = storedWarranty(notes, productCondition);
+  const [openBoxType, setOpenBoxType] = React.useState<string>(() => normalizeOpenBoxType(notes?.openBoxType || notes?.openBoxCondition || notes?.estadoOpenBox || notes?.descripcion || ""));
+  const initialWarranty = storedWarranty(notes, item, productCondition);
   const [hasWarranty, setHasWarranty] = React.useState<boolean>(() => initialWarranty.enabled);
   const [warrantyType, setWarrantyType] = React.useState<string>(() => initialWarranty.type);
   const [warrantyDate, setWarrantyDate] = React.useState<string>(() => initialWarranty.date);
@@ -529,15 +678,14 @@ export default function PublishModal({
   const [iphoneSimType, setIphoneSimType] = React.useState<string>(
     String(notes?.iphoneSimType || notes?.simType || notes?.chipType || detalle?.esim || detalle?.sim || "")
   );
-  const [watchType, setWatchType] = React.useState<string>(String(notes?.watchType || ""));
-  const [watchSeries, setWatchSeries] = React.useState<string>(String(notes?.watchSeries || ""));
-  const [watchConnection, setWatchConnection] = React.useState<string>(() => {
-    const raw = String(notes?.watchConnection || "");
-    return /cellular/i.test(raw) ? "GPS + Cellular" : raw;
-  });
-  const [watchVersion, setWatchVersion] = React.useState<string>(String(notes?.watchVersion || ""));
-  const [watchAccessories, setWatchAccessories] = React.useState<string>(String(notes?.watchAccessories || ""));
-  const [watchIncludes, setWatchIncludes] = React.useState<string>(String(notes?.watchIncludes || ""));
+  const initialWatch = deriveWatchMetadata(item, notes, detalle);
+  const [watchType, setWatchType] = React.useState<string>(initialWatch.type);
+  const [watchSeries, setWatchSeries] = React.useState<string>(initialWatch.series);
+  const [watchConnection, setWatchConnection] = React.useState<string>(initialWatch.connection);
+  const [watchVersion, setWatchVersion] = React.useState<string>(initialWatch.version);
+  const [watchSize, setWatchSize] = React.useState<string>(initialWatch.size);
+  const [watchAccessories, setWatchAccessories] = React.useState<string>(String(notes?.watchAccessories || item?.includes_extra || notes?.includesExtra || notes?.accesoriosTexto || ""));
+  const [watchIncludes, setWatchIncludes] = React.useState<string>(() => deriveWatchIncludes(item, notes, detalle));
   const [includesValue, setIncludesValue] = React.useState<string>(() => deriveIncludesValue(item, notes));
   const [includesExtra, setIncludesExtra] = React.useState<string>(item?.includes_extra || notes?.includesExtra || "");
   const [cuboFake, setCuboFake] = React.useState<boolean>(() => deriveAccessoryFake("cubo", item, notes));
@@ -657,10 +805,34 @@ export default function PublishModal({
       setCiclos("");
       setSalud("");
       setHasWarranty(true);
-      setWarrantyType((current) => current || "Fabricante");
-      setWarrantyDate((current) => current || "1 año de garantía");
+      setWarrantyType(LIMITED_APPLE_WARRANTY);
+      setWarrantyDate(UNACTIVATED_WARRANTY);
+      setIncludesExtra("");
+      setWatchAccessories("");
+      if (category === "watch") {
+        setWatchIncludes((current) => sealedWatchIncludes(current));
+      } else if (category) {
+        setIncludesValue(sealedBasicIncludes(category));
+        setCuboFake(false);
+        setCableFake(false);
+      }
     }
-  }, [productCondition]);
+    if (productCondition !== "Open Box") setOpenBoxType("");
+  }, [productCondition, category]);
+
+  React.useEffect(() => {
+    if (productCondition !== "Open Box" || !openBoxType) return;
+    setHasWarranty(true);
+    if (openBoxType === "Sin uso") {
+      setWarrantyType(LIMITED_APPLE_WARRANTY);
+      setWarrantyDate(UNACTIVATED_WARRANTY);
+      setCiclos("");
+      setSalud("");
+      return;
+    }
+    setWarrantyType((current) => normalizeWarrantyType(current) || LIMITED_APPLE_WARRANTY);
+    setWarrantyDate((current) => current === UNACTIVATED_WARRANTY ? "" : current);
+  }, [productCondition, openBoxType]);
 
   React.useEffect(() => {
     if (productCondition !== "Nuevo" && !hasWarranty) {
@@ -668,6 +840,20 @@ export default function PublishModal({
       setWarrantyDate("");
     }
   }, [productCondition, hasWarranty]);
+
+  React.useEffect(() => {
+    if (category === "macbook" && !keyboardLayout) setKeyboardLayout("Ingles");
+  }, [category, keyboardLayout]);
+
+  React.useEffect(() => {
+    if (watchType === "Ultra") {
+      setWatchSize("49");
+      setWatchSeries("");
+    } else if (watchType === "Normal") {
+      setWatchVersion("");
+      setWatchSize((current) => (["42", "46"].includes(current) ? current : ""));
+    }
+  }, [watchType]);
 
   React.useEffect(() => {
     if (forceSaleType && saleType !== forceSaleType) {
@@ -700,6 +886,7 @@ export default function PublishModal({
   const isIphone = category === "iphone";
   const isWatch = category === "watch";
   const isOtros = category === "otros";
+  const isUnusedOpenBox = productCondition === "Open Box" && openBoxType === "Sin uso";
   const iphoneNum = Number(iphoneNumber || 0);
   const stockNum = Number(stock || 0);
   const requiredMergeSkuCount = productCondition === "Nuevo" ? Math.max(0, stockNum - 1) : 0;
@@ -729,19 +916,21 @@ export default function PublishModal({
     setRam(normalizeUnit(presetDetail?.ram || "", "GB"));
     setAlm(normalizeUnit(presetDetail?.almacenamiento || "", "GB"));
     setIpadGeneration(String(presetDetail?.generacion || presetNotes?.generacion || ""));
-    setIpadConnectivity(normalizeIpadConnectivity(presetDetail?.conectividad || presetNotes?.conectividad || ""));
+    setIpadConnectivity(normalizeIpadConnectivity(presetDetail?.conectividad || presetDetail?.conexion || presetNotes?.conectividad || ""));
     setKeyboardLayout(String(preset.keyboard_layout || presetDetail?.teclado || ""));
-    setColor(String(preset.color || presetNotes?.color || ""));
+    setColor(String(preset.color || presetNotes?.color || presetSpecs?.color || presetDetail?.color || ""));
     setIphoneNumber(String(preset.iphone_number ?? presetNotes?.iphoneNumber ?? ""));
     setIphoneModel(String(preset.iphone_model || presetNotes?.iphoneModel || ""));
     setIphoneStorage(normalizeIphoneStorageInput(preset.storage_gb ?? presetNotes?.storageGb ?? ""));
     setIphoneSimType(String(presetNotes?.iphoneSimType || presetNotes?.simType || presetDetail?.sim || ""));
-    setWatchType(String(presetNotes?.watchType || ""));
-    setWatchSeries(String(presetNotes?.watchSeries || ""));
-    setWatchConnection(String(presetNotes?.watchConnection || ""));
-    setWatchVersion(String(presetNotes?.watchVersion || ""));
-    setWatchAccessories(String(presetNotes?.watchAccessories || ""));
-    setWatchIncludes(String(presetNotes?.watchIncludes || ""));
+    const presetWatch = deriveWatchMetadata(preset, presetNotes, presetDetail);
+    setWatchType(presetWatch.type);
+    setWatchSeries(presetWatch.series);
+    setWatchConnection(presetWatch.connection);
+    setWatchVersion(presetWatch.version);
+    setWatchSize(presetWatch.size);
+    setWatchAccessories(String(presetNotes?.watchAccessories || preset?.includes_extra || presetNotes?.includesExtra || presetNotes?.accesoriosTexto || ""));
+    setWatchIncludes(deriveWatchIncludes(preset, presetNotes, presetDetail));
     setDescriptionOther(String(presetDetail?.descripcionOtro || presetNotes?.descripcionOtro || ""));
     setProductDetails(String(presetDetail?.detalles || presetNotes?.productDetails || presetNotes?.detalles || ""));
     setImages(Array.isArray(preset.images) ? preset.images : []);
@@ -806,7 +995,7 @@ export default function PublishModal({
   }, [isIphone, iphoneNumber, iphoneModel, title]);
 
   const errors: string[] = [];
-  const requiresBatteryInfo = saleType !== "PREVENTA" && productCondition !== "Nuevo";
+  const requiresBatteryInfo = saleType !== "PREVENTA" && productCondition !== "Nuevo" && !isUnusedOpenBox;
   const normalizedManualSku = normalizeManualSku(manualSku);
   const headerSku = displaySku(
     item?.sku || (normalizedManualSku ? (saleType === "PREVENTA" ? `PREV-${normalizedManualSku}` : normalizedManualSku) : "")
@@ -888,9 +1077,14 @@ export default function PublishModal({
     if (!watchConnection) errors.push("Selecciona la conexión");
     if (watchType === "Normal") {
       if (!watchSeries) errors.push("Selecciona la serie");
+      if (!["42", "46"].includes(watchSize)) errors.push("Selecciona el tamaño de 42 mm o 46 mm");
     }
     if (watchType === "Ultra") {
       if (!watchVersion) errors.push("Selecciona la versión");
+      if (watchSize !== "49") errors.push("El Apple Watch Ultra debe ser de 49 mm");
+    }
+    if (includesWatchAccessory(watchIncludes, "Otros") && !watchAccessories.trim()) {
+      errors.push("Describe los otros accesorios del Apple Watch");
     }
     if (!color?.trim()) errors.push("El color es obligatorio");
   }
@@ -902,8 +1096,15 @@ export default function PublishModal({
   if (productCondition !== "Nuevo" && includesValue === "Otros" && !includesExtra?.trim()) {
     errors.push("Describe lo que incluye");
   }
-  if (productCondition !== "Nuevo" && hasWarranty && !warrantyDate.trim()) {
-    errors.push("Ingresa la fecha de garantía");
+  if (productCondition === "Open Box" && !openBoxType) {
+    errors.push("Selecciona el tipo de Open Box");
+  }
+  const warrantyIsEnabled = productCondition === "Nuevo" || productCondition === "Open Box" || hasWarranty;
+  if (warrantyIsEnabled && !warrantyType) {
+    errors.push("Selecciona el tipo de garantía");
+  }
+  if (warrantyIsEnabled && warrantyType === LIMITED_APPLE_WARRANTY && !warrantyDate.trim()) {
+    errors.push("Ingresa la fecha de la garantía limitada de Apple");
   }
   if (productCondition === "Nuevo" && stockNum < 1) {
     errors.push("El stock debe ser mayor o igual a 1");
@@ -1041,21 +1242,23 @@ export default function PublishModal({
       add("Serie", watchSeries);
       add("Conexion", watchConnection);
       add("Version", watchVersion);
-      add("Accesorios", watchAccessories);
-      add("Incluye Watch", watchIncludes);
+      add("Tamaño", watchSize ? `${watchSize} mm` : "");
+      if (includesWatchAccessory(watchIncludes, "Otros")) add("Otros accesorios", watchAccessories);
     } else if (isOtros) {
       add("Descripcion", descriptionOther);
     }
     add("Color", color);
-    add("Estado", productCondition);
-    if (productCondition === "Nuevo") {
+    add("Estado", productCondition === "Open Box" && openBoxType ? `Open Box - ${openBoxType}` : productCondition);
+    if (productCondition === "Nuevo" || isUnusedOpenBox) {
       lines.push("Bateria: Nueva");
     } else {
       add("Salud de bateria", salud ? `${salud}%` : "");
       add("Ciclos de carga", ciclos);
     }
-    add("Incluye", includesValue === "Otros" ? includesExtra : formatIncludesAccessories(includesValue, cuboFake, cableFake));
-    if (productCondition === "Nuevo" || hasWarranty) {
+    add("Incluye", isWatch
+      ? watchIncludes
+      : (includesValue === "Otros" ? includesExtra : formatIncludesAccessories(includesValue, cuboFake, cableFake)));
+    if (productCondition === "Nuevo" || productCondition === "Open Box" || hasWarranty) {
       add("Tipo de garantia", warrantyType);
       add("Garantia", warrantyDate);
     }
@@ -1127,17 +1330,19 @@ export default function PublishModal({
       const iphoneStorageGbParsed = parseIphoneStorageGb(iphoneStorage);
       const iphoneStorageValue = iphoneStorage ? String(iphoneStorage).trim().toUpperCase() : "";
       const iphoneStorageGb = Number.isFinite(iphoneStorageGbParsed) ? iphoneStorageGbParsed : null;
+      const includesPayload = isWatch ? watchIncludes : includesValue;
+      const includesExtraPayload = isWatch && includesWatchAccessory(watchIncludes, "Otros") ? watchAccessories.trim() : includesExtra;
       const includesFlags = {
-        caja: includesAccessory(includesValue, "Caja"),
-        cubo: includesAccessory(includesValue, "Cubo"),
-        cable: includesAccessory(includesValue, "Cable"),
+        caja: includesAccessory(includesPayload, "Caja"),
+        cubo: includesAccessory(includesPayload, "Cubo"),
+        cable: includesAccessory(includesPayload, "Cable"),
       };
-      const warrantyEnabled = productCondition === "Nuevo" ? true : hasWarranty;
+      const warrantyEnabled = productCondition === "Nuevo" || productCondition === "Open Box" ? true : hasWarranty;
       const warrantyValue = warrantyEnabled
-        ? (warrantyDate.trim() || (productCondition === "Nuevo" ? "1 año de garantía" : null))
+        ? ((productCondition === "Nuevo" || isUnusedOpenBox) ? UNACTIVATED_WARRANTY : (warrantyDate.trim() || null))
         : null;
       const warrantyTypeValue = warrantyEnabled
-        ? (warrantyType.trim() || (productCondition === "Nuevo" ? "Fabricante" : "Sin especificar"))
+        ? (normalizeWarrantyType(warrantyType) || LIMITED_APPLE_WARRANTY)
         : null;
       const almacenamientoVal = isIphone ? iphoneStorageValue : normalizeUnit(alm, "GB");
       const productDetailsValue = showProductDetails ? productDetails.trim() : "";
@@ -1147,8 +1352,8 @@ export default function PublishModal({
         gama,
         generacion: ipadGeneration,
         procesador: proc,
-        ["tamaño"]: tam,
-        tamanio: tam,
+        ["tamaño"]: isWatch ? watchSize : tam,
+        tamanio: isWatch ? watchSize : tam,
         ram: normalizeUnit(ram, "GB"),
         almacenamiento: almacenamientoVal,
         conectividad: ipadConnectivity,
@@ -1169,9 +1374,10 @@ export default function PublishModal({
         bateria: { ciclos, salud },
         color,
         productCondition,
+        openBoxType: productCondition === "Open Box" ? openBoxType : null,
         incluye: includesFlags,
-        includes: includesValue,
-        includesExtra,
+        includes: includesPayload,
+        includesExtra: includesExtraPayload,
         cuboFake: includesAccessory(includesValue, "Cubo") && cuboFake,
         cableFake: includesAccessory(includesValue, "Cable") && cableFake,
         accessories: {
@@ -1211,6 +1417,7 @@ export default function PublishModal({
         watchSeries: watchSeries || null,
         watchConnection: watchConnection || null,
         watchVersion: watchVersion || null,
+        watchSize: isWatch ? watchSize || null : null,
         watchAccessories: watchAccessories || null,
         watchIncludes: watchIncludes || null,
         saleType,
@@ -1264,8 +1471,8 @@ export default function PublishModal({
         batteryCycles: ciclos ? Number(ciclos) : null,
         batteryHealth: salud ? Number(salud) : null,
         color: color || null,
-        includes: includesValue,
-        includesExtra,
+        includes: includesPayload,
+        includesExtra: includesExtraPayload,
         keyboardLayout,
         variantGroup: variantGroup.trim() || null,
         saleType,
@@ -1302,8 +1509,8 @@ export default function PublishModal({
         battery_health: salud ? Number(salud) : null,
         color: color || null,
         product_condition: productCondition,
-        includes: includesValue,
-        includes_extra: includesExtra,
+        includes: includesPayload,
+        includes_extra: includesExtraPayload,
         keyboard_layout: keyboardLayout,
         variant_group: variantGroup.trim() || null,
         __mergeStagedIds: mergeStagedIds,
@@ -1538,6 +1745,17 @@ export default function PublishModal({
                   <option value="Arreglado">Arreglado</option>
                 </select>
               </div>
+              {productCondition === "Open Box" && (
+                <div>
+                  <label className="block text-sm text-gray-700">Tipo de Open Box</label>
+                  <select value={openBoxType} onChange={(e) => setOpenBoxType(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                    <option value="">Seleccionar</option>
+                    <option value="Sin uso">Sin uso</option>
+                    <option value="Con muy poco uso">Con muy poco uso</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">En la tienda ambos se mostrarán simplemente como Open Box.</p>
+                </div>
+              )}
               {productCondition === "Nuevo" && (
                 <div>
                   <label className="block text-sm text-gray-700">Stock</label>
@@ -1950,13 +2168,23 @@ export default function PublishModal({
                   </select>
                 </div>
                 {watchType === "Normal" && (
-                  <div>
-                    <label className="block text-sm text-gray-700">Serie</label>
-                    <select value={watchSeries} onChange={(e) => setWatchSeries(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
-                      <option value="">Seleccionar</option>
-                      {versionConfig.watch.normalSeries.map((s) => (<option key={s} value={s}>{s}</option>))}
-                    </select>
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm text-gray-700">Serie</label>
+                      <select value={watchSeries} onChange={(e) => setWatchSeries(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                        <option value="">Seleccionar</option>
+                        {versionConfig.watch.normalSeries.map((s) => (<option key={s} value={s}>{s}</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-700">Tamaño de pantalla</label>
+                      <select value={watchSize} onChange={(e) => setWatchSize(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                        <option value="">Seleccionar</option>
+                        <option value="42">42 mm</option>
+                        <option value="46">46 mm</option>
+                      </select>
+                    </div>
+                  </>
                 )}
                 <div>
                   <label className="block text-sm text-gray-700">Conexión</label>
@@ -1967,21 +2195,47 @@ export default function PublishModal({
                   </select>
                 </div>
                 {watchType === "Ultra" && (
-                  <div>
-                    <label className="block text-sm text-gray-700">Versión</label>
-                    <select value={watchVersion} onChange={(e) => setWatchVersion(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
-                      <option value="">Seleccionar</option>
-                      {versionConfig.watch.ultraVersions.map((s) => (<option key={s} value={s}>{s}</option>))}
-                    </select>
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm text-gray-700">Versión</label>
+                      <select value={watchVersion} onChange={(e) => setWatchVersion(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                        <option value="">Seleccionar</option>
+                        {versionConfig.watch.ultraVersions.map((s) => (<option key={s} value={s}>{s}</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-700">Tamaño de pantalla</label>
+                      <input value="49 mm" disabled className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 text-gray-600" />
+                    </div>
+                  </>
                 )}
-                <div>
-                  <label className="block text-sm text-gray-700">Accesorios (opcional)</label>
-                  <input value={watchAccessories} onChange={(e) => setWatchAccessories(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-700">Incluye (opcional)</label>
-                  <input value={watchIncludes} onChange={(e) => setWatchIncludes(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" />
+                <div className="col-span-2 rounded-xl border border-gray-200 bg-white/80 p-3">
+                  <label className="block text-sm font-medium text-gray-800">Accesorios incluidos</label>
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {WATCH_ACCESSORY_OPTIONS
+                      .filter((accessory) => productCondition !== "Nuevo" || accessory !== "Otros")
+                      .map((accessory) => (
+                      <label key={accessory} className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800">
+                        <input
+                          type="checkbox"
+                          checked={includesWatchAccessory(watchIncludes, accessory)}
+                          disabled={productCondition === "Nuevo" && includesWatchAccessory(watchIncludes, accessory)}
+                          onChange={(e) => {
+                            setWatchIncludes((current) => toggleWatchAccessory(current, accessory, e.target.checked));
+                            if (accessory === "Otros" && !e.target.checked) setWatchAccessories("");
+                          }}
+                          className="h-4 w-4"
+                        />
+                        {accessory}
+                      </label>
+                    ))}
+                  </div>
+                  {includesWatchAccessory(watchIncludes, "Otros") && (
+                    <div className="mt-3">
+                      <label className="block text-sm text-gray-700">Describe los otros accesorios</label>
+                      <input value={watchAccessories} onChange={(e) => setWatchAccessories(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" placeholder="Ej.: correa adicional, protector" />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1992,42 +2246,40 @@ export default function PublishModal({
                 <label className="inline-flex items-center gap-2 h-10">
                   <input
                     type="checkbox"
-                    checked={productCondition === "Nuevo" ? true : hasWarranty}
-                    disabled={productCondition === "Nuevo"}
+                    checked={productCondition === "Nuevo" || productCondition === "Open Box" ? true : hasWarranty}
+                    disabled={productCondition === "Nuevo" || productCondition === "Open Box"}
                     onChange={(e) => setHasWarranty(e.target.checked)}
                     className="h-4 w-4"
                   />
                   <span className="text-sm text-gray-700">
-                    {productCondition === "Nuevo" ? "Sí, producto nuevo" : "Sí, tiene garantía"}
+                    {productCondition === "Nuevo" ? "Sí, producto nuevo" : productCondition === "Open Box" ? "Sí, Open Box" : "Sí, tiene garantía"}
                   </span>
                 </label>
               </div>
-              {(productCondition === "Nuevo" || hasWarranty) && (
+              {warrantyIsEnabled && (
                 <div>
                   <label className="block text-sm text-gray-700">Tipo de garantía</label>
                   <select
                     value={warrantyType}
                     onChange={(e) => setWarrantyType(e.target.value)}
+                    disabled={productCondition === "Nuevo" || isUnusedOpenBox}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
                   >
                     <option value="">Seleccionar</option>
-                    {warrantyType && !["Fabricante", "Tienda", "Proveedor", "Sin especificar", "Otra"].includes(warrantyType) && (
-                      <option value={warrantyType}>{warrantyType}</option>
-                    )}
-                    <option value="Fabricante">Fabricante</option>
-                    <option value="Tienda">Tienda</option>
-                    <option value="Proveedor">Proveedor</option>
-                    <option value="Sin especificar">Sin especificar</option>
-                    <option value="Otra">Otra</option>
+                    <option value={LIMITED_APPLE_WARRANTY}>{LIMITED_APPLE_WARRANTY}</option>
+                    <option value={APPLE_CARE_WARRANTY}>{APPLE_CARE_WARRANTY}</option>
                   </select>
                 </div>
               )}
-              {(productCondition === "Nuevo" || hasWarranty) && (
+              {warrantyIsEnabled && (
                 <div>
-                  <label className="block text-sm text-gray-700">Fecha o detalle de garantía</label>
+                  <label className="block text-sm text-gray-700">
+                    Fecha de garantía{warrantyType === APPLE_CARE_WARRANTY ? " (opcional)" : ""}
+                  </label>
                   <input
                     value={warrantyDate}
                     onChange={(e) => setWarrantyDate(e.target.value)}
+                    disabled={productCondition === "Nuevo" || isUnusedOpenBox}
                     placeholder="Ej.: hasta 19/02/2027 o 1 año"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
                   />
@@ -2040,7 +2292,7 @@ export default function PublishModal({
               {!isWatch && (
                 <div className="col-span-2 rounded-xl border border-gray-200 bg-white/80 p-3">
                   <label className="block text-sm font-medium text-gray-800">¿Qué incluye?</label>
-                  <p className="mt-0.5 text-xs text-gray-500">Marca cada accesorio. Puedes combinar Caja, Cubo y Cable libremente.</p>
+                  <p className="mt-0.5 text-xs text-gray-500">{productCondition === "Nuevo" ? "Producto sellado: solo se guardan los accesorios básicos." : "Marca cada accesorio. Puedes combinar Caja, Cubo y Cable libremente."}</p>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {(["Caja", "Cubo", "Cable"] as AccessoryName[]).map((accessory) => {
                       const included = includesAccessory(includesValue, accessory);
@@ -2050,12 +2302,13 @@ export default function PublishModal({
                             <input
                               type="checkbox"
                               checked={included}
+                              disabled={productCondition === "Nuevo"}
                               onChange={(e) => setAccessoryIncluded(accessory, e.target.checked)}
                               className="h-4 w-4"
                             />
                             {accessory}
                           </label>
-                          {included && accessory !== "Caja" && (
+                          {productCondition !== "Nuevo" && included && accessory !== "Caja" && (
                             <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-gray-600">
                               <input
                                 type="checkbox"
@@ -2069,7 +2322,7 @@ export default function PublishModal({
                       );
                     })}
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  {productCondition !== "Nuevo" && <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -2093,8 +2346,8 @@ export default function PublishModal({
                     >
                       Otros
                     </button>
-                  </div>
-                  {includesValue === "Otros" && (
+                  </div>}
+                  {productCondition !== "Nuevo" && includesValue === "Otros" && (
                     <input
                       value={includesExtra}
                       onChange={(e) => setIncludesExtra(e.target.value)}

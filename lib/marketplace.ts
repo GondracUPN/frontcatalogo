@@ -226,15 +226,17 @@ export function normalizeAccessories(product: MarketplaceProduct) {
   const raw = `${facts.includes} ${facts.includesExtra}`.trim();
   const flagObject = notes.incluye;
   const available = mainAccessories(facts);
+  const allowGenericWhenSealed = isWatch(facts);
   const generic = {
     cubo: !isSealed(facts) && (
       genericAccessoryFlag(product.cuboFake, notes.cuboFake, notes.accessories?.cuboFake, notes.accesorios?.cuboFake, flagObject?.cuboFake)
       || /\b(?:cubo|cargador)\s+(?:fake|gen[eé]rico)\b|\b(?:fake|gen[eé]rico)\s+(?:cubo|cargador)\b/i.test(raw)
     ),
-    cable: !isSealed(facts) && (
+    cable: (!isSealed(facts) || allowGenericWhenSealed) && (
       genericAccessoryFlag(product.cableFake, notes.cableFake, notes.accessories?.cableFake, notes.accesorios?.cableFake, flagObject?.cableFake)
       || /\bcable\s+(?:fake|gen[eé]rico)\b|\b(?:fake|gen[eé]rico)\s+cable\b/i.test(raw)
     ),
+    correa: allowGenericWhenSealed && /\bcorrea\s+(?:fake|generica|genérica)\b|\b(?:fake|generica|genérica)\s+correa\b/i.test(raw),
   };
   if (isSealed(facts)) return { included: available, missing: [] as string[], extra: "", generic };
   const has = (name: string) => {
@@ -351,6 +353,7 @@ function accessoryLines(product: MarketplaceProduct, facts: ProductFacts) {
       if (accessory === "cubo" && accessories.generic.cubo) return "cubo genérico";
       if (accessory === "cable" && accessories.generic.cable) return "cable genérico";
       if (accessory === "cable de poder" && accessories.generic.cable) return "cable de poder genérico";
+      if (accessory === "correa" && accessories.generic.correa) return "correa genérica";
       return accessory;
     }),
     accessories.extra,
