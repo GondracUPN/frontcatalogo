@@ -387,6 +387,35 @@ export async function returnCatalogRepairToInventory(publicId: string) {
   return result;
 }
 
+export async function recalculateInventoryMetadata() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) redirect("/servmacso10?next=/servmacso10/contenidos");
+  try {
+    const result = await apiFetch<{
+      ok: boolean;
+      total: number;
+      enviados: number;
+      omitidosProtegidos: number;
+      errores?: Array<{ id: number; error: string }>;
+    }>("/admin/recalculate-inventory-metadata", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    revalidateTag("catalog-products");
+    return result;
+  } catch (error) {
+    return {
+      ok: false,
+      total: 0,
+      enviados: 0,
+      omitidosProtegidos: 0,
+      errores: [] as Array<{ id: number; error: string }>,
+      error: error instanceof Error ? error.message : "No se pudo recalcular el inventario",
+    };
+  }
+}
+
 export async function getHomeCatalog() {
   return apiFetch<{
     items: Array<{

@@ -73,6 +73,17 @@ const LIMITED_APPLE_WARRANTY = "Garantía limitada de Apple";
 const APPLE_CARE_WARRANTY = "AppleCare";
 const UNACTIVATED_WARRANTY = "1 año de garantía";
 
+function formatWarrantyDate(value: unknown) {
+  const raw = String(value || "").trim();
+  const isoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
+  if (!isoDate) return raw;
+  const month = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+  ][Number(isoDate[2]) - 1];
+  return month ? `${Number(isoDate[3])} de ${month} de ${isoDate[1]}` : raw;
+}
+
 function normalizeWarrantyType(value: unknown) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -637,7 +648,7 @@ export default function PublishModal({
   const initialWarranty = storedWarranty(notes, item, productCondition);
   const [hasWarranty, setHasWarranty] = React.useState<boolean>(() => initialWarranty.enabled);
   const [warrantyType, setWarrantyType] = React.useState<string>(() => initialWarranty.type);
-  const [warrantyDate, setWarrantyDate] = React.useState<string>(() => initialWarranty.date);
+  const [warrantyDate, setWarrantyDate] = React.useState<string>(() => formatWarrantyDate(initialWarranty.date));
   const [stock, setStock] = React.useState<number>(() => {
     const initial = Number(item?.__mergeStock ?? item?.stock ?? 1);
     return isFinite(initial) && initial > 0 ? initial : 1;
@@ -1260,7 +1271,14 @@ export default function PublishModal({
       : (includesValue === "Otros" ? includesExtra : formatIncludesAccessories(includesValue, cuboFake, cableFake)));
     if (productCondition === "Nuevo" || productCondition === "Open Box" || hasWarranty) {
       add("Tipo de garantia", warrantyType);
-      add("Garantia", warrantyDate);
+      const warrantyIso = warrantyDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
+      const warrantyForCopy = warrantyIso
+        ? `${Number(warrantyIso[3])} de ${[
+            "enero", "febrero", "marzo", "abril", "mayo", "junio",
+            "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+          ][Number(warrantyIso[2]) - 1]} de ${warrantyIso[1]}`
+        : warrantyDate;
+      add("Garantia", warrantyForCopy);
     }
     if (showProductDetails) add("Detalles", productDetails);
     if (salePrice) add("Precio", `S/ ${Number(salePrice || 0).toFixed(2)}`);

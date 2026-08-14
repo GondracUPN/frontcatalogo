@@ -151,12 +151,11 @@ function compareSkuRows(a: CatalogRow, b: CatalogRow) {
   return left.raw.localeCompare(right.raw);
 }
 
-export default function CatalogManager({ initialItems, inventoryItems = [], canDelete = true }: { initialItems: CatalogRow[]; inventoryItems?: any[]; canDelete?: boolean }) {
+export default function CatalogManager({ initialItems, inventoryItems = [], canDelete = true, search = "" }: { initialItems: CatalogRow[]; inventoryItems?: any[]; canDelete?: boolean; search?: string }) {
   const [items, setItems] = React.useState<CatalogRow[]>(initialItems || []);
   const [inventoryRows, setInventoryRows] = React.useState<any[]>(inventoryItems || []);
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [sortMode, setSortMode] = React.useState<SortMode>("upload");
-  const [search, setSearch] = React.useState("");
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
   const [open, setOpen] = React.useState<any | null>(null);
   const [marketplaceData, setMarketplaceData] = React.useState<ReturnType<typeof generateMarketplaceData> | null>(null);
@@ -355,10 +354,6 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
     <div className="overflow-auto">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Buscar por SKU o título</label>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ej. MS-266, MacBook Pro, M5 o 13" className="mt-1 w-full min-w-[260px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900" />
-          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Filtrar por tipo</label>
             <select

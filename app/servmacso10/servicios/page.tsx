@@ -1,22 +1,11 @@
 ﻿import { redirect } from "next/navigation";
 import { getSessionUser, logoutAction, listStaged, listAdminCatalog } from "../../actions";
 export const dynamic = "force-dynamic";
-import React from "react";
-import StagedManager from "./StagedManager";
-import CatalogManager from "./CatalogManager";
+import InventoryCatalogPanels from "./InventoryCatalogPanels";
 import AdminToolbar from "./AdminToolbar";
 import PreventaManualButton from "./PreventaManualButton";
 import ContactAlertsPanel from "./ContactAlertsPanel";
 import SoldProductsPanel from "./SoldProductsPanel";
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-2xl border p-5">
-      <h2 className="text-xl font-semibold mb-3 text-gray-900">{title}</h2>
-      {children}
-    </div>
-  );
-}
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -62,14 +51,12 @@ export default async function ServiciosPage() {
         <ContactAlertsPanel initialItems={[]} />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <Section title="Inventario">
-          <StagedManager initialItems={items} sealedPresets={sealedPresets} canDelete={isAdmin} />
-        </Section>
-        <Section title="Catálogo">
-          <CatalogManager initialItems={published} inventoryItems={items} canDelete={isAdmin} />
-        </Section>
-      </div>
+      <InventoryCatalogPanels
+        inventoryItems={items}
+        catalogItems={published}
+        sealedPresets={sealedPresets}
+        canDelete={isAdmin}
+      />
     </div>
   );
 }

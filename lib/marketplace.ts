@@ -207,7 +207,17 @@ function warrantyText(facts: ProductFacts) {
   if (/equipo\s+sin\s+activar/i.test(facts.warranty) && /1\s*año/i.test(facts.warranty)) {
     return "Equipo sin activar y cuenta con 1 año de garantía";
   }
-  return facts.warranty;
+  const raw = String(facts.warranty).trim();
+  const isoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
+  if (isoDate) {
+    const [, year, month, day] = isoDate;
+    const monthName = [
+      "enero", "febrero", "marzo", "abril", "mayo", "junio",
+      "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+    ][Number(month) - 1];
+    if (monthName) return `${Number(day)} de ${monthName} de ${year}`;
+  }
+  return raw;
 }
 
 export function generateMarketplacePrice(product: MarketplaceProduct) {

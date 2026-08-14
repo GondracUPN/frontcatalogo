@@ -3,6 +3,7 @@ import { getSessionUser, listCatalogRepairs } from "../../actions";
 import CatalogRepairsPanel from "./CatalogRepairsPanel";
 import ClientesUploader from "./ClientesUploader";
 import ProductVersionsEditor from "./ProductVersionsEditor";
+import RecalculateInventoryButton from "./RecalculateInventoryButton";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +22,13 @@ export default async function ContenidosAdminPage() {
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold text-gray-900">Configurar contenidos</h1>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <RecalculateInventoryButton />
           <a
             href="/api/tampermonkey-script"
             download="macsomenos-market-p.user.js"
             className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
-            Descargar Macsomenos Publicaciones Market P
+            Descargar Macsomenos Tampermonkey
           </a>
           <a href="/servmacso10/servicios" className="inline-flex items-center rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Volver a servicios

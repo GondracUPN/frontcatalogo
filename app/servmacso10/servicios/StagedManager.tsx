@@ -7,11 +7,10 @@ import { DeleteIcon, PublishIcon, SellIcon } from "./ActionIcons";
 
 const StagedPublishModal = dynamic(() => import("./PublishModal"), { ssr: false });
 
-export default function StagedManager({ initialItems, sealedPresets = [], canDelete = true }: { initialItems: any[]; sealedPresets?: any[]; canDelete?: boolean }) {
+export default function StagedManager({ initialItems, sealedPresets = [], canDelete = true, search = "" }: { initialItems: any[]; sealedPresets?: any[]; canDelete?: boolean; search?: string }) {
   const [items, setItems] = React.useState<any[]>(initialItems || []);
   const [open, setOpen] = React.useState<null | any>(null);
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
-  const [search, setSearch] = React.useState("");
   const [soldModal, setSoldModal] = React.useState<null | {
     item: any;
     date: string;
@@ -190,15 +189,6 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
 
   return (
     <div className="overflow-auto">
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700">Buscar por SKU o título</label>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Ej. MS-266, MacBook Pro, M5 o 13"
-          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-        />
-      </div>
       <table className="min-w-full text-sm">
         <thead>
           <tr className="text-left text-gray-700">

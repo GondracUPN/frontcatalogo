@@ -48,7 +48,7 @@ function formatSpanishDate(dateValue?: string | null) {
   const day = parts.find((p) => p.type === "day")?.value || String(d.getDate());
   const month = parts.find((p) => p.type === "month")?.value || "";
   const year = parts.find((p) => p.type === "year")?.value || String(d.getFullYear());
-  return `${day} de ${month} del ${year}`.trim();
+  return `${day} de ${month} de ${year}`.trim();
 }
 
 function parseWarrantyFlag(value: any) {
@@ -60,7 +60,7 @@ function parseWarrantyFlag(value: any) {
 function formatWarrantyValue(value?: string | null) {
   const raw = String(value || "").trim();
   if (!raw) return "";
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return `Hasta ${formatSpanishDate(raw)}`;
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return formatSpanishDate(raw);
   return raw;
 }
 
