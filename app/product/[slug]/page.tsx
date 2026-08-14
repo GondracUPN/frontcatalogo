@@ -6,6 +6,8 @@ import ProductDetailPhotos from "@/app/components/ProductDetailPhotos";
 import { getCatalogItem } from "@/app/actions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { formatStorageCompact, formatStorageDisplay } from "@/lib/storage";
+import { buildAppleWatchTitle } from "@/lib/watch";
 
 export const revalidate = 300;
 
@@ -27,11 +29,11 @@ function formatIncludesAccessories(value: string, cuboFake: boolean, cableFake: 
 function buildIphoneTitle(number?: number | string | null, model?: string | null, storageGb?: number | string | null, color?: string | null) {
   const n = number ? String(number).trim() : "";
   const m = model ? String(model).trim() : "";
-  const s = storageGb ? String(storageGb).trim() : "";
+  const s = formatStorageCompact(storageGb);
   const c = color ? String(color).trim() : "";
   if (!n || !m || !s || !c) return "";
   const cap = c.charAt(0).toUpperCase() + c.slice(1);
-  return `iPhone ${n} ${m} ${s}GB ${cap}`.trim();
+  return `iPhone ${n} ${m} ${s} ${cap}`.trim();
 }
 
 function formatSpanishDate(dateValue?: string | null) {
@@ -215,17 +217,20 @@ export default async function ProductPage({
   const preventaToRaw = notes?.preventaDateTo || notes?.preventa?.to || "";
   const preventaFromLabel = formatSpanishDate(preventaFromRaw);
   const preventaToLabel = formatSpanishDate(preventaToRaw);
-  const baseShownTitle = iphoneTitle || titleFallback;
-  const title = isPreventa ? (/^preventa\s+/i.test(baseShownTitle) ? baseShownTitle : `Preventa ${baseShownTitle}`.trim()) : baseShownTitle;
-  const tecladoLabel = teclado === "Ingles" ? "Ingles" : teclado === "Espanol" ? "Espanol" : teclado;
-
   const conectividad = det?.conectividad || notes?.conectividad || "";
   const gama = det?.gama || "";
   const watchType = notes?.watchType || "";
   const watchSeries = notes?.watchSeries || "";
   const watchVersion = notes?.watchVersion || "";
   const watchConnection = notes?.watchConnection || "";
+  const watchSize = notes?.watchSize || det?.["tamaño"] || det?.tamanio || det?.tamano || "";
   const watchAccessories = notes?.watchAccessories || "";
+  const watchTitle = category === "watch"
+    ? buildAppleWatchTitle({ type: watchType, series: watchSeries, version: watchVersion, size: watchSize, connection: watchConnection })
+    : "";
+  const baseShownTitle = iphoneTitle || watchTitle || titleFallback;
+  const title = isPreventa ? (/^preventa\s+/i.test(baseShownTitle) ? baseShownTitle : `Preventa ${baseShownTitle}`.trim()) : baseShownTitle;
+  const tecladoLabel = teclado === "Ingles" ? "Ingles" : teclado === "Espanol" ? "Espanol" : teclado;
   const productCondition = product?.product_condition || staged?.product_condition || notes?.productCondition || notes?.estado || notes?.specs?.estado || "";
   const isSealed = String(productCondition || "").toLowerCase().includes("nuevo");
   const warrantyObject = [notes?.warranty, notes?.garantiaDetalle, notes?.garantia]
@@ -280,7 +285,7 @@ export default async function ProductPage({
       { label: "SIM", value: iphoneSimType },
       { label: "Modelo", value: iphoneModel },
       { label: "Numero", value: iphoneNumber },
-      { label: "Almacenamiento", value: storageGb ? `${storageGb} GB` : "" },
+      { label: "Almacenamiento", value: formatStorageDisplay(storageGb) },
       { label: "Ciclos", value: batteryCycles },
       { label: "Salud bateria", value: batteryHealth ? `${batteryHealth}%` : "" },
       { label: "Color", value: colorCap },
@@ -290,6 +295,7 @@ export default async function ProductPage({
       { label: "Tipo", value: watchType },
       { label: "Serie", value: watchType === "Normal" ? watchSeries : "" },
       { label: "Version", value: watchType === "Ultra" ? watchVersion : "" },
+      { label: "Tamaño", value: watchSize ? `${String(watchSize).replace(/\s*mm$/i, "")} mm` : "" },
       { label: "Conexion", value: watchConnection },
       { label: "Accesorios", value: watchAccessories },
       { label: "Color", value: colorCap },

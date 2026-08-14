@@ -304,8 +304,9 @@ export function generateMarketplaceTitle(product: MarketplaceProduct) {
     const model = [facts.iphoneNumber, facts.iphoneModel].filter(Boolean).join(" ");
     parts = ["Remato iPhone", model, facts.storage, facts.color];
   } else if (isWatch(facts)) {
+    const watchGeneration = /ultra/i.test(facts.watchType) ? facts.watchVersion : facts.watchSeries;
     const watchModel = facts.watchType
-      ? [facts.watchType, facts.watchSeries].filter(Boolean).join(" ")
+      ? [facts.watchType, watchGeneration].filter(Boolean).join(" ")
       : facts.watchSeries ? `Series ${facts.watchSeries}` : facts.watchVersion;
     const size = facts.screen ? `${facts.screen}mm` : "";
     parts = ["Remato Apple Watch", watchModel, size, facts.watchConnection];

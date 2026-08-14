@@ -1,5 +1,7 @@
 ﻿"use client";
 import React from "react";
+import { formatStorageCompact, formatStorageDisplay } from "@/lib/storage";
+import { buildAppleWatchTitle } from "@/lib/watch";
 import { createManualPreventaDraft, deleteStaged, updateStaged, publishStaged, replacePreventaWithInventory } from "../../actions";
 import {
   DEFAULT_PRODUCT_VERSION_CONFIG,
@@ -128,9 +130,12 @@ function normalizeWatchConnection(value: unknown) {
 
 function deriveWatchMetadata(item: any, notes: any, detail: any) {
   const line = String(notes?.watchType || detail?.watchType || detail?.gama || "").trim();
-  const generation = String(notes?.watchSeries || notes?.watchVersion || detail?.watchSeries || detail?.watchVersion || detail?.generacion || "").trim();
   const title = String(item?.title || "");
   const type = /ultra/i.test(line || title) ? "Ultra" : (/watch/i.test(title) || /series|se|normal/i.test(line) ? "Normal" : "");
+  const generation = String(type === "Ultra"
+    ? (detail?.watchVersion || detail?.generacion || notes?.watchVersion || title.match(/\bultra\s*(\d+)\b/i)?.[1] || notes?.watchSeries || "")
+    : (detail?.watchSeries || detail?.generacion || notes?.watchSeries || title.match(/\bseries?\s*(\d+)\b/i)?.[1] || notes?.watchVersion || "")
+  ).trim();
   const number = generation.replace(/^(?:series|ultra|se)\s*/i, "").trim();
   return {
     type,
@@ -316,12 +321,11 @@ function buildTitle(tipo: string, gama: string, proc: string, tam: string, iphon
 function buildIphoneTitle(number?: number | string | null, model?: string | null, storageGb?: number | string | null, color?: string | null) {
   const n = number ? String(number).trim() : "";
   const m = model ? String(model).trim() : "";
-  const s = storageGb ? String(storageGb).trim() : "";
+  const s = formatStorageCompact(storageGb);
   const c = color ? String(color).trim() : "";
   if (!n || !m || !s || !c) return "";
   const cap = c.charAt(0).toUpperCase() + c.slice(1);
-  if (/tb$/i.test(s)) return `iPhone ${n} ${m} ${s.toUpperCase()} ${cap}`.trim();
-  return `iPhone ${n} ${m} ${s}GB ${cap}`.trim();
+  return `iPhone ${n} ${m} ${s} ${cap}`.trim();
 }
 
 function parseIphoneFromTitle(title?: string) {
@@ -880,6 +884,11 @@ export default function PublishModal({
       if (auto) setTitle(auto);
       return;
     }
+    if (category === "watch") {
+      const auto = buildAppleWatchTitle({ type: watchType, series: watchSeries, version: watchVersion, size: watchSize, connection: watchConnection });
+      if (auto) setTitle(auto);
+      return;
+    }
     if (category === "otros") {
       if (descriptionOther?.trim()) setTitle(capitalize(descriptionOther.trim()));
       return;
@@ -890,7 +899,20 @@ export default function PublishModal({
       const withPrefix = saleType === "PREVENTA" && !/^preventa\s+/i.test(base) ? `Preventa ${base}` : base;
       setTitle(capitalize(withPrefix));
     }
-  }, [category, gama, proc, tam, ipadConnectivity, ipadGeneration, titleManual, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, saleType, title]);
+  }, [category, gama, proc, tam, ipadConnectivity, ipadGeneration, titleManual, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, watchType, watchSeries, watchVersion, watchSize, watchConnection, saleType, title]);
+
+  React.useEffect(() => {
+    if (category !== "watch" || titleManual) return;
+    const autoGroup = buildAppleWatchTitle({
+      type: watchType,
+      series: watchSeries,
+      version: watchVersion,
+      size: watchSize,
+      connection: "",
+    });
+    if (!autoGroup) return;
+    setVariantGroup((current) => !current.trim() || /^apple\s+watch\b/i.test(current.trim()) ? autoGroup : current);
+  }, [category, titleManual, watchType, watchSeries, watchVersion, watchSize]);
 
   const isMacbook = category === "macbook";
   const isIpad = category === "ipad";
@@ -1205,6 +1227,8 @@ export default function PublishModal({
     if (!titleManual && category === "iphone") {
       const auto = buildIphoneTitle(iphoneNumber, iphoneModel, iphoneStorage, color);
       baseTitle = auto || title;
+    } else if (!titleManual && category === "watch") {
+      baseTitle = buildAppleWatchTitle({ type: watchType, series: watchSeries, version: watchVersion, size: watchSize, connection: watchConnection }) || title;
     } else if (!titleManual && category === "otros") {
       baseTitle = descriptionOther.trim();
     } else if (!titleManual) {
@@ -1346,7 +1370,7 @@ export default function PublishModal({
     let createdManualDraftId = "";
     try {
       const iphoneStorageGbParsed = parseIphoneStorageGb(iphoneStorage);
-      const iphoneStorageValue = iphoneStorage ? String(iphoneStorage).trim().toUpperCase() : "";
+      const iphoneStorageValue = formatStorageDisplay(iphoneStorage);
       const iphoneStorageGb = Number.isFinite(iphoneStorageGbParsed) ? iphoneStorageGbParsed : null;
       const includesPayload = isWatch ? watchIncludes : includesValue;
       const includesExtraPayload = isWatch && includesWatchAccessory(watchIncludes, "Otros") ? watchAccessories.trim() : includesExtra;
@@ -1367,14 +1391,14 @@ export default function PublishModal({
       const detailImageValues = showProductDetails ? uniqueStrings(detailImages) : [];
       const detalleNew = {
         ...(detalle || {}),
-        gama,
-        generacion: ipadGeneration,
+        gama: isWatch ? watchType : gama,
+        generacion: isWatch ? (watchType === "Ultra" ? watchVersion : watchSeries) : ipadGeneration,
         procesador: proc,
         ["tamaño"]: isWatch ? watchSize : tam,
         tamanio: isWatch ? watchSize : tam,
         ram: normalizeUnit(ram, "GB"),
         almacenamiento: almacenamientoVal,
-        conectividad: ipadConnectivity,
+        conectividad: isWatch ? watchConnection : ipadConnectivity,
         teclado: keyboardLayout,
         esim: isIphone ? (iphoneSimType || null) : (detalle as any)?.esim,
         sim: isIphone ? (iphoneSimType || null) : (detalle as any)?.sim,
@@ -1451,6 +1475,8 @@ export default function PublishModal({
       if (!titleManual && category === "iphone") {
         const auto = buildIphoneTitle(iphoneNumber, iphoneModel, iphoneStorage, color);
         baseTitle = auto || title;
+      } else if (!titleManual && category === "watch") {
+        baseTitle = buildAppleWatchTitle({ type: watchType, series: watchSeries, version: watchVersion, size: watchSize, connection: watchConnection }) || title;
       } else if (!titleManual && category === "otros") baseTitle = descriptionOther.trim();
       else if (!titleManual) {
         const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity, ipadGeneration);

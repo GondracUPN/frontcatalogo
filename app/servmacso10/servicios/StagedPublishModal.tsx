@@ -1,5 +1,7 @@
 ﻿"use client";
 import React from "react";
+import { formatStorageCompact, formatStorageDisplay } from "@/lib/storage";
+import { buildAppleWatchTitle } from "@/lib/watch";
 import { updateStaged, publishStaged } from "../../actions";
 import {
   DEFAULT_PRODUCT_VERSION_CONFIG,
@@ -50,11 +52,11 @@ function buildTitle(tipo: string, gama: string, proc: string, tam: string, iphon
 function buildIphoneTitle(number?: number | string | null, model?: string | null, storageGb?: number | string | null, color?: string | null) {
   const n = number ? String(number).trim() : "";
   const m = model ? String(model).trim() : "";
-  const s = storageGb ? String(storageGb).trim() : "";
+  const s = formatStorageCompact(storageGb);
   const c = color ? String(color).trim() : "";
   if (!n || !m || !s || !c) return "";
   const cap = c.charAt(0).toUpperCase() + c.slice(1);
-  return `iPhone ${n} ${m} ${s}GB ${cap}`.trim();
+  return `iPhone ${n} ${m} ${s} ${cap}`.trim();
 }
 
 function capitalize(s: string) {
@@ -414,6 +416,11 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
       if (auto) setTitle(auto);
       return;
     }
+    if (category === "watch") {
+      const auto = buildAppleWatchTitle({ type: watchType, series: watchSeries, version: watchVersion, size: tam, connection: watchConnection });
+      if (auto) setTitle(auto);
+      return;
+    }
     if (category === "otros") {
       if (descriptionOther?.trim()) setTitle(capitalize(descriptionOther.trim()));
       return;
@@ -424,7 +431,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
       const withPrefix = saleType === "PREVENTA" && !/^preventa\s+/i.test(base) ? `Preventa ${base}` : base;
       setTitle(capitalize(withPrefix));
     }
-  }, [gama, proc, tam, ipadConnectivity, titleManual, specs?.tipo, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, saleType, title, item?.title]);
+  }, [gama, proc, tam, ipadConnectivity, titleManual, specs?.tipo, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, watchType, watchSeries, watchVersion, watchConnection, saleType, title, item?.title]);
 
   React.useEffect(() => {
     if (productCondition && productCondition !== "Nuevo") {
@@ -598,6 +605,8 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     if (!titleManual && category === "iphone") {
       const auto = buildIphoneTitle(iphoneNumber, iphoneModel, iphoneStorage, color);
       baseTitle = auto || title;
+    } else if (!titleManual && category === "watch") {
+      baseTitle = buildAppleWatchTitle({ type: watchType, series: watchSeries, version: watchVersion, size: tam, connection: watchConnection }) || title;
     } else if (!titleManual && isOtros) {
       baseTitle = descriptionOther.trim();
     } else if (!titleManual) {
@@ -708,7 +717,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         cubo: includesValue === "Caja + Cubo + Cable" || includesValue === "Cubo + Cable",
         cable: includesValue === "Caja + Cubo + Cable" || includesValue === "Cubo + Cable" || includesValue === "Solo Cable",
       };
-      const almacenamientoVal = isIphone ? (iphoneStorage ? `${iphoneStorage} GB` : "") : normalizeUnit(alm, "GB");
+      const almacenamientoVal = isIphone ? formatStorageDisplay(iphoneStorage) : normalizeUnit(alm, "GB");
       const productDetailsValue = showProductDetails ? productDetails.trim() : "";
       const detailImageValues = showProductDetails ? uniqueStrings(detailImages) : [];
       const detalleNew = {
@@ -781,6 +790,8 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
       if (!titleManual && category === "iphone") {
         const auto = buildIphoneTitle(iphoneNumber, iphoneModel, iphoneStorage, color);
         baseTitle = auto || title;
+      } else if (!titleManual && category === "watch") {
+        baseTitle = buildAppleWatchTitle({ type: watchType, series: watchSeries, version: watchVersion, size: tam, connection: watchConnection }) || title;
       } else if (!titleManual && isOtros) baseTitle = descriptionOther.trim();
       else if (!titleManual) {
         const autoTitle = buildTitle(tipo, gama, proc, tam, iphoneModel, ipadConnectivity);
