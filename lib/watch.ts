@@ -2,6 +2,14 @@ export function normalizeWatchSize(value: unknown) {
   return String(value ?? "").match(/\b(40|41|42|44|45|46|49)\s*(?:mm)?\b/i)?.[1] || "";
 }
 
+export function cleanAppleWatchTitle(value: unknown) {
+  return String(value ?? "")
+    .replace(/(GPS\s*\+\s*Cellular)(?:\s*,\s*\1)+/gi, "GPS + Cellular")
+    .replace(/(\bGPS)(?:\s*,\s*\1)+/gi, "GPS")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 export function buildAppleWatchTitle({
   type,
   series,

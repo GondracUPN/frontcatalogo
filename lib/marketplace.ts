@@ -1,3 +1,6 @@
+import { buildAppleWatchTitle, cleanAppleWatchTitle } from "@/lib/watch";
+import { formatWarrantyDate, warrantyStatus } from "@/lib/warranty";
+
 export type MarketplaceData = {
   sku: string;
   titulo: string;
@@ -199,11 +202,12 @@ function joinSpanish(values: string[]) {
 function sealedTitleParts(facts: ProductFacts) {
   if (!isSealed(facts)) return [];
   const sealedWord = isMacBook(facts) ? "Sellada" : "Sellado";
-  return [sealedWord, facts.warrantyEnabled && facts.warranty ? facts.warranty : ""];
+  return [sealedWord, facts.warrantyEnabled && facts.warranty && warrantyStatus(facts.warranty) === "active" ? formatWarrantyDate(facts.warranty) : ""];
 }
 
 function warrantyText(facts: ProductFacts) {
   if (!facts.warrantyEnabled || !facts.warranty) return "No cuenta con garantía";
+  if (warrantyStatus(facts.warranty) === "expired") return `Garantía Vencida: ${formatWarrantyDate(facts.warranty)}`;
   if (/equipo\s+sin\s+activar/i.test(facts.warranty) && /1\s*año/i.test(facts.warranty)) {
     return "Equipo sin activar y cuenta con 1 año de garantía";
   }
@@ -304,12 +308,14 @@ export function generateMarketplaceTitle(product: MarketplaceProduct) {
     const model = [facts.iphoneNumber, facts.iphoneModel].filter(Boolean).join(" ");
     parts = ["Remato iPhone", model, facts.storage, facts.color];
   } else if (isWatch(facts)) {
-    const watchGeneration = /ultra/i.test(facts.watchType) ? facts.watchVersion : facts.watchSeries;
-    const watchModel = facts.watchType
-      ? [facts.watchType, watchGeneration].filter(Boolean).join(" ")
-      : facts.watchSeries ? `Series ${facts.watchSeries}` : facts.watchVersion;
-    const size = facts.screen ? `${facts.screen}mm` : "";
-    parts = ["Remato Apple Watch", watchModel, size, facts.watchConnection];
+    const watchTitle = buildAppleWatchTitle({
+      type: facts.watchType,
+      series: facts.watchSeries,
+      version: facts.watchVersion,
+      size: facts.screen,
+      connection: facts.watchConnection,
+    });
+    parts = ["Remato", cleanAppleWatchTitle(watchTitle || facts.title)];
   } else {
     const existing = facts.title.replace(/^remato\s+/i, "").trim();
     parts = ["Remato", existing || facts.type];
@@ -318,6 +324,9 @@ export function generateMarketplaceTitle(product: MarketplaceProduct) {
   else {
     if (isOpenBox(facts)) parts.push("Open Box");
     if (facts.batteryHealth && (isMacBook(facts) || isIpad(facts) || isIphone(facts))) parts.push(`${facts.batteryHealth}% Batería`);
+  }
+  if (!isSealed(facts) && facts.warrantyEnabled && facts.warranty && warrantyStatus(facts.warranty) === "active") {
+    parts.push(formatWarrantyDate(facts.warranty));
   }
   return parts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
 }
@@ -347,7 +356,14 @@ function introLine(facts: ProductFacts) {
     return [model, [facts.storage, esim].filter(Boolean).join(" "), facts.color ? `color ${facts.color}` : ""].filter(Boolean).join(", ") + ".";
   }
   if (isWatch(facts)) {
-    return [facts.title || generateMarketplaceTitle({ ...facts, notes: {} }).replace(/^Remato\s+/, ""), facts.watchConnection, facts.color ? `color ${facts.color}` : ""].filter(Boolean).join(", ") + ".";
+    const watchTitle = buildAppleWatchTitle({
+      type: facts.watchType,
+      series: facts.watchSeries,
+      version: facts.watchVersion,
+      size: facts.screen,
+      connection: facts.watchConnection,
+    });
+    return [cleanAppleWatchTitle(watchTitle || facts.title), facts.color ? `color ${facts.color}` : ""].filter(Boolean).join(", ") + ".";
   }
   return `${facts.title || facts.type}${facts.color ? `, color ${facts.color}` : ""}.`;
 }
@@ -390,11 +406,12 @@ export function generateMarketplaceDescription(product: MarketplaceProduct) {
     ? `Batería: ${facts.batteryCycles ? `${facts.batteryCycles} ciclos | ` : ""}${facts.batteryHealth}% de salud`
     : "";
   const warranty = warrantyText(facts);
+  const warrantyLine = warrantyStatus(facts.warranty) === "expired" ? warranty : `Garantía: ${warranty}`;
   const operative = /airpods/i.test(`${facts.type} ${facts.title}`) ? "100% operativos💯✅" : "100% operativa💯✅";
   const detailLines = [
     ...accessoryLines(product, facts),
     battery,
-    `Garantía: ${warranty}`,
+    warrantyLine,
     ...iphoneExtraLines(product, facts),
   ].filter(Boolean);
   const closingLines = [
@@ -403,7 +420,7 @@ export function generateMarketplaceDescription(product: MarketplaceProduct) {
     "Se entrega boleta de compra USA",
     "Producto sin igv , si requiere boleta o factura + 18% igv al precio final acordado",
     "Aceptamos pagos con tarjeta de crédito +3.5% 💳",
-    "🔸 Contraentrega en Centros Comerciales o en mi Almacén 🔸",
+    "🔸 Contraentrega en Centros Comerciales o en Almacén en Surco 🔸",
     "🛑 No Mercado Pago 🛑",
   ];
   return [
@@ -454,11 +471,14 @@ export function generateMarketplaceTags(product: MarketplaceProduct) {
       "Smartphone Apple", "Teléfono Apple", "Celular iPhone", "Smartphone iPhone", "Equipo Apple", "Tecnología Apple", "iOS",
     ]);
   }
-  if (isWatch(facts)) return exactlyFifteen([
-    "Apple", "Apple Watch", facts.watchType && `Apple Watch ${facts.watchType}`, facts.watchSeries && `Apple Watch Series ${facts.watchSeries}`,
+  if (isWatch(facts)) {
+    const watchGeneration = /ultra/i.test(facts.watchType) ? facts.watchVersion : facts.watchSeries;
+    return exactlyFifteen([
+    "Apple", "Apple Watch", facts.watchType && `Apple Watch ${facts.watchType}`, watchGeneration && `Apple Watch ${facts.watchType || "Series"} ${watchGeneration}`,
     facts.screen && `Apple Watch ${facts.screen}mm`, facts.watchConnection && `Apple Watch ${facts.watchConnection}`, facts.color && `Apple Watch ${facts.color}`,
     "Smartwatch Apple", "Reloj Apple", "Reloj inteligente", "Apple Smartwatch", "Watch Apple", facts.title, "Tecnología Apple", "Accesorio Apple", "Smartwatch", "Reloj digital",
   ]);
+  }
   return exactlyFifteen([
     "Apple", facts.type, facts.title, facts.color, `${facts.type} Apple`, `Apple ${facts.type}`, "Tecnología", "Electrónica", "Producto tecnológico",
     "Tecnología Apple", "Accesorio tecnológico", "Equipo tecnológico", "Producto Apple", "Electrónica Apple", "Dispositivo inteligente",

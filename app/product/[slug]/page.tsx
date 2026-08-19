@@ -8,6 +8,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { formatStorageCompact, formatStorageDisplay } from "@/lib/storage";
 import { buildAppleWatchTitle } from "@/lib/watch";
+import { formatWarrantyDate, warrantyStatus } from "@/lib/warranty";
 
 export const revalidate = 300;
 
@@ -78,6 +79,10 @@ function toneForCondition(condition: string, sold?: boolean) {
 
 function isNewCondition(condition: unknown) {
   return String(condition || "").toLowerCase().includes("nuevo");
+}
+
+function publicSku(value: unknown) {
+  return String(value || "").trim().replace(/^MS(?:[-_\s]+)?/i, "");
 }
 
 function variantOptionLabel(variant: any) {
@@ -229,7 +234,7 @@ export default async function ProductPage({
     ? buildAppleWatchTitle({ type: watchType, series: watchSeries, version: watchVersion, size: watchSize, connection: watchConnection })
     : "";
   const baseShownTitle = iphoneTitle || watchTitle || titleFallback;
-  const title = isPreventa ? (/^preventa\s+/i.test(baseShownTitle) ? baseShownTitle : `Preventa ${baseShownTitle}`.trim()) : baseShownTitle;
+  const baseTitle = isPreventa ? (/^preventa\s+/i.test(baseShownTitle) ? baseShownTitle : `Preventa ${baseShownTitle}`.trim()) : baseShownTitle;
   const tecladoLabel = teclado === "Ingles" ? "Ingles" : teclado === "Espanol" ? "Espanol" : teclado;
   const productCondition = product?.product_condition || staged?.product_condition || notes?.productCondition || notes?.estado || notes?.specs?.estado || "";
   const isSealed = String(productCondition || "").toLowerCase().includes("nuevo");
@@ -252,8 +257,12 @@ export default async function ProductPage({
     notes?.warrantyEnabled ?? notes?.garantiaActiva ?? warrantyObject?.enabled ?? warrantyObject?.activa,
   );
   const hasWarranty = isSealed ? true : warrantyFlag ?? Boolean(String(rawWarrantyValue || warrantyType || "").trim());
+  const warrantyExpired = hasWarranty && warrantyStatus(rawWarrantyValue) === "expired";
   const warrantyDetail = formatWarrantyValue(isSealed ? (rawWarrantyValue || "1 año de garantía") : rawWarrantyValue);
-  const warrantyDisplay = hasWarranty ? [warrantyType, warrantyDetail].filter(Boolean).join(" · ") : "";
+  const warrantyDisplay = warrantyExpired
+    ? `Garantía Vencida: ${formatWarrantyDate(rawWarrantyValue)}`
+    : hasWarranty ? [warrantyType, warrantyDetail].filter(Boolean).join(" · ") : "";
+  const title = baseTitle;
 
   const especs: Array<{ label: string; value: any }> = [];
   if (productCondition) especs.push({ label: "Estado", value: productCondition });
@@ -305,6 +314,7 @@ export default async function ProductPage({
       { label: "Color", value: colorCap }
     );
   }
+  especs.push({ label: "SKU", value: publicSku(product?.sku || staged?.sku || notes?.manualSku || notes?.sourceSku) });
 
   const includesValue = product?.includes || staged?.includes || notes?.includes || notes?.watchIncludes || null;
   const includesExtra = product?.includes_extra || staged?.includes_extra || notes?.includesExtra || "";
@@ -551,11 +561,17 @@ export default async function ProductPage({
                   )}
 
                   {hasWarranty && (
-                    <div className="rounded-[26px] border border-emerald-200 bg-[linear-gradient(145deg,rgba(240,253,244,0.98),rgba(220,252,231,0.92))] p-4 sm:p-5">
-                      <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">
+                    <div className={warrantyExpired
+                      ? "rounded-[26px] border border-amber-200 bg-[linear-gradient(145deg,rgba(255,251,235,0.98),rgba(254,243,199,0.92))] p-4 sm:p-5"
+                      : "rounded-[26px] border border-emerald-200 bg-[linear-gradient(145deg,rgba(240,253,244,0.98),rgba(220,252,231,0.92))] p-4 sm:p-5"}>
+                      <div className={warrantyExpired
+                        ? "text-xs font-semibold uppercase tracking-[0.24em] text-amber-700"
+                        : "text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700"}>
                         Garantía
                       </div>
-                      <div className="mt-3 text-sm font-medium leading-6 text-emerald-950/80">
+                      <div className={warrantyExpired
+                        ? "mt-3 text-sm font-medium leading-6 text-amber-950/80"
+                        : "mt-3 text-sm font-medium leading-6 text-emerald-950/80"}>
                         {warrantyDisplay || "Con garantía"}
                       </div>
                     </div>
