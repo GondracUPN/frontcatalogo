@@ -691,7 +691,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                         return;
                       }
                       const pid = soldModal.row.product?.id || soldModal.row.id;
-                      await markProductSold(pid, soldModal.date, soldModal.price, {
+                      const result = await markProductSold(pid, soldModal.date, soldModal.price, {
                         name: soldModal.customerName,
                         phone: soldModal.customerPhone,
                         customerKind: soldModal.customerKind,
@@ -700,14 +700,15 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                         stagedId: soldModal.unit?.id || undefined,
                         exchangeRate: soldModal.exchangeRate,
                       });
+                      if (!result.ok) throw new Error(result.error || "No se pudo marcar como vendido");
                       try {
                         const { items } = await listAdminCatalog();
                         setItems(items as any);
                       } catch {}
                       window.dispatchEvent(new Event("sales-updated"));
                       setSoldModal(null);
-                    } catch {
-                      alert("No se pudo marcar como vendido");
+                    } catch (error) {
+                      alert(error instanceof Error ? error.message : "No se pudo marcar como vendido");
                     }
                   }}
               >

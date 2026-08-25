@@ -501,13 +501,17 @@ export async function markProductSold(
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
-  await apiFetch(`/admin/public/${productId}/sold`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ saleDate: saleDate || null, salePrice: salePrice ?? undefined, ...(customer || {}) }),
-  });
-  revalidateTag("catalog-products");
-  return { ok: true };
+  try {
+    const result = await apiFetch<any>(`/admin/public/${productId}/sold`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ saleDate: saleDate || null, salePrice: salePrice ?? undefined, ...(customer || {}) }),
+    });
+    revalidateTag("catalog-products");
+    return { ...result, ok: true, error: "" };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "No se pudo registrar la venta" };
+  }
 }
 
 // ----- Admin: vender directamente una unidad del inventario -----
@@ -527,13 +531,17 @@ export async function markStagedProductSold(
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
-  await apiFetch(`/admin/staged/${encodeURIComponent(stagedId)}/sold`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ saleDate: saleDate || null, salePrice: salePrice ?? undefined, ...(customer || {}) }),
-  });
-  revalidateTag("catalog-products");
-  return { ok: true };
+  try {
+    const result = await apiFetch<any>(`/admin/staged/${encodeURIComponent(stagedId)}/sold`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ saleDate: saleDate || null, salePrice: salePrice ?? undefined, ...(customer || {}) }),
+    });
+    revalidateTag("catalog-products");
+    return { ...result, ok: true, error: "" };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "No se pudo registrar la venta" };
+  }
 }
 
 // ----- Admin: revertir venta (volver a vender) -----

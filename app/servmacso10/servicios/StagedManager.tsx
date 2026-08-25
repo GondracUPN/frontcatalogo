@@ -314,7 +314,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                   sellingRef.current = true;
                   setSelling(true);
                   try {
-                    await markStagedProductSold(soldModal.item.id, soldModal.date, soldModal.price, {
+                    const result = await markStagedProductSold(soldModal.item.id, soldModal.date, soldModal.price, {
                       name: soldModal.customerName,
                       phone: soldModal.customerPhone,
                       customerKind: soldModal.customerKind,
@@ -322,13 +322,14 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                       saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
                       exchangeRate: soldModal.exchangeRate,
                     });
+                    if (!result.ok) throw new Error(result.error || "No se pudo registrar la venta");
                     const res = await listStaged({ pageSize: "all" });
                     setItems(Array.isArray(res?.items) ? res.items : []);
                     window.dispatchEvent(new Event("staged-products-updated"));
                     window.dispatchEvent(new Event("sales-updated"));
                     setSoldModal(null);
-                  } catch {
-                    alert("No se pudo registrar la venta");
+                  } catch (error) {
+                    alert(error instanceof Error ? error.message : "No se pudo registrar la venta");
                   } finally {
                     sellingRef.current = false;
                     setSelling(false);
