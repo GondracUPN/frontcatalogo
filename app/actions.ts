@@ -541,13 +541,20 @@ export async function unsellProduct(productId: string, saleId?: string) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
-  await apiFetch(`/admin/public/${productId}/unsell`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ saleId: saleId || null }),
-  });
-  revalidateTag("catalog-products");
-  return { ok: true };
+  try {
+    await apiFetch(`/admin/public/${productId}/unsell`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ saleId: saleId || null }),
+    });
+    revalidateTag("catalog-products");
+    return { ok: true, error: "" };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "No se pudo cancelar la venta",
+    };
+  }
 }
 
 export async function retrySaleSync(eventId: string) {

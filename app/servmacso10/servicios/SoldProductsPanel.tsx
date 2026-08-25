@@ -79,7 +79,8 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
     if (!confirm("¿Cancelar esta venta? El producto volverá a estar disponible y la anulación se enviará a Servicios para una segunda confirmación.")) return;
     setBusyId(sale.id);
     try {
-      await unsellProduct(sale.product_id, sale.id);
+      const result = await unsellProduct(sale.product_id, sale.id);
+      if (!result.ok) throw new Error(result.error || "No se pudo cancelar la venta");
       await refresh();
       window.dispatchEvent(new Event("sales-updated"));
       window.dispatchEvent(new Event("catalog-products-updated"));
