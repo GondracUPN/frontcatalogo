@@ -3,6 +3,7 @@ import AddToCartClient from "@/app/components/AddToCartClient";
 import ProductViewTracker from "@/app/components/ProductViewTracker";
 import PriceWithIgv from "@/app/components/PriceWithIgv";
 import ProductDetailPhotos from "@/app/components/ProductDetailPhotos";
+import PurchaseInformation from "@/app/components/PurchaseInformation";
 import { getCatalogItem } from "@/app/actions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -90,7 +91,7 @@ function variantOptionLabel(variant: any) {
   const includes = String(variant?.includes || "").trim();
   const pieces = [
     variant?.color,
-    batteryHealth ? `${batteryHealth}% bateria` : "",
+    batteryHealth ? `${batteryHealth}% batería` : "",
     includes && includes !== "Ninguno" ? includes : "",
   ].filter(Boolean);
   return String(variant?.variantLabel || pieces.join(" · ") || variant?.title || "Opcion");
@@ -261,7 +262,8 @@ export default async function ProductPage({
   const warrantyDetail = formatWarrantyValue(isSealed ? (rawWarrantyValue || "1 año de garantía") : rawWarrantyValue);
   const warrantyDisplay = warrantyExpired
     ? `Garantía Vencida: ${formatWarrantyDate(rawWarrantyValue)}`
-    : hasWarranty ? [warrantyType, warrantyDetail].filter(Boolean).join(" · ") : "";
+    : hasWarranty ? [warrantyType || (isSealed ? "Garantía limitada de Apple" : ""), warrantyDetail].filter(Boolean).join(" · ") : "";
+  const hasAppleWarranty = hasWarranty && (isSealed || /apple/i.test(`${warrantyType} ${warrantyDisplay}`));
   const title = baseTitle;
 
   const especs: Array<{ label: string; value: any }> = [];
@@ -274,7 +276,7 @@ export default async function ProductPage({
       { label: "SSD", value: almVal },
       { label: "Pantalla", value: tamPantalla },
       { label: "Ciclos", value: notes?.bateria?.ciclos },
-      { label: "Salud bateria", value: notes?.bateria?.salud ? `${notes?.bateria?.salud}%` : "" },
+      { label: "Salud de batería", value: notes?.bateria?.salud ? `${notes?.bateria?.salud}%` : "" },
       { label: "Color", value: colorCap },
       { label: "Teclado", value: tecladoLabel },
     );
@@ -286,17 +288,17 @@ export default async function ProductPage({
       { label: "Almacenamiento", value: almVal },
       { label: "Conectividad", value: conectividad },
       { label: "Ciclos", value: notes?.bateria?.ciclos },
-      { label: "Salud bateria", value: notes?.bateria?.salud ? `${notes?.bateria?.salud}%` : "" },
+      { label: "Salud de batería", value: notes?.bateria?.salud ? `${notes?.bateria?.salud}%` : "" },
       { label: "Color", value: colorCap },
     );
   } else if (category === "iphone") {
     especs.push(
       { label: "SIM", value: iphoneSimType },
       { label: "Modelo", value: iphoneModel },
-      { label: "Numero", value: iphoneNumber },
+      { label: "Número", value: iphoneNumber },
       { label: "Almacenamiento", value: formatStorageDisplay(storageGb) },
       { label: "Ciclos", value: batteryCycles },
-      { label: "Salud bateria", value: batteryHealth ? `${batteryHealth}%` : "" },
+      { label: "Salud de batería", value: batteryHealth ? `${batteryHealth}%` : "" },
       { label: "Color", value: colorCap },
     );
   } else if (category === "watch") {
@@ -305,7 +307,7 @@ export default async function ProductPage({
       { label: "Serie", value: watchType === "Normal" ? watchSeries : "" },
       { label: "Version", value: watchType === "Ultra" ? watchVersion : "" },
       { label: "Tamaño", value: watchSize ? `${String(watchSize).replace(/\s*mm$/i, "")} mm` : "" },
-      { label: "Conexion", value: watchConnection },
+      { label: "Conexión", value: watchConnection },
       { label: "Accesorios", value: watchAccessories },
       { label: "Color", value: colorCap },
     );
@@ -361,7 +363,7 @@ export default async function ProductPage({
         <section className="surface-card-strong soft-outline overflow-hidden px-3 py-5 sm:px-8 sm:py-10">
           <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.96fr)_minmax(340px,1.04fr)] lg:items-start lg:gap-8">
             <section className="order-1 min-w-0 overflow-hidden">
-              <ProductGallery images={images} sold={sold} />
+              <ProductGallery images={images} detailImages={detailImages} sold={sold} />
             </section>
 
             <aside className="order-2 min-w-0 space-y-4 sm:space-y-5">
@@ -392,7 +394,7 @@ export default async function ProductPage({
 
               <div className="min-w-0 rounded-[22px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(239,244,250,0.94))] p-4 shadow-[0_14px_34px_rgba(15,23,42,0.08)] sm:rounded-[28px] sm:p-6 sm:shadow-[0_20px_48px_rgba(15,23,42,0.1)]">
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                  {isPromocion && promoLabel ? promoLabel : "Precio final"}
+                  {isPromocion && promoLabel ? promoLabel : "Precio sin IGV"}
                 </div>
                 <PriceWithIgv
                   price={price}
@@ -417,6 +419,11 @@ export default async function ProductPage({
                     </div>
                   </div>
                 )}
+                {(productDescription || detailImages.length > 0) && (
+                  <div className="mt-5">
+                    <ProductDetailPhotos images={detailImages} description={productDescription} />
+                  </div>
+                )}
                 <div className="mt-5">
                   <AddToCartClient
                     productId={productId}
@@ -427,20 +434,6 @@ export default async function ProductPage({
                   />
                 </div>
               </div>
-
-              {(productDescription || detailImages.length > 0) && (
-                <div className="min-w-0 rounded-[22px] border border-black/6 bg-white/72 p-4 sm:rounded-[26px] sm:p-5">
-                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                    Descripcion
-                  </div>
-                  {productDescription && (
-                    <div className="mt-3 whitespace-pre-line text-sm font-medium leading-6 text-[color:var(--foreground)]">
-                      {productDescription}
-                    </div>
-                  )}
-                  <ProductDetailPhotos images={detailImages} />
-                </div>
-              )}
 
               <div className="grid min-w-0 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
                 <div className="order-2 min-w-0 rounded-[22px] border border-black/6 bg-white/72 p-4 sm:rounded-[26px] sm:p-5 xl:order-1">
@@ -541,7 +534,7 @@ export default async function ProductPage({
                   {!isSealed && (
                     <div className="rounded-[26px] border border-black/6 bg-white/72 p-4 sm:p-5">
                       <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                        Que incluye
+                        Qué incluye
                       </div>
                       {includeItems.length ? (
                         <div className="mt-4 flex flex-wrap gap-2">
@@ -567,7 +560,7 @@ export default async function ProductPage({
                       <div className={warrantyExpired
                         ? "text-xs font-semibold uppercase tracking-[0.24em] text-amber-700"
                         : "text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700"}>
-                        Garantía
+                        {hasAppleWarranty ? "Garantía limitada de Apple" : "Cobertura registrada"}
                       </div>
                       <div className={warrantyExpired
                         ? "mt-3 text-sm font-medium leading-6 text-amber-950/80"
@@ -588,9 +581,13 @@ export default async function ProductPage({
                     </div>
                   )}
 
+
                 </div>
               </div>
             </aside>
+          </div>
+          <div className="mt-6 sm:mt-8">
+            <PurchaseInformation hasAppleWarranty={hasAppleWarranty} appleWarrantyLabel={warrantyDisplay} />
           </div>
         </section>
       </div>

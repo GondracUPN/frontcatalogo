@@ -4,11 +4,16 @@ import React from "react";
 
 type Point = { x: number; y: number };
 
-export default function ProductGallery({ images, sold }: { images: string[]; sold?: boolean }) {
+export default function ProductGallery({ images, detailImages = [], sold }: { images: string[]; detailImages?: string[]; sold?: boolean }) {
   const imgs = React.useMemo(
-    () => (Array.isArray(images) && images.length ? images : ["/placeholder.svg"]),
-    [images]
+    () => {
+      const primary = Array.isArray(images) ? images.filter(Boolean) : [];
+      const details = Array.isArray(detailImages) ? detailImages.filter((url) => url && !primary.includes(url)) : [];
+      return primary.length || details.length ? [...primary, ...details] : ["/placeholder.svg"];
+    },
+    [images, detailImages]
   );
+  const primaryCount = Array.isArray(images) ? images.filter(Boolean).length : 0;
   const [active, setActive] = React.useState(0);
   const [viewerIndex, setViewerIndex] = React.useState(0);
   const [viewerOpen, setViewerOpen] = React.useState(false);
@@ -18,7 +23,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
   const [mainDragging, setMainDragging] = React.useState(false);
   const [mainTrackIndex, setMainTrackIndex] = React.useState(imgs.length > 1 ? 1 : 0);
   const [mainAnimating, setMainAnimating] = React.useState(false);
-  const imageSignature = React.useMemo(() => images?.join("|") || "", [images]);
+  const imageSignature = React.useMemo(() => imgs.join("|"), [imgs]);
   const safeIndex = React.useCallback((i: number) => Math.max(0, Math.min(i, imgs.length - 1)), [imgs.length]);
   const wrapIndex = React.useCallback((i: number) => {
     if (!imgs.length) return 0;
@@ -38,6 +43,8 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
   const suppressOpenRef = React.useRef(false);
   const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
   const swipeRef = React.useRef<{ active: boolean; x: number; y: number } | null>(null);
+  const viewerTriggerRef = React.useRef<HTMLButtonElement>(null);
+  const viewerCloseRef = React.useRef<HTMLButtonElement>(null);
 
   React.useEffect(() => {
     setActive(0);
@@ -56,12 +63,22 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
 
   React.useEffect(() => {
     if (!viewerOpen || typeof document === "undefined") return;
+    const returnFocusTo = viewerTriggerRef.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    viewerCloseRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setViewerOpen(false);
+      if (event.key === "ArrowRight") setViewerIndex((value) => wrapIndex(value + 1));
+      if (event.key === "ArrowLeft") setViewerIndex((value) => wrapIndex(value - 1));
+    };
+    window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKey);
+      returnFocusTo?.focus();
     };
-  }, [viewerOpen]);
+  }, [viewerOpen, wrapIndex]);
 
   React.useEffect(() => {
     if (!viewerOpen) {
@@ -369,6 +386,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
         style={{ touchAction: "pan-y" }}
       >
         <button
+          ref={viewerTriggerRef}
           type="button"
           onClick={openViewer}
           className="absolute inset-0 z-[2]"
@@ -391,7 +409,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
                 {shouldLoad && (
                   <Image
                     src={src}
-                    alt=""
+                    alt="Vista del producto"
                     fill
                     sizes="(max-width: 1024px) 100vw, 54vw"
                     className={`h-full w-full ${mainImageFitClass}`}
@@ -406,6 +424,9 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
         <div className="absolute bottom-3 right-3 z-[3] rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[color:var(--foreground-soft)] backdrop-blur-xl sm:bottom-4 sm:right-4 sm:text-xs">
           {active + 1} / {imgs.length}
         </div>
+        {active >= primaryCount && (
+          <div className="absolute left-3 top-3 z-[3] rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-900 sm:left-4 sm:top-4">Detalle estético</div>
+        )}
         {imgs.length > 1 && (
           <button
             type="button"
@@ -451,7 +472,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
           {imgs.map((u, i) => (
             <button
               key={i}
-              aria-label={`Foto ${i + 1}`}
+              aria-label={i >= primaryCount ? `Ver detalle estético ${i - primaryCount + 1}` : `Ver foto ${i + 1} del producto`}
               onClick={() => goToImage(i)}
               className={`shrink-0 snap-start overflow-hidden rounded-[15px] border p-0.5 sm:rounded-[20px] sm:p-1 ${
                 i === active
@@ -460,7 +481,8 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
               }`}
             >
               <div className="relative h-14 w-14 overflow-hidden rounded-[11px] bg-[linear-gradient(145deg,#f6f8fb,#e8edf4)] sm:h-[4.5rem] sm:w-[4.5rem] sm:rounded-[14px] md:h-[5.5rem] md:w-[5.5rem]">
-                <Image src={u} alt="" fill sizes="88px" className="h-full w-full object-cover" />
+                <Image src={u} alt={i >= primaryCount ? "Miniatura de detalle estético" : "Miniatura del producto"} fill sizes="88px" className="h-full w-full object-cover" />
+                {i >= primaryCount && <span className="absolute inset-x-0 bottom-0 bg-amber-950/85 py-0.5 text-center text-[8px] font-bold uppercase tracking-wide text-white">Detalle</span>}
               </div>
             </button>
           ))}
@@ -487,6 +509,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
                 Imagen {viewerIndex + 1} de {imgs.length}
               </div>
               <button
+                ref={viewerCloseRef}
                 type="button"
                 onClick={closeViewer}
                 className="rounded-full border border-black/8 bg-neutral-950 px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(0,0,0,0.18)] backdrop-blur-xl hover:bg-black"
@@ -538,7 +561,7 @@ export default function ProductGallery({ images, sold }: { images: string[]; sol
                 <img
                   key={`viewer-${safeIndex(viewerIndex)}`}
                   src={imgs[safeIndex(viewerIndex)]}
-                  alt=""
+                  alt={safeIndex(viewerIndex) >= primaryCount ? "Detalle estético ampliado del equipo" : "Vista ampliada del producto"}
                   className="product-photo-enter max-h-full w-auto max-w-full object-contain transition-transform duration-300 ease-out"
                   style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}
                 />

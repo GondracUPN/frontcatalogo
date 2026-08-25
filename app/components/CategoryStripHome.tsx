@@ -5,7 +5,7 @@ const CATS = [
   { key: "iphone", label: "iPhone", href: "/c/iphone", icon: "/imagenestipos/iphone.webp", note: "Uso diario." },
   { key: "ipad", label: "iPad", href: "/c/ipad", icon: "/imagenestipos/ipad.webp", note: "Movilidad y creatividad." },
   { key: "watch", label: "Watch", href: "/c/watch", icon: "/imagenestipos/watch.webp", note: "Estilo y ecosistema." },
-  { key: "otros", label: "Otros", href: "/c/otros", icon: "/imagenestipos/accesorios.webp", note: "Mas opciones." },
+  { key: "otros", label: "Otros", href: "/c/otros", icon: "/imagenestipos/accesorios.webp", note: "Más opciones." },
 ] as const;
 
 type CategorySummary = {

@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import React from "react";
 import PriceWithIgv from "./PriceWithIgv";
+import { catalogFacts, compactSpecs, detailCountLabel } from "@/lib/catalog-display";
 
 type Row = any;
 
@@ -245,12 +246,29 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
   const [sort, setSort] = React.useState<"price_asc" | "price_desc" | "none">("none");
   const [availability, setAvailability] = React.useState<"all" | "warehouse" | "preorder">("all");
   const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  const deferredSearch = React.useDeferredValue(search.trim().toLocaleLowerCase("es"));
+  const filtersButtonRef = React.useRef<HTMLButtonElement>(null);
+
+  React.useEffect(() => {
+    if (!filtersOpen) return;
+    const returnFocusTo = filtersButtonRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setFiltersOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKey);
+      returnFocusTo?.focus();
+    };
+  }, [filtersOpen]);
 
   const meta = React.useMemo(
     () =>
       initialItems
         .filter((row) => row?.product?.status !== "sold")
-        .map((row) => ({ row, ...priceMeta(row), ...parseNotes(row) })),
+        .map((row) => ({ row, ...priceMeta(row), ...parseNotes(row), ...catalogFacts(row) })),
     [initialItems]
   );
 
@@ -304,6 +322,10 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
 
   const filteredMeta = React.useMemo(() => {
     let arr = meta.filter((m) => m.price >= minV && m.price <= maxV);
+    if (deferredSearch) {
+      arr = arr.filter((m) => [m.title, m.category, m.processor, m.ram, m.storage, m.sku]
+        .join(" ").toLocaleLowerCase("es").includes(deferredSearch));
+    }
     if (availability === "warehouse") {
       arr = arr.filter((m) => String(m.saleType || "").toUpperCase() !== "PREVENTA");
     }
@@ -327,7 +349,7 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
     if (sort === "price_desc") arr = [...arr].sort((a, b) => b.price - a.price);
     if (sort === "none") arr = [...arr].sort((a, b) => promoRank(b) - promoRank(a));
     return arr;
-  }, [availability, connectivity, isIphone, meta, minV, maxV, tipo, proc, sizes, rams, ssds, series, sort]);
+  }, [availability, connectivity, deferredSearch, isIphone, meta, minV, maxV, tipo, proc, sizes, rams, ssds, series, sort]);
 
   const activeFilters = [
     ...(availability === "warehouse" ? ["En almacén"] : availability === "preorder" ? ["En camino"] : []),
@@ -396,7 +418,8 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
 
   return (
     <div className="mt-8 grid gap-6 lg:grid-cols-[300px_1fr]">
-      <aside className={`${filtersOpen ? "fixed inset-x-4 top-20 z-[60] block max-h-[72svh] overflow-y-auto sm:left-auto sm:right-4 sm:w-[360px]" : "hidden"} lg:static lg:order-1 lg:block lg:max-h-none lg:w-auto lg:overflow-visible`}>
+      {filtersOpen && <button type="button" aria-label="Cerrar filtros" onClick={() => setFiltersOpen(false)} className="fixed inset-0 z-[59] bg-[#f7f7f5] lg:hidden" />}
+      <aside role={filtersOpen ? "dialog" : undefined} aria-modal={filtersOpen ? "true" : undefined} aria-label="Filtros del catálogo" className={`${filtersOpen ? "fixed inset-0 z-[60] block overflow-y-auto bg-[#f7f7f5] p-3 pt-20 sm:left-auto sm:w-[390px] sm:border-l sm:border-black/10" : "hidden"} lg:static lg:order-1 lg:block lg:max-h-none lg:w-auto lg:overflow-visible lg:bg-transparent lg:p-0`}>
         <div className="space-y-4">
           <div className="surface-card soft-outline p-4 lg:p-5">
             <div className="sticky -top-4 z-10 -mx-4 -mt-4 flex items-start justify-between gap-3 rounded-t-[28px] bg-white/95 px-4 pb-3 pt-4 shadow-sm lg:static lg:mx-0 lg:mt-0 lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
@@ -469,7 +492,7 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                   setFiltersOpen(false);
                   window?.document?.getElementById("cat-grid")?.scrollIntoView({ behavior: "smooth" });
                 }}
-                className="btn-primary mt-3 w-full rounded-full bg-[color:var(--foreground)] py-2.5 text-sm font-semibold text-white hover:bg-black lg:mt-4 lg:py-3"
+                className="btn-primary mt-3 hidden w-full rounded-full bg-[color:var(--foreground)] py-2.5 text-sm font-semibold text-white hover:bg-black lg:mt-4 lg:block lg:py-3"
               >
                 Ver {filteredMeta.length} productos
               </button>
@@ -504,6 +527,11 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
             <button onClick={resetFilters} className="btn-secondary mt-4 w-full rounded-full border border-black/10 bg-white/70 py-3 text-sm font-medium text-[color:var(--foreground)]">
               Limpiar filtros
             </button>
+            <div className="sticky bottom-0 -mx-4 mt-4 border-t border-black/10 bg-[#f7f7f5] p-4 lg:hidden">
+              <button onClick={() => { setFiltersOpen(false); document.getElementById("cat-grid")?.scrollIntoView({ behavior: "smooth" }); }} className="btn-primary min-h-11 w-full rounded-full bg-[color:var(--foreground)] px-5 py-3 text-sm font-semibold text-white">
+                Ver {filteredMeta.length} productos
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -513,7 +541,7 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                Catalogo
+                Catálogo
               </div>
               <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
                 {filteredMeta.length} productos listos para comparar.
@@ -521,12 +549,17 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <div className="relative w-full">
+                <label htmlFor="catalog-search" className="sr-only">Buscar en el catálogo</label>
+                <input id="catalog-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar MacBook, iPhone, M4…" className="min-h-11 w-full rounded-full border border-black/10 bg-white px-5 pr-12 text-sm" />
+                {search && <button type="button" onClick={() => setSearch("")} aria-label="Limpiar búsqueda" className="absolute right-1 top-1 inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-black/5">×</button>}
+              </div>
               <div className="flex w-full items-center rounded-full border border-black/10 bg-white/75 p-1 sm:w-auto">
                 {[
                   { key: "all" as const, label: "Todos", count: availabilityCounts.all },
                   { key: "warehouse" as const, label: "En almacén", count: availabilityCounts.warehouse },
                   { key: "preorder" as const, label: "Preventa", count: availabilityCounts.preorder },
-                ].map((option) => {
+                ].filter((option) => option.key !== "preorder" || option.count > 0).map((option) => {
                   const active = availability === option.key;
                   return (
                     <button
@@ -550,11 +583,12 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
               </div>
 
               <button
+                ref={filtersButtonRef}
                 type="button"
                 className="btn-secondary inline-flex rounded-full border border-black/10 bg-white/75 px-4 py-2 text-sm text-[color:var(--foreground)] lg:hidden"
                 onClick={() => setFiltersOpen((v) => !v)}
               >
-                {filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+                {filtersOpen ? "Ocultar filtros" : `Mostrar filtros${activeFilters.length ? ` · ${activeFilters.length} filtros aplicados` : ""}`}
               </button>
 
               <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/75 px-3 py-2 text-sm text-[color:var(--foreground)]">
@@ -586,6 +620,8 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                 const title: string = row.product?.title || row.staged?.title || row.slug;
                 const stock = Number(row?.product?.stock ?? row?.staged?.stock ?? 0);
                 const stockLabel = isNewCondition(item.condition) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
+                const specLines = compactSpecs(item);
+                const aestheticLabel = detailCountLabel(item.detailImages.length, Boolean(item.conditionDescription));
                 return (
                   <Link
                     key={row.id}
@@ -633,6 +669,8 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                       <div className="text-lg font-semibold leading-6 tracking-[-0.03em] text-[color:var(--foreground)] line-clamp-2">
                         {title}
                       </div>
+                      {specLines.length > 0 && <div className="mt-2 space-y-1 text-xs font-medium leading-5 text-[color:var(--foreground-soft)]">{specLines.map((line) => <div key={line}>{line}</div>)}</div>}
+                      {aestheticLabel && <div className="mt-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-900">{aestheticLabel}</div>}
                       <PriceWithIgv price={Number(item.price)} compareAt={item.compareAt} wrapperClassName="mt-3" />
                     </div>
                   </Link>
@@ -640,7 +678,8 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
               })
             ) : (
               <div className="col-span-full rounded-[28px] border border-dashed border-black/12 bg-white/60 px-6 py-14 text-center text-sm text-[color:var(--foreground-soft)]">
-                No hay productos publicados con esta combinacion de filtros.
+                <div>No encontramos productos con esa búsqueda.</div>
+                <button type="button" onClick={() => { setSearch(""); resetFilters(); }} className="mt-4 min-h-11 rounded-full border border-black/10 bg-white px-5 py-2 font-semibold text-[color:var(--foreground)]">Limpiar búsqueda y filtros</button>
               </div>
             )}
           </div>

@@ -30,13 +30,13 @@ export default function PriceWithIgv({
     <div className={wrapperClassName}>
       <div className={rowClassName}>
         <span className={priceClassName}>S/ {money(cleanPrice)}</span>
-        <span className={labelClassName}>Sin IGV</span>
+        <span className={labelClassName}>Precio sin IGV</span>
         {compareAt && compareAt > cleanPrice && (
           <span className={compareAtClassName}>S/ {money(compareAt)}</span>
         )}
       </div>
       <div className={igvClassName}>
-        Con IGV <span className="font-semibold text-[color:var(--foreground)]">S/ {money(priceWithIgv)}</span>
+        Total con IGV: <span className="font-semibold text-[color:var(--foreground)]">S/ {money(priceWithIgv)}</span>
       </div>
     </div>
   );

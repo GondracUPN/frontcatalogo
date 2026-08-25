@@ -432,6 +432,13 @@ export async function getHomeCatalog() {
       price: number;
       compareAt: number | null;
       stock: number;
+      processor?: string | null;
+      ram?: string | null;
+      storage?: string | number | null;
+      batteryHealth?: string | number | null;
+      batteryCycles?: string | number | null;
+      detailCount?: number;
+      hasConditionDetails?: boolean;
     }>;
     categories: Array<{ key: string; total: number; minPrice: number | null }>;
   }>("/catalog/home", {
@@ -488,6 +495,7 @@ export async function markProductSold(
     salePlaceType?: string;
     saleLocation?: string;
     stagedId?: string;
+    exchangeRate?: string | number;
   }
 ) {
   const cookieStore = await cookies();
@@ -513,6 +521,7 @@ export async function markStagedProductSold(
     customerKind?: string;
     salePlaceType?: string;
     saleLocation?: string;
+    exchangeRate?: string | number;
   }
 ) {
   const cookieStore = await cookies();
@@ -539,6 +548,16 @@ export async function unsellProduct(productId: string, saleId?: string) {
   });
   revalidateTag("catalog-products");
   return { ok: true };
+}
+
+export async function retrySaleSync(eventId: string) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
+  return apiFetch<{ ok: boolean; status: string; error?: string }>(`/admin/sales-sync/${encodeURIComponent(eventId)}/retry`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
 }
 
 // ----- Admin: listar ventas -----

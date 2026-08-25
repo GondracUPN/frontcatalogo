@@ -45,10 +45,10 @@ export default async function Home() {
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl">
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                  Catalogo
+                  Catálogo
                 </div>
                 <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[color:var(--foreground)] sm:text-4xl">
-                  Catalogo Macsomenos
+                  Catálogo Macsomenos
                 </h1>
               </div>
 
@@ -57,7 +57,7 @@ export default async function Home() {
                   href="/novedades"
                   className="btn-primary inline-flex items-center rounded-full bg-[color:var(--foreground)] px-6 py-3 text-sm font-medium text-white shadow-lg shadow-black/10 hover:bg-black"
                 >
-                  Ultimas llegadas
+                  Últimas llegadas
                 </Link>
                 <Link
                   href="/categorias"
@@ -82,7 +82,7 @@ export default async function Home() {
                   Novedades
                 </div>
                 <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[color:var(--foreground)] sm:text-4xl">
-                  Ultimos ingresos.
+                  Últimos ingresos.
                 </h2>
               </div>
               <Link href="/novedades" className="btn-ghost text-sm font-medium text-[color:var(--accent)]">
@@ -103,6 +103,8 @@ export default async function Home() {
                     const stock = Number(row.stock ?? 0);
                     const stockLabel = isNewCondition(condition) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
                     const promoLabel = promoBadge(row);
+                    const primarySpecs = [row.processor, row.ram ? `${row.ram}` : "", row.storage ? `${row.storage}` : ""].filter(Boolean).join(" · ");
+                    const batterySpecs = [row.batteryHealth ? `Batería ${row.batteryHealth}%` : "", row.batteryCycles ? `${row.batteryCycles} ciclos` : ""].filter(Boolean).join(" · ");
                     return (
                       <Link
                         key={row.id}
@@ -142,6 +144,8 @@ export default async function Home() {
                           <div className="text-[15px] font-semibold leading-6 text-[color:var(--foreground)] line-clamp-2">
                             {title}
                           </div>
+                          {(primarySpecs || batterySpecs) && <div className="mt-2 space-y-1 text-xs font-medium leading-5 text-[color:var(--foreground-soft)]">{primarySpecs && <div>{primarySpecs}</div>}{batterySpecs && <div>{batterySpecs}</div>}</div>}
+                          {row.hasConditionDetails && <div className="mt-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-900">{row.detailCount ? `${row.detailCount} ${row.detailCount === 1 ? "detalle estético" : "detalles fotografiados"}` : "Estado estético informado"}</div>}
                           <PriceWithIgv
                             price={price}
                             compareAt={compareAt}

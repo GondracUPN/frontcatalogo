@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { getCachedCartItems } from "@/app/cart/cartClient";
 
 const NAV_ITEMS = [
   { href: "/c/macbook", label: "MacBook" },
@@ -16,11 +17,23 @@ const NAV_ITEMS = [
 
 export default function RootShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
 
   useEffect(() => {
     const close = () => setMenuOpen(false);
     window.addEventListener("resize", close);
     return () => window.removeEventListener("resize", close);
+  }, []);
+
+  useEffect(() => {
+    const updateCount = (event?: Event) => {
+      const announced = (event as CustomEvent<{ count?: number }>)?.detail?.count;
+      if (typeof announced === "number") return setCartCount(announced);
+      setCartCount(getCachedCartItems().reduce((sum, item) => sum + Number(item?.qty || 0), 0));
+    };
+    updateCount();
+    window.addEventListener("cart:updated", updateCount);
+    return () => window.removeEventListener("cart:updated", updateCount);
   }, []);
 
   return (
@@ -73,11 +86,12 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
               <Link
                 href="/cart"
                 aria-label="Carrito"
-                className="btn-primary inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-[color:var(--foreground)] text-white shadow-sm hover:bg-black"
+                className="btn-primary relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-[color:var(--foreground)] text-white shadow-sm hover:bg-black"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.6" stroke="currentColor" className="h-5 w-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.089.835l.383 1.437M7.5 14.25h9.75m-12-9l1.5 6h10.5l2.036-7.127A1.125 1.125 0 0018.72 3.75H5.118M7.5 19.5a.75.75 0 110-1.5.75.75 0 010 1.5zm9.75 0a.75.75 0 110-1.5.75.75 0 010 1.5z" />
                 </svg>
+                {cartCount > 0 && <span aria-live="polite" className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[color:var(--accent)] px-1 text-[10px] font-bold text-white">{cartCount}</span>}
               </Link>
             </div>
           </div>
@@ -98,7 +112,7 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
                   Navegacion
                 </div>
                 <div className="mt-1 text-lg font-semibold text-[color:var(--foreground)]">
-                  Catalogo Macsomenos
+                  Catálogo Macsomenos
                 </div>
               </div>
               <button
@@ -151,7 +165,7 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
                 </div>
                 <div className="mt-4 grid gap-3 text-sm text-[color:var(--foreground)]">
                   <Link href="/novedades" className="hover:text-[color:var(--accent)]">Novedades</Link>
-                  <Link href="/categorias" className="hover:text-[color:var(--accent)]">Categorias</Link>
+                  <Link href="/categorias" className="hover:text-[color:var(--accent)]">Categorías</Link>
                   <Link href="/contact" className="hover:text-[color:var(--accent)]">Contacto</Link>
                 </div>
               </div>

@@ -7,7 +7,7 @@ const MAP_EMBED =
 const CONTACT_NOTES = [
   {
     title: "WhatsApp directo",
-    text: "Escribenos para stock, precio, separaciones o coordinaciones.",
+    text: "Escríbenos para consultar stock, precio, separaciones o coordinaciones.",
   },
   {
     title: "Numero de contacto",
@@ -34,7 +34,7 @@ export default function ContactPage() {
                   Contacto directo.
                 </h1>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-[color:var(--foreground-soft)] sm:text-base">
-                  Habla con Macsomenos por WhatsApp o revisa la ubicacion del almacen.
+                  Habla con Macsomenos por WhatsApp o revisa la ubicación del almacén.
                 </p>
               </div>
 
@@ -60,7 +60,7 @@ export default function ContactPage() {
                     rel="noreferrer"
                     className="btn-secondary inline-flex items-center justify-center rounded-full border border-white/22 bg-white/10 px-5 py-3 text-sm font-medium text-white hover:bg-white/14"
                   >
-                    Ver almacen
+                    Ver almacén
                   </a>
                 </div>
               </div>
@@ -104,7 +104,7 @@ export default function ContactPage() {
                   Ubicacion
                 </div>
                 <p className="mt-3 text-sm leading-6 text-[color:var(--foreground)]">
-                  Puedes abrir la ruta del almacen desde Google Maps con el enlace directo.
+                  Puedes abrir la ruta del almacén desde Google Maps con el enlace directo.
                 </p>
                 <a
                   href={STORAGE_LINK}

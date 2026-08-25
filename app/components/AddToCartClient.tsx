@@ -17,6 +17,7 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
   const [offer, setOffer] = React.useState<string>("");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string>("");
+  const [added, setAdded] = React.useState(false);
   const [offerModalOpen, setOfferModalOpen] = React.useState(false);
   const [offerError, setOfferError] = React.useState("");
   const [offerBlocked, setOfferBlocked] = React.useState(false);
@@ -73,13 +74,14 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
   };
 
   const handleAdd = async () => {
-    if (disabled) return;
+    if (disabled || saving) return;
     setSaving(true);
     setError("");
+    setAdded(false);
     try {
       const offerValue = isOferta && offer ? Number(offer) : undefined;
       await addToCart(productId, 1, offerValue);
-      router.push("/cart");
+      setAdded(true);
     } catch (e: any) {
       setError(e?.message || "No se pudo agregar");
     } finally {
@@ -88,12 +90,12 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
   };
 
   const handleBuyOffer = async () => {
-    if (disabled) return;
+    if (disabled || saving) return;
     setSaving(true);
     setError("");
     try {
       await addToCart(productId, 1, max);
-      router.push("/cart");
+      setAdded(true);
     } catch (e: any) {
       setError(e?.message || "No se pudo agregar");
     } finally {
@@ -131,7 +133,8 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
       const res = await submitOffer(productId, offerNum);
       if (res.ok) {
         writeOfferState(false, res.attemptsRemaining ?? 3);
-        router.push("/cart");
+        setOfferModalOpen(false);
+        setAdded(true);
         return;
       }
       setOfferBlocked(Boolean(res.blocked));
@@ -177,7 +180,21 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
         </button>
       )}
 
-      {error && <div className="text-sm text-red-600">{error}</div>}
+      {added && (
+        <div role="status" aria-live="polite" className="rounded-[20px] border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+          <div className="font-semibold">Producto agregado al carrito</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={() => router.push("/cart")} className="inline-flex min-h-11 items-center rounded-full bg-[color:var(--foreground)] px-5 py-2 text-sm font-semibold text-white">Ver carrito</button>
+            <button type="button" onClick={() => setAdded(false)} className="inline-flex min-h-11 items-center rounded-full border border-emerald-300 bg-white px-5 py-2 text-sm font-semibold">Seguir viendo</button>
+          </div>
+        </div>
+      )}
+      {error && (
+        <div role="alert" className="rounded-[18px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div>{error}</div>
+          <button type="button" onClick={handleAdd} className="mt-2 min-h-11 rounded-full border border-red-300 bg-white px-4 py-2 font-semibold">Reintentar</button>
+        </div>
+      )}
 
       {mounted && offerModalOpen && createPortal(
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(14,20,32,0.54)] p-4 backdrop-blur-sm">

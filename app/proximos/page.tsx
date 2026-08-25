@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { listCatalog } from "../actions";
 import PriceWithIgv from "../components/PriceWithIgv";
+import { catalogFacts, compactSpecs, detailCountLabel } from "@/lib/catalog-display";
 
 export const revalidate = 300;
 
@@ -46,6 +47,9 @@ export default async function ProximosPage() {
               preventas.map((row: any) => {
                 const img = (row.images && row.images[0]) || row.staged?.images?.[0] || "/placeholder.svg";
                 const title = String(row.product?.title || row.staged?.title || row.slug || "Producto");
+                const facts = catalogFacts(row);
+                const specLines = compactSpecs(facts);
+                const aestheticLabel = detailCountLabel(facts.detailImages.length, Boolean(facts.conditionDescription));
                 return (
                   <Link
                     key={row.id}
@@ -69,6 +73,8 @@ export default async function ProximosPage() {
                     <div className="mt-4 text-lg font-semibold leading-6 tracking-[-0.03em] text-[color:var(--foreground)] line-clamp-2">
                       {title}
                     </div>
+                    {specLines.length > 0 && <div className="mt-2 space-y-1 text-xs font-medium leading-5 text-[color:var(--foreground-soft)]">{specLines.map((line) => <div key={line}>{line}</div>)}</div>}
+                    {aestheticLabel && <div className="mt-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-900">{aestheticLabel}</div>}
                     <PriceWithIgv price={priceFromRow(row)} wrapperClassName="mt-3" />
                   </Link>
                 );

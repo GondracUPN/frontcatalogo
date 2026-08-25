@@ -2,272 +2,114 @@
 
 import Image from "next/image";
 import React from "react";
+import { createPortal } from "react-dom";
+import { detailCountLabel } from "@/lib/catalog-display";
 
+type Props = { images: string[]; description?: string };
 type Point = { x: number; y: number };
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
-
-export default function ProductDetailPhotos({ images }: { images: string[] }) {
-  const safeImages = Array.isArray(images) ? images.filter(Boolean) : [];
+export default function ProductDetailPhotos({ images, description = "" }: Props) {
+  const safeImages = React.useMemo(() => Array.from(new Set((images || []).filter(Boolean))), [images]);
   const [open, setOpen] = React.useState(false);
   const [active, setActive] = React.useState(0);
   const [zoom, setZoom] = React.useState(1);
   const [pan, setPan] = React.useState<Point>({ x: 0, y: 0 });
-  const stageRef = React.useRef<HTMLDivElement | null>(null);
+  const [mounted, setMounted] = React.useState(false);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const closeRef = React.useRef<HTMLButtonElement>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
   const dragRef = React.useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
-  const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
-  const lastTapRef = React.useRef(0);
 
+  React.useEffect(() => setMounted(true), []);
   React.useEffect(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, [active, open]);
-
-  const current = safeImages[Math.max(0, Math.min(active, safeImages.length - 1))] || "";
-
-  const clampPan = React.useCallback((nextPan: Point, nextZoom = zoom) => {
-    const stage = stageRef.current;
-    if (!stage || nextZoom <= 1) return { x: 0, y: 0 };
-    const rect = stage.getBoundingClientRect();
-    const maxX = (rect.width * (nextZoom - 1)) / 2;
-    const maxY = (rect.height * (nextZoom - 1)) / 2;
-    return {
-      x: clamp(nextPan.x, -maxX, maxX),
-      y: clamp(nextPan.y, -maxY, maxY),
+    if (!open) return;
+    const returnFocusTo = triggerRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+      if (event.key === "ArrowRight") setActive((value) => (value + 1) % safeImages.length);
+      if (event.key === "ArrowLeft") setActive((value) => (value - 1 + safeImages.length) % safeImages.length);
+      if (event.key === "Tab" && dialogRef.current) {
+        const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>("button:not([disabled])"));
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
     };
-  }, [zoom]);
-
-  const setClampedZoom = React.useCallback((nextZoom: number, clientX?: number, clientY?: number) => {
-    const clampedZoom = clamp(+nextZoom.toFixed(2), 1, 5);
-    if (clampedZoom === 1) {
-      setZoom(1);
-      setPan({ x: 0, y: 0 });
-      return;
-    }
-
-    const stage = stageRef.current;
-    if (!stage || clientX === undefined || clientY === undefined || zoom === 1) {
-      setZoom(clampedZoom);
-      setPan((currentPan) => clampPan(currentPan, clampedZoom));
-      return;
-    }
-
-    const rect = stage.getBoundingClientRect();
-    const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    const ratio = clampedZoom / zoom;
-    const relative = { x: clientX - center.x, y: clientY - center.y };
-    const nextPan = {
-      x: relative.x - ratio * (relative.x - pan.x),
-      y: relative.y - ratio * (relative.y - pan.y),
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKey);
+      returnFocusTo?.focus();
     };
-    setZoom(clampedZoom);
-    setPan(clampPan(nextPan, clampedZoom));
-  }, [clampPan, pan.x, pan.y, zoom]);
+  }, [open, safeImages.length]);
 
-  const resetZoom = React.useCallback(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, []);
+  React.useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, [active, open]);
+  if (!description && !safeImages.length) return null;
 
-  const goTo = (index: number) => {
-    if (!safeImages.length) return;
-    setActive((index + safeImages.length) % safeImages.length);
-    resetZoom();
-  };
+  const openViewer = () => { setActive(0); setOpen(true); };
+  const goTo = (index: number) => setActive((index + safeImages.length) % safeImages.length);
+  const current = safeImages[active] || "";
+  const label = detailCountLabel(safeImages.length, Boolean(description));
+  const neutralDescription = description
+    ? `${description.charAt(0).toLocaleUpperCase("es")}${description.slice(1)}${/[.!?]$/.test(description) ? "" : "."}`
+    : "Revisa las fotografías del estado real de este equipo.";
+  const indicator = safeImages.length ? `Este equipo tiene ${label}` : label;
 
-  const touchDistance = (touches: React.TouchList) => {
-    if (touches.length < 2) return 0;
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.hypot(dx, dy);
-  };
-
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    setClampedZoom(zoom + (event.deltaY < 0 ? 0.25 : -0.25), event.clientX, event.clientY);
-  };
-
-  const handleDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (zoom > 1) {
-      resetZoom();
-      return;
-    }
-    setClampedZoom(2.6, event.clientX, event.clientY);
-  };
-
-  const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (zoom <= 1) return;
-    event.preventDefault();
-    dragRef.current = { active: true, x: event.clientX, y: event.clientY };
-  };
-
-  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!dragRef.current.active || zoom <= 1) return;
-    const dx = event.clientX - dragRef.current.x;
-    const dy = event.clientY - dragRef.current.y;
-    dragRef.current = { active: true, x: event.clientX, y: event.clientY };
-    setPan((currentPan) => clampPan({ x: currentPan.x + dx, y: currentPan.y + dy }));
-  };
-
-  const endMouseDrag = () => {
-    dragRef.current.active = false;
-  };
-
-  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length === 2) {
-      event.preventDefault();
-      pinchRef.current = { distance: touchDistance(event.touches), zoom };
-      dragRef.current.active = false;
-      return;
-    }
-
-    if (event.touches.length !== 1) return;
-    const touch = event.touches[0];
-    const now = Date.now();
-    if (now - lastTapRef.current < 280) {
-      event.preventDefault();
-      lastTapRef.current = 0;
-      if (zoom > 1) resetZoom();
-      else setClampedZoom(2.6, touch.clientX, touch.clientY);
-      return;
-    }
-    lastTapRef.current = now;
-
-    if (zoom > 1) {
-      dragRef.current = { active: true, x: touch.clientX, y: touch.clientY };
-    }
-  };
-
-  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length === 2 && pinchRef.current) {
-      event.preventDefault();
-      const distance = touchDistance(event.touches);
-      if (!distance) return;
-      setClampedZoom(pinchRef.current.zoom * (distance / pinchRef.current.distance));
-      return;
-    }
-
-    if (event.touches.length === 1 && dragRef.current.active && zoom > 1) {
-      event.preventDefault();
-      const touch = event.touches[0];
-      const dx = touch.clientX - dragRef.current.x;
-      const dy = touch.clientY - dragRef.current.y;
-      dragRef.current = { active: true, x: touch.clientX, y: touch.clientY };
-      setPan((currentPan) => clampPan({ x: currentPan.x + dx, y: currentPan.y + dy }));
-    }
-  };
-
-  const handleTouchEnd = () => {
-    dragRef.current.active = false;
-    pinchRef.current = null;
-  };
-
-  if (!safeImages.length) return null;
+  const modal = open && current ? (
+    <div className="fixed inset-0 z-[90] bg-[rgba(15,23,42,0.86)] p-3 sm:p-5" onMouseUp={() => { dragRef.current.active = false; }}>
+      <button className="absolute inset-0" aria-label="Cerrar detalle ampliado" onClick={() => setOpen(false)} />
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Fotografías del estado estético del equipo" className="relative z-[1] flex h-full flex-col">
+        <div className="flex items-center justify-between gap-3 pb-3 text-white">
+          <div className="rounded-full border border-white/20 bg-black/40 px-4 py-2 text-sm font-medium">Detalle estético {active + 1} de {safeImages.length}</div>
+          <button ref={closeRef} type="button" onClick={() => setOpen(false)} className="inline-flex min-h-11 items-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-neutral-950">Cerrar</button>
+        </div>
+        <div
+          className={`relative min-h-0 flex-1 overflow-hidden rounded-[24px] bg-white ${zoom > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"}`}
+          onWheel={(event) => { event.preventDefault(); setZoom((value) => Math.max(1, Math.min(5, value + (event.deltaY < 0 ? 0.25 : -0.25)))); }}
+          onDoubleClick={() => setZoom((value) => value > 1 ? 1 : 2.5)}
+          onMouseDown={(event) => { if (zoom > 1) dragRef.current = { active: true, x: event.clientX, y: event.clientY }; }}
+          onMouseMove={(event) => { if (!dragRef.current.active || zoom <= 1) return; const dx = event.clientX - dragRef.current.x; const dy = event.clientY - dragRef.current.y; dragRef.current = { active: true, x: event.clientX, y: event.clientY }; setPan((value) => ({ x: value.x + dx, y: value.y + dy })); }}
+        >
+          <div className="absolute inset-0 transition-transform duration-150" style={{ transform: `translate3d(${pan.x}px,${pan.y}px,0) scale(${zoom})` }}>
+            <Image src={current} alt={`Detalle estético ${active + 1} del equipo`} fill sizes="100vw" className="object-contain p-3 sm:p-6" draggable={false} />
+          </div>
+          {safeImages.length > 1 && zoom === 1 && <>
+            <button type="button" onClick={() => goTo(active - 1)} className="absolute left-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white text-2xl shadow-lg" aria-label="Detalle anterior">‹</button>
+            <button type="button" onClick={() => goTo(active + 1)} className="absolute right-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white text-2xl shadow-lg" aria-label="Detalle siguiente">›</button>
+          </>}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white">{Math.round(zoom * 100)}% · doble clic o rueda para ampliar</div>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => {
-          setActive(0);
-          setOpen(true);
-        }}
-        className="mt-4 inline-flex w-full items-center justify-center rounded-full border border-black/10 bg-[color:var(--foreground)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] hover:bg-black sm:w-auto"
-      >
-        Ver fotos de detalles
-      </button>
-
-      {open && (
-        <div className="fixed inset-0 z-[90] bg-white/45 p-3 backdrop-blur-md sm:p-5">
-          <button className="absolute inset-0" aria-label="Cerrar fotos de detalles" onClick={() => setOpen(false)} />
-          <div className="relative z-[1] flex h-full flex-col">
-            <div className="flex items-center justify-between gap-3 pb-3 text-neutral-700">
-              <div className="rounded-full border border-black/8 bg-white/78 px-3 py-2 text-sm font-medium shadow-[0_10px_26px_rgba(0,0,0,0.08)] backdrop-blur-xl">
-                Detalle {active + 1} de {safeImages.length}
-              </div>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-full border border-black/8 bg-neutral-950 px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(0,0,0,0.18)] backdrop-blur-xl hover:bg-black"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <div className="relative min-h-0 flex-1 overflow-hidden rounded-[28px] border border-black/6 bg-transparent">
-              <div
-                ref={stageRef}
-                className={`relative h-full w-full select-none overflow-hidden touch-none ${zoom > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"}`}
-                onWheel={handleWheel}
-                onDoubleClick={handleDoubleClick}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={endMouseDrag}
-                onMouseLeave={endMouseDrag}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onTouchCancel={handleTouchEnd}
-              >
-                <div
-                  className="absolute inset-0 transition-transform duration-150"
-                  style={{
-                    transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-                    transformOrigin: "center center",
-                  }}
-                >
-                  <Image key={`detail-${active}`} src={current} alt="" fill sizes="100vw" className="product-photo-enter object-contain p-3 sm:p-6" draggable={false} />
-                </div>
-              </div>
-
-              <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-black/8 bg-white/82 px-3 py-1 text-[11px] font-medium text-neutral-700 shadow-[0_12px_30px_rgba(0,0,0,0.12)] backdrop-blur-xl">
-                {zoom > 1 ? `${Math.round(zoom * 100)}%` : "Doble click o pellizca para acercar"}
-              </div>
-
-              {safeImages.length > 1 && zoom === 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => goTo(active - 1)}
-                    className="absolute left-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-black/8 bg-white/86 text-3xl font-light leading-none text-neutral-950 shadow-[0_16px_38px_rgba(0,0,0,0.16)] backdrop-blur-xl hover:bg-white"
-                    aria-label="Detalle anterior"
-                  >
-                    {"<"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => goTo(active + 1)}
-                    className="absolute right-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-black/8 bg-white/86 text-3xl font-light leading-none text-neutral-950 shadow-[0_16px_38px_rgba(0,0,0,0.16)] backdrop-blur-xl hover:bg-white"
-                    aria-label="Detalle siguiente"
-                  >
-                    {">"}
-                  </button>
-                </>
-              )}
-            </div>
-
-            {safeImages.length > 1 && (
-              <div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1">
-                {safeImages.map((src, index) => (
-                  <button
-                    key={`${src}-${index}`}
-                    type="button"
-                    onClick={() => goTo(index)}
-                    className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border ${
-                      index === active ? "border-neutral-950 bg-white" : "border-black/8 bg-white/70"
-                    }`}
-                    aria-label={`Ver detalle ${index + 1}`}
-                  >
-                    <Image src={src} alt="" fill sizes="64px" className="object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+    <section aria-labelledby="condition-details-title" className="rounded-[24px] border border-amber-200 bg-[linear-gradient(145deg,#fffbeb,#fff7ed)] p-4 shadow-[0_12px_30px_rgba(180,83,9,0.08)] sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">Estado verificado</div>
+          <h2 id="condition-details-title" className="mt-1 text-lg font-semibold text-amber-950">Estado estético</h2>
         </div>
-      )}
-    </>
+        <span className="max-w-[58%] rounded-full border border-amber-300 bg-white/80 px-3 py-1 text-center text-xs font-semibold text-amber-900">{indicator}</span>
+      </div>
+      <div className={`mt-4 ${safeImages.length ? "grid grid-cols-[88px_1fr] gap-4" : ""}`}>
+        {safeImages.length > 0 && (
+          <button ref={triggerRef} type="button" onClick={openViewer} className="group relative h-[88px] w-[88px] overflow-hidden rounded-[16px] border-2 border-amber-300 bg-white text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-300" aria-label="Ver detalle estético ampliado">
+            <Image src={safeImages[0]} alt="Miniatura del detalle estético del equipo" fill sizes="88px" className="object-cover" />
+            <span className="absolute inset-x-1 bottom-1 rounded bg-amber-950/85 px-1 py-0.5 text-center text-[9px] font-bold uppercase tracking-wide text-white">Detalle estético</span>
+          </button>
+        )}
+        <div className="min-w-0">
+          <p className="text-sm font-medium leading-6 text-amber-950/90">{neutralDescription}</p>
+          {safeImages.length > 0 && <button type="button" onClick={openViewer} className="mt-3 inline-flex min-h-11 items-center rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-50">Ver detalle ampliado</button>}
+        </div>
+      </div>
+      {mounted && modal ? createPortal(modal, document.body) : null}
+    </section>
   );
 }

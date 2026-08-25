@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Macsomenos | Catalogo",
+  title: "Macsomenos | Catálogo",
   description: "Tienda premium de equipos Apple nuevos, open box y usados seleccionados.",
   icons: {
     icon: [

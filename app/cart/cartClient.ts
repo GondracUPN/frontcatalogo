@@ -164,6 +164,9 @@ export function persistCartItemsCache(items: any[]) {
     // eslint-disable-next-line no-console
     console.error("[cart] failed to persist cart cache cookie", err);
   }
+  window.dispatchEvent(new CustomEvent("cart:updated", {
+    detail: { count: (Array.isArray(items) ? items : []).reduce((sum, item) => sum + Number(item?.qty || 0), 0) },
+  }));
 }
 
 export function clearCartItemsCache() {

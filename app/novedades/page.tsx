@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { listCatalog } from "../actions";
 import PriceWithIgv from "../components/PriceWithIgv";
+import { catalogFacts, compactSpecs, detailCountLabel } from "@/lib/catalog-display";
 
 export const revalidate = 300;
 
@@ -68,7 +69,7 @@ export default async function NovedadesPage() {
               Novedades
             </div>
             <h1 className="mt-5 text-4xl font-semibold tracking-[-0.06em] text-[color:var(--foreground)] sm:text-5xl">
-              Ultimos ingresos publicados.
+              Últimos ingresos publicados.
             </h1>
             <p className="mt-4 text-base leading-7 text-[color:var(--foreground-soft)]">
               Se mantienen visibles hasta que nuevos productos los vayan reemplazando.
@@ -84,6 +85,9 @@ export default async function NovedadesPage() {
                 const { price, compareAt, promoLabel } = priceFromRow(row);
                 const stock = Number(row?.product?.stock ?? row?.staged?.stock ?? 0);
                 const stockLabel = isNewCondition(conditionFromRow(row)) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
+                const facts = catalogFacts(row);
+                const specLines = compactSpecs(facts);
+                const aestheticLabel = detailCountLabel(facts.detailImages.length, Boolean(facts.conditionDescription));
                 return (
                   <Link
                     key={row.id}
@@ -114,13 +118,15 @@ export default async function NovedadesPage() {
                     <div className="mt-4 text-lg font-semibold leading-6 tracking-[-0.03em] text-[color:var(--foreground)] line-clamp-2">
                       {title}
                     </div>
+                    {specLines.length > 0 && <div className="mt-2 space-y-1 text-xs font-medium leading-5 text-[color:var(--foreground-soft)]">{specLines.map((line) => <div key={line}>{line}</div>)}</div>}
+                    {aestheticLabel && <div className="mt-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-900">{aestheticLabel}</div>}
                     <PriceWithIgv price={Number(price)} compareAt={compareAt} wrapperClassName="mt-3" />
                   </Link>
                 );
               })
             ) : (
               <div className="col-span-full rounded-[28px] border border-dashed border-black/12 bg-white/60 px-6 py-14 text-center text-sm text-[color:var(--foreground-soft)]">
-                No hay novedades todavia.
+                No hay novedades todavía.
               </div>
             )}
           </div>
