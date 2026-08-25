@@ -177,19 +177,19 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                 <td className="p-2 flex flex-wrap gap-2">
                   <button
                     onClick={() => openEditor(sale)}
-                    className="rounded bg-indigo-600 px-3 py-1 text-white"
+                    className="rounded bg-indigo-600 px-3 py-1 text-white shadow-sm transition active:translate-y-px active:scale-[0.97] active:bg-indigo-800"
                   >
                     Editar
                   </button>
                   <button
                     onClick={() => restoreSale(sale)}
                     disabled={busyId === sale.id}
-                    className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                    className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 shadow-sm transition hover:bg-red-50 active:translate-y-px active:scale-[0.96] active:bg-red-100 disabled:cursor-wait disabled:opacity-60"
                   >
                     {busyId === sale.id ? "..." : "Cancelar"}
                   </button>
                   {sale.sync_event_id && ["failed", "configuration_required"].includes(String(sale.sync_status)) && (
-                    <button onClick={() => retrySync(sale)} className="rounded border border-amber-500 px-3 py-1 text-amber-700">
+                    <button onClick={() => retrySync(sale)} className="rounded border border-amber-500 px-3 py-1 text-amber-700 transition active:translate-y-px active:scale-[0.97] active:bg-amber-100">
                       Reintentar envío
                     </button>
                   )}
@@ -246,19 +246,19 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                     <td className="p-2 flex flex-wrap gap-2">
                       <button
                         onClick={() => openEditor(sale)}
-                        className="rounded bg-indigo-600 px-3 py-1 text-white"
+                        className="rounded bg-indigo-600 px-3 py-1 text-white shadow-sm transition active:translate-y-px active:scale-[0.97] active:bg-indigo-800"
                       >
                         Editar
                       </button>
                       <button
                         onClick={() => restoreSale(sale)}
                         disabled={busyId === sale.id}
-                        className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                        className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 shadow-sm transition hover:bg-red-50 active:translate-y-px active:scale-[0.96] active:bg-red-100 disabled:cursor-wait disabled:opacity-60"
                       >
                         {busyId === sale.id ? "..." : "Cancelar"}
                       </button>
                       {sale.sync_event_id && ["failed", "configuration_required"].includes(String(sale.sync_status)) && (
-                        <button onClick={() => retrySync(sale)} className="rounded border border-amber-500 px-3 py-1 text-amber-700">
+                        <button onClick={() => retrySync(sale)} className="rounded border border-amber-500 px-3 py-1 text-amber-700 transition active:translate-y-px active:scale-[0.97] active:bg-amber-100">
                           Reintentar envío
                         </button>
                       )}
