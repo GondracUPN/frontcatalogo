@@ -85,6 +85,22 @@ textarea {
     opacity 180ms ease;
 }
 
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled):active {
+  transform: translateY(2px) scale(0.97);
+  filter: brightness(0.82) saturate(1.08);
+  box-shadow: inset 0 3px 7px rgba(15, 23, 42, 0.28) !important;
+  transition-duration: 45ms;
+}
+
+button:disabled {
+  cursor: wait;
+}
+
 ::selection {
   background: rgba(26, 115, 232, 0.18);
 }
@@ -303,6 +319,9 @@ textarea:focus-visible {
       color 120ms ease,
       background-color 120ms ease,
       border-color 120ms ease,
+      box-shadow 120ms ease,
+      filter 120ms ease,
+      transform 120ms ease,
       opacity 120ms ease;
   }
 

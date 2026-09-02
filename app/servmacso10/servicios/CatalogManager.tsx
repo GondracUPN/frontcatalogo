@@ -171,6 +171,8 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
     salePlaceType: "" | "almacen" | "otro";
     saleLocation: string;
   } | null>(null);
+  const [selling, setSelling] = React.useState(false);
+  const sellingRef = React.useRef(false);
 
   const refreshCatalog = React.useCallback(async () => {
     try {
@@ -679,17 +681,21 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
               </>
             )}
             <div className="flex justify-end gap-2">
-              <button onClick={() => setSoldModal(null)} className="px-3 py-1 rounded border">
+              <button disabled={selling} onClick={() => setSoldModal(null)} className="px-3 py-1 rounded border bg-white shadow-sm disabled:opacity-50">
                 Cancelar
               </button>
                 <button
-                  className="px-3 py-1 rounded bg-amber-600 text-white"
+                  disabled={selling}
+                  className="px-3 py-1 rounded bg-amber-600 text-white shadow-sm disabled:cursor-wait disabled:opacity-60"
                   onClick={async () => {
+                    if (sellingRef.current) return;
                     try {
                       if (!soldModal.exchangeRate || Number(soldModal.exchangeRate) <= 0) {
                         alert("Ingresa un tipo de cambio valido");
                         return;
                       }
+                      sellingRef.current = true;
+                      setSelling(true);
                       const pid = soldModal.row.product?.id || soldModal.row.id;
                       const result = await markProductSold(pid, soldModal.date, soldModal.price, {
                         name: soldModal.customerName,
@@ -709,10 +715,13 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                       setSoldModal(null);
                     } catch (error) {
                       alert(error instanceof Error ? error.message : "No se pudo marcar como vendido");
+                    } finally {
+                      sellingRef.current = false;
+                      setSelling(false);
                     }
                   }}
               >
-                Listo
+                {selling ? "Registrando..." : "Listo"}
               </button>
             </div>
           </div>
