@@ -164,7 +164,6 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
     unit?: any;
     date: string;
     price: string;
-    exchangeRate: string;
     customerName: string;
     customerPhone: string;
     customerKind: "tranquilo" | "regateador";
@@ -488,7 +487,6 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                         row,
                         date: dateInputInPeru(),
                         price: String(row.product?.price || 0),
-                        exchangeRate: "",
                         customerName: "",
                         customerPhone: "",
                         customerKind: "tranquilo",
@@ -548,7 +546,6 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                           unit: linked,
                           date: dateInputInPeru(),
                           price: String(linked.price || row.product?.price || 0),
-                          exchangeRate: "",
                           customerName: "",
                           customerPhone: "",
                           customerKind: "tranquilo",
@@ -618,16 +615,6 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
               onChange={(e) => setSoldModal({ ...soldModal, date: e.target.value })}
               className="w-full border rounded px-3 py-2 mb-3"
             />
-            <label className="block text-sm text-gray-700 mb-1">Tipo de cambio de la venta</label>
-            <input
-              type="number"
-              min="0.0001"
-              step="0.0001"
-              value={soldModal.exchangeRate}
-              onChange={(e) => setSoldModal({ ...soldModal, exchangeRate: e.target.value })}
-              className="w-full border rounded px-3 py-2 mb-3"
-              placeholder="Ej: 3.75"
-            />
             <label className="block text-sm text-gray-700 mb-1">Precio de venta (S/)</label>
             <input
               id="salePriceInput"
@@ -690,10 +677,6 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                   onClick={async () => {
                     if (sellingRef.current) return;
                     try {
-                      if (!soldModal.exchangeRate || Number(soldModal.exchangeRate) <= 0) {
-                        alert("Ingresa un tipo de cambio valido");
-                        return;
-                      }
                       sellingRef.current = true;
                       setSelling(true);
                       const pid = soldModal.row.product?.id || soldModal.row.id;
@@ -704,7 +687,6 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                         salePlaceType: soldModal.salePlaceType,
                         saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
                         stagedId: soldModal.unit?.id || undefined,
-                        exchangeRate: soldModal.exchangeRate,
                       });
                       if (!result.ok) throw new Error(result.error || "No se pudo marcar como vendido");
                       try {

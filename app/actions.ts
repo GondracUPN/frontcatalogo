@@ -495,7 +495,6 @@ export async function markProductSold(
     salePlaceType?: string;
     saleLocation?: string;
     stagedId?: string;
-    exchangeRate?: string | number;
   }
 ) {
   const cookieStore = await cookies();
@@ -525,7 +524,6 @@ export async function markStagedProductSold(
     customerKind?: string;
     salePlaceType?: string;
     saleLocation?: string;
-    exchangeRate?: string | number;
   }
 ) {
   const cookieStore = await cookies();

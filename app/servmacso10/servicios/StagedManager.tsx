@@ -15,7 +15,6 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
     item: any;
     date: string;
     price: string;
-    exchangeRate: string;
     customerName: string;
     customerPhone: string;
     customerKind: "tranquilo" | "regateador";
@@ -162,7 +161,6 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
             item: it,
             date: dateInputInPeru(),
             price: String(it?.price || 0),
-            exchangeRate: "",
             customerName: "",
             customerPhone: "",
             customerKind: "tranquilo",
@@ -220,7 +218,15 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                     <div className="mt-1 text-xs font-medium text-gray-500">{rows.length} unidades agrupadas</div>
                   </td>
                   <td className="p-2 text-gray-900">
-                    {skus.length ? `${skus[0]}${skus.length > 1 ? ` +${skus.length - 1}` : ""}` : "-"}
+                    <div className="flex min-w-40 flex-wrap gap-1">
+                      {skus.length
+                        ? skus.map((sku, index) => (
+                            <span key={`${sku}-${index}`} className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs">
+                              {sku}
+                            </span>
+                          ))
+                        : "-"}
+                    </div>
                   </td>
                   <td className="p-2 text-gray-900">{formatRange(rows.map(costValue), "S/ ")}</td>
                   <td className="p-2 text-gray-900">{formatRange(rows.map(priceValue))}</td>
@@ -269,8 +275,6 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
             <input type="date" value={soldModal.date} onChange={(e) => setSoldModal({ ...soldModal, date: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" />
             <label className="mb-1 block text-sm text-gray-700">Precio de venta</label>
             <input type="number" min="0" step="0.01" value={soldModal.price} onChange={(e) => setSoldModal({ ...soldModal, price: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" />
-            <label className="mb-1 block text-sm text-gray-700">Tipo de cambio de la venta</label>
-            <input type="number" min="0.0001" step="0.0001" value={soldModal.exchangeRate} onChange={(e) => setSoldModal({ ...soldModal, exchangeRate: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" placeholder="Ej: 3.75" />
             <label className="mb-1 block text-sm text-gray-700">Nombre del cliente</label>
             <input value={soldModal.customerName} onChange={(e) => setSoldModal({ ...soldModal, customerName: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" placeholder="Nombre y apellido" />
             <label className="mb-1 block text-sm text-gray-700">Telefono del cliente</label>
@@ -303,10 +307,6 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                     alert("Completa la fecha y el precio de venta");
                     return;
                   }
-                  if (!soldModal.exchangeRate || Number(soldModal.exchangeRate) <= 0) {
-                    alert("Ingresa un tipo de cambio valido");
-                    return;
-                  }
                   if (!soldModal.customerName.trim() || !soldModal.customerPhone.replace(/\D+/g, "")) {
                     alert("Completa el nombre y telefono del cliente");
                     return;
@@ -320,7 +320,6 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                       customerKind: soldModal.customerKind,
                       salePlaceType: soldModal.salePlaceType,
                       saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
-                      exchangeRate: soldModal.exchangeRate,
                     });
                     if (!result.ok) throw new Error(result.error || "No se pudo registrar la venta");
                     const res = await listStaged({ pageSize: "all" });
