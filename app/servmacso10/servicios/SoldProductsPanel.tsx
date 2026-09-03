@@ -96,10 +96,13 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
     if (!sale.sync_event_id || busyId) return;
     setBusyId(sale.id);
     try {
-      await retrySaleSync(sale.sync_event_id);
+      const result = await retrySaleSync(sale.sync_event_id);
+      if (!result.ok) {
+        throw new Error(result.error || `No se pudo reenviar (${result.status || "error"})`);
+      }
       await refresh();
-    } catch {
-      alert("No se pudo reenviar la venta a Servicios");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo reenviar la venta a Servicios");
     } finally {
       setBusyId(null);
     }
@@ -174,7 +177,12 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                 <td className="p-2 text-gray-900">{displaySku(sale.sku) || "-"}</td>
                 <td className="p-2 text-gray-900">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
                 <td className="p-2 text-gray-900">{formatDate(sale.sold_at)}</td>
-                <td className="p-2 text-gray-700">{syncLabel(sale)}</td>
+                <td className="p-2 text-gray-700">
+                  <div>{syncLabel(sale)}</div>
+                  {sale.sync_error && (
+                    <div className="mt-1 max-w-56 text-xs text-red-700">{sale.sync_error}</div>
+                  )}
+                </td>
                 <td className="p-2 flex flex-wrap gap-2">
                   <button
                     onClick={() => openEditor(sale)}
@@ -243,7 +251,12 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                     <td className="p-2">{phone(sale.customer_phone)}</td>
                     <td className="p-2">{sale.customer_kind || "-"}</td>
                     <td className="p-2">{salePlace(sale)}</td>
-                    <td className="p-2" title={sale.sync_error || ""}>{syncLabel(sale)}</td>
+                    <td className="p-2" title={sale.sync_error || ""}>
+                      <div>{syncLabel(sale)}</div>
+                      {sale.sync_error && (
+                        <div className="mt-1 max-w-56 text-xs text-red-700">{sale.sync_error}</div>
+                      )}
+                    </td>
                     <td className="p-2 flex flex-wrap gap-2">
                       <button
                         onClick={() => openEditor(sale)}
