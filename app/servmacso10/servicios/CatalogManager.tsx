@@ -62,9 +62,11 @@ function saleTypeOf(value: any) {
   return String(value?.sale_type || notes?.saleType || "").toUpperCase();
 }
 
-function conditionOf(row: CatalogRow) {
-  const notes = parseNotes(row.staged?.notes);
-  return String(row.product?.product_condition || row.staged?.product_condition || notes?.productCondition || notes?.estado || "").trim();
+function conditionOf(value: CatalogRow | any) {
+  const staged = value?.staged || value || {};
+  const product = value?.product || {};
+  const notes = parseNotes(staged?.notes);
+  return String(product?.product_condition || staged?.product_condition || notes?.productCondition || notes?.estado || "").trim();
 }
 
 function conditionLabel(value: unknown) {
@@ -75,9 +77,8 @@ function conditionLabel(value: unknown) {
 }
 
 function groupConditionSummary(rows: CatalogRow[]) {
-  const count = (pattern: RegExp) => rows
-    .filter((row) => pattern.test(conditionOf(row)))
-    .reduce((sum, row) => sum + Math.max(1, Number(row.product?.stock || 0)), 0);
+  const units = rows.flatMap((row) => [row, ...linkedSkuRowsFor(row)]);
+  const count = (pattern: RegExp) => units.filter((unit) => pattern.test(conditionOf(unit))).length;
   const sealed = count(/^nuevo$/i);
   const used = count(/usad/i);
   const openBox = count(/open box/i);
@@ -94,6 +95,10 @@ function linkedSkuRowsFor(row: CatalogRow) {
   const notes = parseNotes(staged?.notes);
   const skus = Array.isArray(notes?.linkedSkus) ? notes.linkedSkus : [];
   return skus.map((sku: unknown) => ({ sku: String(sku || "").trim() })).filter((linked: any) => linked.sku);
+}
+
+function isIndependentUnit(row: CatalogRow) {
+  return !/^nuevo$/i.test(conditionOf(row));
 }
 
 function catalogRowPrices(row: CatalogRow) {
@@ -301,7 +306,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
       `Estado: ${conditionLabel(conditionOf(row))}`,
       product.sku || staged.sku ? `SKU: ${displaySku(product.sku || staged.sku)}` : "",
       product.title || staged.title ? "" : "",
-      product.stock ? `Stock: ${product.stock}` : "",
+      !isIndependentUnit(row) && product.stock ? `Stock: ${product.stock}` : "",
       product.status === "sold" ? "Vendido" : "",
       staged.color || notes?.color ? `Color: ${staged.color || notes?.color}` : "",
       staged.battery_health || notes?.batteryHealth ? `Bateria: ${staged.battery_health || notes?.batteryHealth}%` : "",
@@ -318,7 +323,10 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
       groups.set(key, [...(groups.get(key) || []), row]);
     });
     return Array.from(groups.entries()).flatMap(([key, rows]) => {
-      const unitCount = rows.reduce((total, row) => total + Math.max(1, Number(row.product?.stock || 0), linkedSkuRowsFor(row).length + 1), 0);
+      const unitCount = rows.reduce((total, row) => {
+        if (isIndependentUnit(row)) return total + linkedSkuRowsFor(row).length + 1;
+        return total + Math.max(1, Number(row.product?.stock || 0), linkedSkuRowsFor(row).length + 1);
+      }, 0);
       const shouldGroup = rows.length > 1 || rows.some((row) => linkedSkuRowsFor(row).length > 0);
       if (!shouldGroup) return [{ kind: "product" as const, row: rows[0], nested: false }];
       const summary: CatalogDisplayRow = { kind: "group", key, rows, unitCount };
@@ -410,7 +418,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                   <td className="p-2 font-semibold text-gray-900">
                     {first.product?.title || first.staged?.title || first.slug}
                     <div className="mt-1 text-xs font-medium text-gray-500">
-                      {entry.unitCount} unidades · {entry.rows.reduce((total, row) => total + linkedSkuRowsFor(row).length + 1, 0)} SKU
+                      {entry.unitCount} equipos{entry.rows.some(isIndependentUnit) ? " independientes" : ""} · {entry.rows.reduce((total, row) => total + linkedSkuRowsFor(row).length + 1, 0)} SKU
                       {groupConditionSummary(entry.rows) ? ` · ${groupConditionSummary(entry.rows)}` : ""}
                     </div>
                   </td>
@@ -441,11 +449,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                   </td>
                   <td className="p-2 text-gray-900">
                     <div>{displaySku(row.product?.sku || row.staged?.sku) || "-"}</div>
-                    {linkedRows.length > 0 && (
-                      <div className="mt-1 text-xs text-gray-500">
-                        +{linkedRows.length} unidad{linkedRows.length === 1 ? "" : "es"} del mismo stock
-                      </div>
-                    )}
+                    {isIndependentUnit(row) && <div className="mt-1 text-xs text-gray-500">Equipo independiente</div>}
                   </td>
                   <td className="p-2 text-gray-900">S/ {Number(row.product?.price || 0).toFixed(2)}</td>
                   <td className="p-2 text-xs leading-5 text-gray-600">
@@ -527,6 +531,9 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                       <div className="mt-1 text-xs text-gray-500">
                         {unitDetails(linked) || "Misma variante"}
                       </div>
+                      {!/^nuevo$/i.test(conditionOf(linked)) && (
+                        <div className="mt-1 text-xs font-medium text-gray-600">Equipo independiente</div>
+                      )}
                     </td>
                     <td className="p-2 font-mono text-xs text-gray-900">{displaySku(linked.sku) || "-"}</td>
                     <td className="p-2 text-gray-900">S/ {Number(linked.price || row.product?.price || 0).toFixed(2)}</td>
