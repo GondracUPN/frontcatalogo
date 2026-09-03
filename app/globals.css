@@ -97,6 +97,26 @@ button:not(:disabled):active {
   transition-duration: 45ms;
 }
 
+@keyframes services-button-click-feedback {
+  0% {
+    transform: translateY(2px) scale(0.96);
+    filter: brightness(0.78) saturate(1.12);
+  }
+  48% {
+    transform: translateY(-1px) scale(1.025);
+    filter: brightness(1.12) saturate(1.08);
+    box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.2);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1) saturate(1);
+  }
+}
+
+.services-panel button.services-button-clicked {
+  animation: services-button-click-feedback 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 button:disabled {
   cursor: wait;
 }

@@ -6,6 +6,7 @@ import AdminToolbar from "./AdminToolbar";
 import PreventaManualButton from "./PreventaManualButton";
 import ContactAlertsPanel from "./ContactAlertsPanel";
 import SoldProductsPanel from "./SoldProductsPanel";
+import ButtonClickFeedback from "./ButtonClickFeedback";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -27,7 +28,8 @@ export default async function ServiciosPage() {
   const sealedPresets = [...items, ...published.map((row: any) => row?.staged).filter(Boolean)];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="services-panel mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <ButtonClickFeedback />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Panel de Servicios</h1>
         <div className="flex items-center gap-3">
