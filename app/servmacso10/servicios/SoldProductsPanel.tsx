@@ -68,11 +68,15 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
 
   React.useEffect(() => {
     refresh().catch(() => {});
+    const timer = window.setInterval(() => refresh().catch(() => {}), 5000);
     const onSalesUpdated = () => {
       refresh().catch(() => {});
     };
     window.addEventListener("sales-updated", onSalesUpdated);
-    return () => window.removeEventListener("sales-updated", onSalesUpdated);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("sales-updated", onSalesUpdated);
+    };
   }, [refresh]);
 
   const restoreSale = async (sale: Sale) => {
@@ -110,11 +114,20 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
 
   const syncLabel = (sale: Sale) => {
     if (!sale.sync_event_id) return "Venta anterior";
+    if (sale.sync_remote_status === "rejected") return "Venta rechazada";
+    if (sale.sync_remote_status === "confirmed") return "Venta confirmada";
     if (sale.sync_status === "sent") return "Pendiente en Servicios";
     if (sale.sync_status === "failed") return "Error de envío";
     if (sale.sync_status === "configuration_required") return "Falta configurar";
     return sale.sync_status || "Pendiente";
   };
+
+  const canRetrySync = (sale: Sale) => Boolean(
+    sale.sync_event_id && (
+      ["failed", "configuration_required"].includes(String(sale.sync_status)) ||
+      sale.sync_remote_status === "rejected"
+    )
+  );
 
   const openEditor = (sale: Sale) => {
     setEditing(sale);
@@ -197,9 +210,9 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                   >
                     {busyId === sale.id ? "..." : "Cancelar"}
                   </button>
-                  {sale.sync_event_id && ["failed", "configuration_required"].includes(String(sale.sync_status)) && (
+                  {canRetrySync(sale) && (
                     <button onClick={() => retrySync(sale)} className="rounded border border-amber-500 px-3 py-1 text-amber-700 transition active:translate-y-px active:scale-[0.97] active:bg-amber-100">
-                      Reintentar envío
+                      {sale.sync_remote_status === "rejected" ? "Volver a enviar" : "Reintentar envío"}
                     </button>
                   )}
                 </td>
@@ -271,9 +284,9 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                       >
                         {busyId === sale.id ? "..." : "Cancelar"}
                       </button>
-                      {sale.sync_event_id && ["failed", "configuration_required"].includes(String(sale.sync_status)) && (
+                      {canRetrySync(sale) && (
                         <button onClick={() => retrySync(sale)} className="rounded border border-amber-500 px-3 py-1 text-amber-700 transition active:translate-y-px active:scale-[0.97] active:bg-amber-100">
-                          Reintentar envío
+                          {sale.sync_remote_status === "rejected" ? "Volver a enviar" : "Reintentar envío"}
                         </button>
                       )}
                     </td>
