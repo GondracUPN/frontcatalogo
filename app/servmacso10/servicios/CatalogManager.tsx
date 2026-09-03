@@ -544,6 +544,31 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                     </td>
                     <td className="p-2">
                       <div className="flex flex-col items-start gap-2">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setOpen({
+                            ...linked,
+                            __catalogProductId: linked.catalogProduct?.id || "",
+                            __catalogSlug: linked.catalogPublic?.slug || "",
+                            __mergeStock: 1,
+                            __mergeCandidates: [],
+                            __mergeStagedIds: [],
+                            __mergeInitialSkus: [],
+                            __sealedPresets: [...inventoryRows, ...items.map((catalogRow) => catalogRow.staged).filter(Boolean)],
+                          })}
+                          className="rounded bg-indigo-600 px-3 py-1 text-white"
+                        >
+                          Editar
+                        </button>
+                        {linked.catalogPublic?.slug && linked.catalogPublic?.is_published && (
+                          <a
+                            href={`/product/${linked.catalogPublic.slug}`}
+                            className="rounded bg-gray-900 px-3 py-1 text-white"
+                          >
+                            Ver
+                          </a>
+                        )}
+                      </div>
                       <button
                         onClick={() => prepareMarketplace(row, linked)}
                         className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700"
@@ -569,6 +594,23 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                       >
                         <SellIcon />
                       </button>
+                      {canDelete && linked.catalogProduct?.id && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await unpublishProduct(linked.catalogProduct.id);
+                              await refreshCatalog();
+                            } catch {
+                              alert("No se pudo despublicar este equipo");
+                            }
+                          }}
+                          className="rounded bg-red-600 p-2 text-white hover:bg-red-700"
+                          aria-label={`Eliminar ${displaySku(linked.sku)} del catalogo`}
+                          title={`Eliminar ${displaySku(linked.sku)}`}
+                        >
+                          <DeleteIcon />
+                        </button>
+                      )}
                       </div>
                     </td>
                   </tr>
