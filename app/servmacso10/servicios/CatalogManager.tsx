@@ -21,6 +21,7 @@ type CatalogRow = {
   product?: { id: string; sku: string; title: string; price: string; stock?: number; status?: string; variant_group?: string | null; product_condition?: string | null };
   staged?: any;
   linkedStaged?: any[];
+  mainUnitSold?: boolean;
 };
 
 type SortMode = "upload" | "sku";
@@ -77,7 +78,7 @@ function conditionLabel(value: unknown) {
 }
 
 function groupConditionSummary(rows: CatalogRow[]) {
-  const units = rows.flatMap((row) => [row, ...linkedSkuRowsFor(row)]);
+  const units = rows.flatMap((row) => [...(row.mainUnitSold ? [] : [row]), ...linkedSkuRowsFor(row)]);
   const count = (pattern: RegExp) => units.filter((unit) => pattern.test(conditionOf(unit))).length;
   const sealed = count(/^nuevo$/i);
   const used = count(/usad/i);
@@ -324,7 +325,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
     });
     return Array.from(groups.entries()).flatMap(([key, rows]) => {
       const unitCount = rows.reduce((total, row) => {
-        if (isIndependentUnit(row)) return total + linkedSkuRowsFor(row).length + 1;
+        if (isIndependentUnit(row)) return total + linkedSkuRowsFor(row).length + (row.mainUnitSold ? 0 : 1);
         return total + Math.max(1, Number(row.product?.stock || 0), linkedSkuRowsFor(row).length + 1);
       }, 0);
       const shouldGroup = rows.length > 1 || rows.some((row) => linkedSkuRowsFor(row).length > 0);
@@ -418,7 +419,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                   <td className="p-2 font-semibold text-gray-900">
                     {first.product?.title || first.staged?.title || first.slug}
                     <div className="mt-1 text-xs font-medium text-gray-500">
-                      {entry.unitCount} equipos{entry.rows.some(isIndependentUnit) ? " independientes" : ""} · {entry.rows.reduce((total, row) => total + linkedSkuRowsFor(row).length + 1, 0)} SKU
+                      {entry.unitCount} equipos{entry.rows.some(isIndependentUnit) ? " independientes" : ""} · {entry.rows.reduce((total, row) => total + linkedSkuRowsFor(row).length + (row.mainUnitSold ? 0 : 1), 0)} SKU
                       {groupConditionSummary(entry.rows) ? ` · ${groupConditionSummary(entry.rows)}` : ""}
                     </div>
                   </td>
@@ -442,7 +443,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
             const showUpdated = hasMeaningfulPeruUpdate(row.created_at, row.updated_at);
             return (
               <React.Fragment key={row.id}>
-                <tr className={`border-t ${entry.nested ? "bg-gray-200" : ""}`}>
+                <tr className={`border-t ${entry.nested ? "bg-gray-200" : ""} ${row.mainUnitSold ? "hidden" : ""}`}>
                   <td className="p-2 text-gray-900 font-medium">
                     <div>{row.product?.title || row.staged?.title || row.slug}</div>
                     {variantLabel(row) && <div className="mt-1 text-xs font-normal text-gray-500">{variantLabel(row)}</div>}
