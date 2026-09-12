@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import SaleClientPhoto from "./SaleClientPhoto";
 import dynamic from "next/dynamic";
 import { listAdminCatalog, listStaged, markProductSold, unpublishProduct } from "../../actions";
 import { dateInputInPeru, formatPeruDate, hasMeaningfulPeruUpdate } from "../../utils/peruTime";
@@ -649,7 +650,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
 
       {soldModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-5 text-gray-900">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 text-gray-900">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-lg font-semibold">Marcar como vendido</h3>
@@ -730,6 +731,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                 />
               </>
             )}
+            <SaleClientPhoto disabled={selling} />
             <div className="flex justify-end gap-2">
               <button disabled={selling} onClick={() => setSoldModal(null)} className="px-3 py-1 rounded border bg-white shadow-sm disabled:opacity-50">
                 Cancelar

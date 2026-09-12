@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import SaleClientPhoto from "./SaleClientPhoto";
 import dynamic from "next/dynamic";
 import { deleteStaged, listStaged, markStagedProductSold } from "../../actions";
 import { dateInputInPeru } from "../../utils/peruTime";
@@ -300,6 +301,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                 <input value={soldModal.saleLocation} onChange={(e) => setSoldModal({ ...soldModal, saleLocation: e.target.value })} className="mb-4 w-full rounded border px-3 py-2" placeholder="Ej: Miraflores, Jockey Plaza..." />
               </>
             )}
+            <SaleClientPhoto disabled={selling} />
             <div className="flex justify-end gap-2">
               <button disabled={selling} onClick={() => setSoldModal(null)} className="rounded border px-3 py-1 disabled:opacity-50">Cancelar</button>
               <button

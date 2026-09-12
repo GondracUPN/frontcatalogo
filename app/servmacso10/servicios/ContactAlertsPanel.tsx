@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import SaleClientPhoto from "./SaleClientPhoto";
 import {
   discardPossibleClient,
   listContactRequests,
@@ -628,7 +629,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
 
       {purchaseClient && (
         <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-5 text-gray-900">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 text-gray-900">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-lg font-semibold">Registrar compra</h3>
               <button onClick={() => setPurchaseClient(null)} aria-label="Cerrar">X</button>
@@ -664,6 +665,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
                 </div>
               )}
 
+            <SaleClientPhoto disabled={busy} />
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => setPurchaseClient(null)} className="rounded border px-3 py-2">Cancelar</button>
                 <button
