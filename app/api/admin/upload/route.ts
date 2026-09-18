@@ -4,14 +4,14 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { isCloudinaryConfigured, uploadImageToCloudinary } from "@/lib/cloudinary";
 import { ALLOWED_IMAGE_MIME, EXT_BY_MIME, applyWatermark, privateOriginalsDir, watermarkBuffer } from "../_image-protection";
-import { requireAdmin } from "../_admin-auth";
+import { requireStaff } from "../_admin-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const authError = await requireAdmin(req);
+    const authError = await requireStaff(req);
     if (authError) return authError;
 
     const form = await req.formData();

@@ -191,6 +191,13 @@ type WatchAccessoryName = "Caja" | "Cable" | "Cable fake" | "Correa" | "Correa f
 
 const WATCH_ACCESSORY_OPTIONS: WatchAccessoryName[] = ["Caja", "Cable", "Cable fake", "Correa", "Correa fake", "Otros"];
 
+function watchSizesForSeries(series: string) {
+  if (["5", "6"].includes(series)) return ["40", "44"];
+  if (["7", "8", "9"].includes(series)) return ["41", "45"];
+  if (["10", "11"].includes(series)) return ["42", "46"];
+  return series ? ["42", "46"] : [];
+}
+
 function includesWatchAccessory(value: string, accessory: WatchAccessoryName) {
   if (accessory === "Otros") return /\botros?\b/i.test(String(value || ""));
   if (accessory === "Cable fake") return /\bcable\s*(?:fake|gen[eé]rico)\b/i.test(String(value || ""));
@@ -276,20 +283,25 @@ function toSlug(s: string) {
 function inferCategoryFromTitle(title?: string) {
   const t = String(title || "").toLowerCase();
   if (/mac\s*book|macbook/.test(t)) return "macbook";
+  if (/mac\s*mini/.test(t)) return "macmini";
+  if (/\bimac\b/.test(t)) return "imac";
   if (/\bipad\b/.test(t)) return "ipad";
   if (/\biphone\b/.test(t)) return "iphone";
   if (/watch/.test(t)) return "watch";
-  if (/airpods?/.test(t)) return "accesorios";
+  if (/airpods?/.test(t)) return "airpods";
   return "otros";
 }
 
 function normalizeCategory(value: unknown) {
   const raw = String(value || "").trim().toLowerCase();
+  if (raw.includes("mini")) return "macmini";
+  if (raw.includes("imac")) return "imac";
   if (raw.includes("mac")) return "macbook";
   if (raw.includes("ipad")) return "ipad";
   if (raw.includes("iphone")) return "iphone";
   if (raw.includes("watch")) return "watch";
-  if (raw.includes("accesorio") || raw.includes("airpod")) return "accesorios";
+  if (raw.includes("airpod")) return "airpods";
+  if (raw.includes("accesorio")) return "accesorios";
   if (raw.includes("otro")) return "otros";
   return raw;
 }
@@ -297,9 +309,12 @@ function normalizeCategory(value: unknown) {
 function categoryLabel(cat: string) {
   switch (cat) {
     case "macbook": return "MacBook";
+    case "macmini": return "Mac mini";
+    case "imac": return "iMac";
     case "ipad": return "iPad";
     case "iphone": return "iPhone";
     case "watch": return "Apple Watch";
+    case "airpods": return "AirPods";
     case "accesorios": return "Accesorios";
     default: return "Otros";
   }
@@ -326,6 +341,47 @@ function buildIphoneTitle(number?: number | string | null, model?: string | null
   if (!n || !m || !s || !c) return "";
   const cap = c.charAt(0).toUpperCase() + c.slice(1);
   return `iPhone ${n} ${m} ${s} ${cap}`.trim();
+}
+
+type DesktopConfig = { label: string; chip: string; size?: string; rams: string[]; storage: string[] };
+
+const MAC_MINI_CONFIGS: Record<string, DesktopConfig> = {
+  "m1-8-8": { label: "M1 · CPU 8 / GPU 8 (2020)", chip: "M1", rams: ["8", "16"], storage: ["256", "512", "1TB", "2TB"] },
+  "m2-8-10": { label: "M2 · CPU 8 / GPU 10 (2023)", chip: "M2", rams: ["8", "16", "24"], storage: ["256", "512", "1TB", "2TB"] },
+  "m2pro-10-16": { label: "M2 Pro · CPU 10 / GPU 16 (2023)", chip: "M2 Pro", rams: ["16", "32"], storage: ["512", "1TB", "2TB", "4TB", "8TB"] },
+  "m2pro-12-19": { label: "M2 Pro · CPU 12 / GPU 19 (2023)", chip: "M2 Pro", rams: ["16", "32"], storage: ["512", "1TB", "2TB", "4TB", "8TB"] },
+  "m4-10-10": { label: "M4 · CPU 10 / GPU 10 (2024)", chip: "M4", rams: ["16", "24", "32"], storage: ["256", "512", "1TB", "2TB"] },
+  "m4pro-12-16": { label: "M4 Pro · CPU 12 / GPU 16 (2024)", chip: "M4 Pro", rams: ["24", "48", "64"], storage: ["512", "1TB", "2TB", "4TB", "8TB"] },
+  "m4pro-14-20": { label: "M4 Pro · CPU 14 / GPU 20 (2024)", chip: "M4 Pro", rams: ["24", "48", "64"], storage: ["512", "1TB", "2TB", "4TB", "8TB"] },
+};
+
+const IMAC_CONFIGS: Record<string, DesktopConfig> = {
+  "m1-8-7": { label: "M1 · CPU 8 / GPU 7 · 2 puertos (2021)", chip: "M1", size: "24", rams: ["8", "16"], storage: ["256", "512", "1TB"] },
+  "m1-8-8": { label: "M1 · CPU 8 / GPU 8 · 4 puertos (2021)", chip: "M1", size: "24", rams: ["8", "16"], storage: ["256", "512", "1TB", "2TB"] },
+  "m3-8-8": { label: "M3 · CPU 8 / GPU 8 · 2 puertos (2023)", chip: "M3", size: "24", rams: ["8", "16", "24"], storage: ["256", "512", "1TB"] },
+  "m3-8-10": { label: "M3 · CPU 8 / GPU 10 · 4 puertos (2023)", chip: "M3", size: "24", rams: ["8", "16", "24"], storage: ["256", "512", "1TB", "2TB"] },
+  "m4-8-8": { label: "M4 · CPU 8 / GPU 8 · 2 puertos (2024)", chip: "M4", size: "24", rams: ["16", "24"], storage: ["256", "512", "1TB"] },
+  "m4-10-10": { label: "M4 · CPU 10 / GPU 10 · 4 puertos (2024)", chip: "M4", size: "24", rams: ["16", "24", "32"], storage: ["256", "512", "1TB", "2TB"] },
+};
+const AIRPODS_CONFIGS: Record<string, { label: string; model: string; generation: string; charging: string[] }> = {
+  "airpods-1": { label: "AirPods (1ª generación, 2016)", model: "AirPods", generation: "1ª generación", charging: ["Estuche Lightning"] },
+  "airpods-2": { label: "AirPods (2ª generación, 2019)", model: "AirPods", generation: "2ª generación", charging: ["Estuche Lightning", "Estuche de carga inalámbrica (Lightning)"] },
+  "airpods-3": { label: "AirPods (3ª generación, 2021)", model: "AirPods", generation: "3ª generación", charging: ["Estuche Lightning", "Estuche MagSafe (Lightning)"] },
+  "airpods-4": { label: "AirPods 4 (2024)", model: "AirPods", generation: "4ª generación", charging: ["Estuche USB-C"] },
+  "airpods-4-anc": { label: "AirPods 4 con ANC (2024)", model: "AirPods", generation: "4ª generación con ANC", charging: ["Estuche MagSafe USB-C"] },
+  "airpods-5": { label: "AirPods 5 (USB-C, 2026)", model: "AirPods", generation: "5ª generación", charging: ["Estuche USB-C"] },
+  "airpods-5-wireless": { label: "AirPods 5 (estuche inalámbrico USB-C, 2026)", model: "AirPods", generation: "5ª generación", charging: ["Estuche inalámbrico USB-C"] },
+  "airpods-pro-1": { label: "AirPods Pro (1ª generación, 2019)", model: "AirPods Pro", generation: "1ª generación", charging: ["Estuche inalámbrico (Lightning)", "Estuche MagSafe (Lightning)"] },
+  "airpods-pro-2-lightning": { label: "AirPods Pro (2ª generación, Lightning, 2022)", model: "AirPods Pro", generation: "2ª generación", charging: ["Estuche MagSafe (Lightning)"] },
+  "airpods-pro-2-usbc": { label: "AirPods Pro (2ª generación, USB-C, 2023)", model: "AirPods Pro", generation: "2ª generación", charging: ["Estuche MagSafe USB-C"] },
+  "airpods-pro-3": { label: "AirPods Pro 3 (2025)", model: "AirPods Pro", generation: "3ª generación", charging: ["Estuche MagSafe USB-C"] },
+  "airpods-max-lightning": { label: "AirPods Max (Lightning, 2020)", model: "AirPods Max", generation: "", charging: ["Lightning"] },
+  "airpods-max-usbc": { label: "AirPods Max (USB-C, 2024)", model: "AirPods Max", generation: "", charging: ["USB-C"] },
+  "airpods-max-2": { label: "AirPods Max 2 (USB-C, 2026)", model: "AirPods Max", generation: "2ª generación", charging: ["USB-C"] },
+};
+
+function buildAirpodsTitle(model: string, generation: string, charging: string) {
+  return [model, generation, charging].filter(Boolean).join(" ").trim();
 }
 
 function parseIphoneFromTitle(title?: string) {
@@ -637,6 +693,11 @@ export default function PublishModal({
   const [alm, setAlm] = React.useState<string>(normalizeUnit(detalle?.almacenamiento || "", "GB"));
   const [ipadGeneration, setIpadGeneration] = React.useState<string>(String(detalle?.generacion || notes?.generacion || ""));
   const [ipadConnectivity, setIpadConnectivity] = React.useState<string>(normalizeIpadConnectivity(detalle?.conectividad || detalle?.conexion || notes?.conectividad || ""));
+  const [desktopVariant, setDesktopVariant] = React.useState<string>(String(detalle?.modeloHardware || notes?.desktopVariant || ""));
+  const [airpodsModel, setAirpodsModel] = React.useState<string>(String(detalle?.modelo || notes?.airpodsModel || ""));
+  const [airpodsVariant, setAirpodsVariant] = React.useState<string>(String(detalle?.audioVariant || notes?.airpodsVariant || ""));
+  const [airpodsGeneration, setAirpodsGeneration] = React.useState<string>(String(detalle?.generacion || notes?.airpodsGeneration || ""));
+  const [airpodsCharging, setAirpodsCharging] = React.useState<string>(String(detalle?.carga || notes?.airpodsCharging || ""));
   const [keyboardLayout, setKeyboardLayout] = React.useState<string>(() => {
     const raw = String(item?.keyboard_layout || detalle?.teclado || "");
     if (/espanol|español/i.test(raw)) return "Espanol";
@@ -866,9 +927,9 @@ export default function PublishModal({
       setWatchSeries("");
     } else if (watchType === "Normal") {
       setWatchVersion("");
-      setWatchSize((current) => (["42", "46"].includes(current) ? current : ""));
+      setWatchSize((current) => (watchSizesForSeries(watchSeries).includes(current) ? current : ""));
     }
-  }, [watchType]);
+  }, [watchType, watchSeries]);
 
   React.useEffect(() => {
     if (forceSaleType && saleType !== forceSaleType) {
@@ -889,6 +950,17 @@ export default function PublishModal({
       if (auto) setTitle(auto);
       return;
     }
+    if (category === "airpods") {
+      const auto = buildAirpodsTitle(airpodsModel, airpodsGeneration, airpodsCharging);
+      if (auto) setTitle(auto);
+      return;
+    }
+    if (category === "macmini" || category === "imac") {
+      const config = (category === "macmini" ? MAC_MINI_CONFIGS : IMAC_CONFIGS)[desktopVariant];
+      const auto = config ? `${categoryLabel(category)} ${config.label.split(" · ").slice(0, 2).join(" · ")}${config.size ? ` ${config.size}\"` : ""}` : "";
+      if (auto) setTitle(auto);
+      return;
+    }
     if (category === "otros") {
       if (descriptionOther?.trim()) setTitle(capitalize(descriptionOther.trim()));
       return;
@@ -899,7 +971,7 @@ export default function PublishModal({
       const withPrefix = saleType === "PREVENTA" && !/^preventa\s+/i.test(base) ? `Preventa ${base}` : base;
       setTitle(capitalize(withPrefix));
     }
-  }, [category, gama, proc, tam, ipadConnectivity, ipadGeneration, titleManual, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, watchType, watchSeries, watchVersion, watchSize, watchConnection, saleType, title]);
+  }, [category, gama, proc, tam, ipadConnectivity, ipadGeneration, titleManual, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, watchType, watchSeries, watchVersion, watchSize, watchConnection, airpodsModel, airpodsGeneration, airpodsCharging, desktopVariant, saleType, title]);
 
   React.useEffect(() => {
     if (category !== "watch" || titleManual) return;
@@ -915,9 +987,12 @@ export default function PublishModal({
   }, [category, titleManual, watchType, watchSeries, watchVersion, watchSize]);
 
   const isMacbook = category === "macbook";
+  const isMacMini = category === "macmini";
+  const isImac = category === "imac";
   const isIpad = category === "ipad";
   const isIphone = category === "iphone";
   const isWatch = category === "watch";
+  const isAirpods = category === "airpods";
   const isOtros = category === "otros";
   const isUnusedOpenBox = productCondition === "Open Box" && openBoxType === "Sin uso";
   const iphoneNum = Number(iphoneNumber || 0);
@@ -1009,6 +1084,24 @@ export default function PublishModal({
   );
   const iphoneModelOptions = React.useMemo(() => withCurrentOption(iphoneModelBase, iphoneModel), [iphoneModelBase, iphoneModel]);
   const iphoneStorageOptions = React.useMemo(() => withCurrentOption(iphoneStorageBase, iphoneStorage), [iphoneStorageBase, iphoneStorage]);
+  const desktopConfigs = category === "macmini" ? MAC_MINI_CONFIGS : category === "imac" ? IMAC_CONFIGS : {};
+  const desktopConfig = desktopConfigs[desktopVariant];
+  const airpodsConfig = AIRPODS_CONFIGS[airpodsVariant];
+
+  React.useEffect(() => {
+    if (!desktopConfig) return;
+    setProc(desktopConfig.chip);
+    if (desktopConfig.size) setTam(desktopConfig.size);
+    if (ram && !desktopConfig.rams.includes(ram)) setRam("");
+    if (alm && !desktopConfig.storage.includes(alm)) setAlm("");
+  }, [desktopConfig, ram, alm]);
+
+  React.useEffect(() => {
+    if (!airpodsConfig) return;
+    setAirpodsModel(airpodsConfig.model);
+    setAirpodsGeneration(airpodsConfig.generation);
+    if (!airpodsConfig.charging.includes(airpodsCharging)) setAirpodsCharging(airpodsConfig.charging.length === 1 ? airpodsConfig.charging[0] : "");
+  }, [airpodsConfig, airpodsCharging]);
 
   React.useEffect(() => {
     if (!isMacbook || gama !== "Neo") return;
@@ -1067,6 +1160,27 @@ export default function PublishModal({
     if (!color?.trim()) errors.push("El color es obligatorio");
     if (productCondition !== "Nuevo" && !includesValue) errors.push("Selecciona que incluye");
   }
+  if (isMacMini || isImac) {
+    if (!desktopVariant || !desktopConfig) errors.push("Selecciona una configuración válida de hardware");
+    if (!proc?.trim()) errors.push("El procesador es obligatorio");
+    if (!ram?.trim()) errors.push("La RAM es obligatoria");
+    if (!alm?.trim()) errors.push("El almacenamiento es obligatorio");
+    if (isImac && !tam?.trim()) errors.push("El tamaño de pantalla es obligatorio");
+    if (desktopConfig && ram && !desktopConfig.rams.includes(ram)) errors.push("La RAM no corresponde a esa configuración");
+    if (desktopConfig && alm && !desktopConfig.storage.includes(alm)) errors.push("El almacenamiento no corresponde a esa configuración");
+    if (isImac && desktopVariant === "m4-10-10" && ram === "32" && alm === "256") errors.push("El iMac M4 con 32 GB requiere un SSD de 512 GB o superior");
+    if (!color?.trim()) errors.push("El color es obligatorio");
+    if (productCondition !== "Nuevo" && !includesValue) errors.push("Selecciona que incluye");
+  }
+  if (isAirpods) {
+    if (!airpodsVariant || !airpodsConfig) errors.push("Selecciona una versión válida de AirPods");
+    if (!airpodsModel) errors.push("Selecciona el modelo de AirPods");
+    if (airpodsModel && airpodsModel !== "AirPods Max" && !airpodsGeneration) errors.push("Selecciona la generación");
+    if (!airpodsCharging) errors.push("Selecciona el tipo de carga");
+    if (airpodsConfig && !airpodsConfig.charging.includes(airpodsCharging)) errors.push("El estuche no corresponde a esa versión de AirPods");
+    if (!color?.trim()) errors.push("El color es obligatorio");
+    if (productCondition !== "Nuevo" && !includesValue) errors.push("Selecciona que incluye");
+  }
   if (isIpad) {
     if (!gama?.trim()) errors.push("La gama es obligatoria");
     if ((gama === "Air" || gama === "Pro") && !proc?.trim()) errors.push("El procesador es obligatorio");
@@ -1110,7 +1224,8 @@ export default function PublishModal({
     if (!watchConnection) errors.push("Selecciona la conexión");
     if (watchType === "Normal") {
       if (!watchSeries) errors.push("Selecciona la serie");
-      if (!["42", "46"].includes(watchSize)) errors.push("Selecciona el tamaño de 42 mm o 46 mm");
+      const allowedWatchSizes = watchSizesForSeries(watchSeries);
+      if (!allowedWatchSizes.includes(watchSize)) errors.push("Selecciona un tamaño válido para esa serie");
     }
     if (watchType === "Ultra") {
       if (!watchVersion) errors.push("Selecciona la versión");
@@ -1229,6 +1344,10 @@ export default function PublishModal({
       baseTitle = auto || title;
     } else if (!titleManual && category === "watch") {
       baseTitle = buildAppleWatchTitle({ type: watchType, series: watchSeries, version: watchVersion, size: watchSize, connection: watchConnection }) || title;
+    } else if (!titleManual && category === "airpods") {
+      baseTitle = buildAirpodsTitle(airpodsModel, airpodsGeneration, airpodsCharging) || title;
+    } else if (!titleManual && (category === "macmini" || category === "imac") && desktopConfig) {
+      baseTitle = `${categoryLabel(category)} ${desktopConfig.label.split(" · ").slice(0, 2).join(" · ")}${desktopConfig.size ? ` ${desktopConfig.size}\"` : ""}`;
     } else if (!titleManual && category === "otros") {
       baseTitle = descriptionOther.trim();
     } else if (!titleManual) {
@@ -1261,6 +1380,16 @@ export default function PublishModal({
       add("SSD", normalizeUnit(alm, "GB"));
       add("Pantalla", tam ? `${tam}"` : "");
       add("Teclado", keyboardLayout);
+    } else if (isMacMini || isImac) {
+      add("Configuracion", desktopConfig?.label);
+      add("Procesador", proc);
+      add("RAM", normalizeUnit(ram, "GB"));
+      add("Almacenamiento", normalizeUnit(alm, "GB"));
+      if (isImac) add("Pantalla", tam ? `${tam}\"` : "");
+    } else if (isAirpods) {
+      add("Modelo", airpodsModel);
+      add("Generacion", airpodsGeneration);
+      add("Carga", airpodsCharging);
     } else if (isIpad) {
       add("Gama", gama);
       add("Generacion", ipadGeneration);
@@ -1392,7 +1521,11 @@ export default function PublishModal({
       const detalleNew = {
         ...(detalle || {}),
         gama: isWatch ? watchType : gama,
-        generacion: isWatch ? (watchType === "Ultra" ? watchVersion : watchSeries) : ipadGeneration,
+        generacion: isWatch ? (watchType === "Ultra" ? watchVersion : watchSeries) : (isAirpods ? airpodsGeneration : ipadGeneration),
+        modelo: isAirpods ? airpodsModel : (detalle as any)?.modelo,
+        audioVariant: isAirpods ? airpodsVariant : (detalle as any)?.audioVariant,
+        modeloHardware: (isMacMini || isImac) ? desktopVariant : (detalle as any)?.modeloHardware,
+        carga: isAirpods ? airpodsCharging : (detalle as any)?.carga,
         procesador: proc,
         ["tamaño"]: isWatch ? watchSize : tam,
         tamanio: isWatch ? watchSize : tam,
@@ -1416,6 +1549,11 @@ export default function PublishModal({
         bateria: { ciclos, salud },
         color,
         productCondition,
+        desktopVariant: (isMacMini || isImac) ? desktopVariant : null,
+        airpodsModel: isAirpods ? airpodsModel : null,
+        airpodsVariant: isAirpods ? airpodsVariant : null,
+        airpodsGeneration: isAirpods ? airpodsGeneration : null,
+        airpodsCharging: isAirpods ? airpodsCharging : null,
         openBoxType: productCondition === "Open Box" ? openBoxType : null,
         incluye: includesFlags,
         includes: includesPayload,
@@ -1477,6 +1615,10 @@ export default function PublishModal({
         baseTitle = auto || title;
       } else if (!titleManual && category === "watch") {
         baseTitle = buildAppleWatchTitle({ type: watchType, series: watchSeries, version: watchVersion, size: watchSize, connection: watchConnection }) || title;
+      } else if (!titleManual && category === "airpods") {
+        baseTitle = buildAirpodsTitle(airpodsModel, airpodsGeneration, airpodsCharging) || title;
+      } else if (!titleManual && (category === "macmini" || category === "imac") && desktopConfig) {
+        baseTitle = `${categoryLabel(category)} ${desktopConfig.label.split(" · ").slice(0, 2).join(" · ")}${desktopConfig.size ? ` ${desktopConfig.size}\"` : ""}`;
       } else if (!titleManual && category === "otros") baseTitle = descriptionOther.trim();
       else if (!titleManual) {
         const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity, ipadGeneration);
@@ -1769,9 +1911,12 @@ export default function PublishModal({
               >
                 <option value="">Seleccione tipo</option>
                 <option value="macbook">MacBook</option>
+                <option value="macmini">Mac mini</option>
+                <option value="imac">iMac</option>
                 <option value="ipad">iPad</option>
                 <option value="iphone">iPhone</option>
                 <option value="watch">Watch</option>
+                <option value="airpods">AirPods</option>
                 <option value="accesorios">Accesorios</option>
                 <option value="otros">Otros</option>
               </select>
@@ -2016,6 +2161,65 @@ export default function PublishModal({
               </div>
             )}
 
+            {(isMacMini || isImac) && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-sm text-gray-700">Modelo / configuración de fábrica</label>
+                  <select
+                    value={desktopVariant}
+                    onChange={(e) => {
+                      setDesktopVariant(e.target.value);
+                      setRam("");
+                      setAlm("");
+                    }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white"
+                  >
+                    <option value="">Seleccione</option>
+                    {Object.entries(desktopConfigs).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700">RAM</label>
+                  <select value={ram} onChange={(e) => setRam(e.target.value)} disabled={!desktopConfig} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white disabled:bg-gray-100">
+                    <option value="">Seleccione</option>
+                    {(desktopConfig?.rams || []).map((value) => <option key={value} value={value}>{value} GB</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700">Almacenamiento</label>
+                  <select value={alm} onChange={(e) => setAlm(e.target.value)} disabled={!desktopConfig} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white disabled:bg-gray-100">
+                    <option value="">Seleccione</option>
+                    {(desktopConfig?.storage || []).map((value) => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                </div>
+                {isImac && (
+                  <div>
+                    <label className="block text-sm text-gray-700">Tamaño de pantalla</label>
+                    <input value={desktopConfig?.size ? `${desktopConfig.size} pulgadas` : ""} disabled className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 text-gray-600" />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isAirpods && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-sm text-gray-700">Modelo / versión</label>
+                  <select value={airpodsVariant} onChange={(e) => { setAirpodsVariant(e.target.value); setAirpodsCharging(""); }} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                    <option value="">Seleccione</option>
+                    {Object.entries(AIRPODS_CONFIGS).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700">Estuche / carga</label>
+                  <select value={airpodsCharging} onChange={(e) => setAirpodsCharging(e.target.value)} disabled={!airpodsConfig} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white disabled:bg-gray-100">
+                    <option value="">Seleccione</option>
+                    {(airpodsConfig?.charging || []).map((value) => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+
             {isIpad && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -2215,7 +2419,7 @@ export default function PublishModal({
                   <>
                     <div>
                       <label className="block text-sm text-gray-700">Serie</label>
-                      <select value={watchSeries} onChange={(e) => setWatchSeries(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                      <select value={watchSeries} onChange={(e) => { setWatchSeries(e.target.value); setWatchSize(""); }} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
                         <option value="">Seleccionar</option>
                         {versionConfig.watch.normalSeries.map((s) => (<option key={s} value={s}>{s}</option>))}
                       </select>
@@ -2224,8 +2428,7 @@ export default function PublishModal({
                       <label className="block text-sm text-gray-700">Tamaño de pantalla</label>
                       <select value={watchSize} onChange={(e) => setWatchSize(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
                         <option value="">Seleccionar</option>
-                        <option value="42">42 mm</option>
-                        <option value="46">46 mm</option>
+                        {watchSizesForSeries(watchSeries).map((size) => <option key={size} value={size}>{size} mm</option>)}
                       </select>
                     </div>
                   </>

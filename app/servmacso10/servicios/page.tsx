@@ -38,7 +38,7 @@ export default async function ServiciosPage() {
             <Stat label="Rol" value={me.role} />
           </div>
           {isAdmin && <AdminToolbar />}
-          {isAdmin && <PreventaManualButton />}
+          <PreventaManualButton />
           {isAdmin && <a href="/servmacso10/analisis" className="bg-[#0071e3] hover:bg-[#0a84ff] text-white rounded px-4 py-2">Analisis</a>}
           {isAdmin && <a href="/servmacso10/contenidos" className="bg-gray-900 hover:bg-black text-white rounded px-4 py-2">Configurar contenidos</a>}
           <form action={logoutAction}>

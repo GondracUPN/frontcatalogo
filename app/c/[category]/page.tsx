@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 export const revalidate = 300;
 
-const CATEGORY_PARAMS = ["macbook", "ipad", "iphone", "watch", "otros", "accesorios"] as const;
+const CATEGORY_PARAMS = ["macbook", "macmini", "imac", "ipad", "iphone", "watch", "airpods", "otros", "accesorios"] as const;
 
 export function generateStaticParams() {
   return CATEGORY_PARAMS.map((category) => ({ category }));
@@ -13,9 +13,12 @@ export function generateStaticParams() {
 function toTitle(cat: string) {
   const m: Record<string, string> = {
     macbook: "MacBook nuevos, open box y usados",
+    macmini: "Mac mini nuevos, open box y usados",
+    imac: "iMac nuevos, open box y usados",
     ipad: "iPad nuevos, open box y usados",
     iphone: "iPhone nuevos, open box y usados",
     watch: "Apple Watch nuevos, open box y usados",
+    airpods: "AirPods nuevos, open box y usados",
     otros: "Otros productos",
     accesorios: "Accesorios",
   };

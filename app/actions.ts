@@ -46,7 +46,7 @@ export async function getSessionUser() {
   const token = cookieStore.get("token")?.value;
   if (!token) return null;
   try {
-    const me = await apiFetch<{ sub: number; username: string; role: string }>(
+    const me = await apiFetch<{ sub: number; username: string; role: string; canViewServiceInventory: boolean }>(
       "/auth/me",
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -97,7 +97,7 @@ export async function listUsers() {
   const token = cookieStore.get("token")?.value;
   if (!token) return [] as any[];
   try {
-    return await apiFetch<Array<{ id: number; username: string; role: string }>>(
+    return await apiFetch<Array<{ id: number; username: string; role: string; canViewServiceInventory: boolean }>>(
       "/auth/users",
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -114,11 +114,12 @@ export async function createUserAction(formData: FormData) {
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "").trim();
   const role = String(formData.get("role") || "cliente");
+  const canViewServiceInventory = formData.get("canViewServiceInventory") === "on";
   try {
-    const user = await apiFetch<{ id: number; username: string; role: string }>("/auth/register", {
+    const user = await apiFetch<{ id: number; username: string; role: string; canViewServiceInventory: boolean }>("/auth/register", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ username, password, role }),
+      body: JSON.stringify({ username, password, role, canViewServiceInventory }),
     });
     return { ok: true as const, user };
   } catch (error) {
@@ -126,12 +127,12 @@ export async function createUserAction(formData: FormData) {
   }
 }
 
-export async function updateUserAction(id: number, data: { username: string; role: string; password?: string }) {
+export async function updateUserAction(id: number, data: { username: string; role: string; password?: string; canViewServiceInventory?: boolean }) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) return { ok: false as const, error: "Sesión vencida" };
   try {
-    const user = await apiFetch<{ id: number; username: string; role: string }>(`/auth/users/${id}`, {
+    const user = await apiFetch<{ id: number; username: string; role: string; canViewServiceInventory: boolean }>(`/auth/users/${id}`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify(data),

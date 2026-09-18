@@ -33,9 +33,12 @@ type CatalogDisplayRow =
 const CATEGORY_OPTIONS = [
   { value: "all", label: "Todos" },
   { value: "macbook", label: "MacBooks" },
+  { value: "macmini", label: "Mac mini" },
+  { value: "imac", label: "iMac" },
   { value: "ipad", label: "iPads" },
   { value: "iphone", label: "iPhones" },
   { value: "watch", label: "Apple Watch" },
+  { value: "airpods", label: "AirPods" },
   { value: "accesorios", label: "Accesorios" },
   { value: "otros", label: "Otros" },
 ];
@@ -43,11 +46,14 @@ const CATEGORY_OPTIONS = [
 function normalizeCategory(value: unknown) {
   const raw = String(value || "").trim().toLowerCase();
   if (!raw) return "";
+  if (raw.includes("mini")) return "macmini";
+  if (raw.includes("imac")) return "imac";
   if (raw.includes("mac")) return "macbook";
   if (raw.includes("ipad")) return "ipad";
   if (raw.includes("iphone")) return "iphone";
   if (raw.includes("watch")) return "watch";
-  if (raw.includes("accesorio") || raw.includes("airpod")) return "accesorios";
+  if (raw.includes("airpod")) return "airpods";
+  if (raw.includes("accesorio")) return "accesorios";
   return raw;
 }
 

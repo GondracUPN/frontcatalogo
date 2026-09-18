@@ -3,7 +3,7 @@
 import React from "react";
 import { createUserAction, deleteUserAction, listUsers, updateUserAction } from "../../actions";
 
-type UserRow = { id: number; username: string; role: string };
+type UserRow = { id: number; username: string; role: string; canViewServiceInventory: boolean };
 
 function cleanError(value: string) {
   return value.replace(/^API \/auth\/(?:register|users\/\d+) \d+:?\s*/, "");
@@ -16,7 +16,7 @@ export default function UsersModal({ onClose }: { onClose: () => void }) {
   const [editing, setEditing] = React.useState<UserRow | null>(null);
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
-  const [editForm, setEditForm] = React.useState({ username: "", role: "cliente", password: "" });
+  const [editForm, setEditForm] = React.useState({ username: "", role: "cliente", password: "", canViewServiceInventory: false });
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
@@ -48,7 +48,7 @@ export default function UsersModal({ onClose }: { onClose: () => void }) {
 
   const openEdit = (user: UserRow) => {
     setEditing(user);
-    setEditForm({ username: user.username, role: user.role, password: "" });
+    setEditForm({ username: user.username, role: user.role, password: "", canViewServiceInventory: Boolean(user.canViewServiceInventory) });
     setError("");
     setSuccess("");
   };
@@ -89,16 +89,17 @@ export default function UsersModal({ onClose }: { onClose: () => void }) {
 
         <div className="overflow-auto rounded-xl border">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-100 text-left text-gray-700"><tr><th className="p-3">Usuario</th><th className="p-3">Rol</th><th className="p-3">Acciones</th></tr></thead>
+            <thead className="bg-gray-100 text-left text-gray-700"><tr><th className="p-3">Usuario</th><th className="p-3">Rol</th><th className="p-3">Inventario de servicios</th><th className="p-3">Acciones</th></tr></thead>
             <tbody>
               {users.map((user) => (
                 <tr key={user.id} className="border-t">
                   <td className="p-3 font-medium">{user.username}</td>
                   <td className="p-3 capitalize">{user.role}</td>
+                  <td className="p-3">{user.role === "vendedor" ? (user.canViewServiceInventory ? "Sí" : "Solo propio") : "—"}</td>
                   <td className="p-3"><div className="flex gap-2"><button onClick={() => openEdit(user)} className="rounded bg-indigo-600 px-3 py-1 text-white">Editar</button><button onClick={() => removeUser(user)} className="rounded bg-red-600 px-3 py-1 text-white">Eliminar</button></div></td>
                 </tr>
               ))}
-              {!users.length && <tr><td colSpan={3} className="p-4 text-center text-gray-500">{loading ? "Cargando usuarios..." : "No hay usuarios"}</td></tr>}
+              {!users.length && <tr><td colSpan={4} className="p-4 text-center text-gray-500">{loading ? "Cargando usuarios..." : "No hay usuarios"}</td></tr>}
             </tbody>
           </table>
         </div>
@@ -107,6 +108,7 @@ export default function UsersModal({ onClose }: { onClose: () => void }) {
           <div><label className="text-sm font-medium">Usuario nuevo</label><input name="username" className="mt-1 w-full rounded border bg-white px-3 py-2" required minLength={3} /></div>
           <div><label className="text-sm font-medium">Contraseña</label><input type="password" name="password" className="mt-1 w-full rounded border bg-white px-3 py-2" required minLength={6} /></div>
           <div><label className="text-sm font-medium">Rol</label><select name="role" className="mt-1 w-full rounded border bg-white px-3 py-2" defaultValue="cliente"><option value="cliente">Cliente</option><option value="vendedor">Vendedor</option><option value="admin">Admin</option></select></div>
+          <label className="sm:col-span-3 flex items-center gap-2 text-sm"><input type="checkbox" name="canViewServiceInventory" /> Permitir ver el inventario de servicios (aplica a vendedores)</label>
           <div className="sm:col-span-3 flex justify-end"><button disabled={saving} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60">{saving ? "Guardando..." : "Crear usuario"}</button></div>
         </form>
 
@@ -117,6 +119,7 @@ export default function UsersModal({ onClose }: { onClose: () => void }) {
               <div className="grid gap-3">
                 <div><label className="text-sm font-medium">Usuario</label><input value={editForm.username} onChange={(e) => setEditForm({ ...editForm, username: e.target.value })} className="mt-1 w-full rounded border px-3 py-2" /></div>
                 <div><label className="text-sm font-medium">Rol</label><select value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })} className="mt-1 w-full rounded border bg-white px-3 py-2"><option value="cliente">Cliente</option><option value="vendedor">Vendedor</option><option value="admin">Admin</option></select></div>
+                {editForm.role === "vendedor" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.canViewServiceInventory} onChange={(e) => setEditForm({ ...editForm, canViewServiceInventory: e.target.checked })} /> Ver inventario de servicios</label>}
                 <div><label className="text-sm font-medium">Nueva contraseña</label><input type="password" value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} className="mt-1 w-full rounded border px-3 py-2" minLength={6} placeholder="Déjala vacía para conservarla" /></div>
               </div>
               <div className="mt-5 flex justify-end gap-2"><button onClick={() => setEditing(null)} className="rounded border px-4 py-2">Cancelar</button><button onClick={saveEdit} disabled={saving} className="rounded bg-indigo-600 px-4 py-2 text-white disabled:opacity-60">{saving ? "Guardando..." : "Guardar"}</button></div>

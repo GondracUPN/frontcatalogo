@@ -39,9 +39,17 @@ export const DEFAULT_PRODUCT_VERSION_CONFIG: ProductVersionConfig = {
       "14": ["Normal", "Plus", "Pro", "Pro Max"],
       "15": ["Normal", "Plus", "Pro", "Pro Max"],
       "16": ["Normal", "Plus", "Pro", "Pro Max", "E"],
-      "17": ["Normal", "Plus", "Pro", "Pro Max", "E"],
+      "17": ["Normal", "Air", "Pro", "Pro Max"],
     },
-    storageByNumberModel: {},
+    storageByNumberModel: {
+      "11": { Normal: ["64", "128", "256"], Pro: ["64", "256", "512"], "Pro Max": ["64", "256", "512"] },
+      "12": { Mini: ["64", "128", "256"], Normal: ["64", "128", "256"], Pro: ["128", "256", "512"], "Pro Max": ["128", "256", "512"] },
+      "13": { Mini: ["128", "256", "512"], Normal: ["128", "256", "512"], Pro: ["128", "256", "512", "1TB"], "Pro Max": ["128", "256", "512", "1TB"] },
+      "14": { Normal: ["128", "256", "512"], Plus: ["128", "256", "512"], Pro: ["128", "256", "512", "1TB"], "Pro Max": ["128", "256", "512", "1TB"] },
+      "15": { Normal: ["128", "256", "512"], Plus: ["128", "256", "512"], Pro: ["128", "256", "512", "1TB"], "Pro Max": ["256", "512", "1TB"] },
+      "16": { Normal: ["128", "256", "512"], Plus: ["128", "256", "512"], Pro: ["128", "256", "512", "1TB"], "Pro Max": ["256", "512", "1TB"], E: ["128", "256", "512"] },
+      "17": { Normal: ["256", "512"], Air: ["256", "512", "1TB"], Pro: ["256", "512", "1TB"], "Pro Max": ["256", "512", "1TB", "2TB"] },
+    },
     simTypes: ["Chip físico", "eSIM"],
   },
   ipad: {
@@ -51,7 +59,7 @@ export const DEFAULT_PRODUCT_VERSION_CONFIG: ProductVersionConfig = {
       Mini: ["6", "7"],
     },
     processorsByGama: {
-      Air: ["M1", "M2", "M3"],
+      Air: ["M1", "M2", "M3", "M4"],
       Pro: ["M1", "M2", "M4", "M5"],
     },
     sizesByGamaVersion: {
@@ -62,9 +70,12 @@ export const DEFAULT_PRODUCT_VERSION_CONFIG: ProductVersionConfig = {
         "11": ["11"],
       },
       Air: {
+        M1: ["10.9"],
         M2: ["11", "13"],
         M3: ["11", "13"],
+        M4: ["11", "13"],
       },
+      Mini: { "6": ["8.3"], "7": ["8.3"] },
       Pro: {
         M1: ["11", "12.9"],
         M2: ["11", "12.9"],
@@ -84,9 +95,10 @@ export const DEFAULT_PRODUCT_VERSION_CONFIG: ProductVersionConfig = {
         "7": ["128", "256", "512"],
       },
       Air: {
-        M1: ["64", "128", "256"],
-        M2: ["128", "256", "512"],
-        M3: ["128", "256", "512"],
+        M1: ["64", "256"],
+        M2: ["128", "256", "512", "1TB"],
+        M3: ["128", "256", "512", "1TB"],
+        M4: ["128", "256", "512", "1TB"],
       },
       Pro: {
         M1: ["128", "256", "512", "1TB", "2TB"],
@@ -104,6 +116,7 @@ export const DEFAULT_PRODUCT_VERSION_CONFIG: ProductVersionConfig = {
         "M1", "M2", "M3", "M4", "M5",
         "M1 Pro", "M2 Pro", "M3 Pro", "M4 Pro",
         "M1 Max", "M2 Max", "M3 Max", "M4 Max",
+        "M5 Pro", "M5 Max",
       ],
       Neo: ["A18 Pro"],
     },
@@ -116,22 +129,24 @@ export const DEFAULT_PRODUCT_VERSION_CONFIG: ProductVersionConfig = {
         M2: { sizes: ["13", "15"], rams: ["8", "16", "24"], ssds: ["256", "512", "1TB", "2TB"] },
         M3: { sizes: ["13", "15"], rams: ["8", "16", "24"], ssds: ["256", "512", "1TB", "2TB"] },
         M4: { sizes: ["13", "15"], rams: ["16", "24", "32"], ssds: ["256", "512", "1TB", "2TB"] },
-        M5: { sizes: ["13", "15"], rams: ["16", "24", "32"], ssds: ["256", "512", "1TB", "2TB"] },
+        M5: { sizes: ["13", "15"], rams: ["16", "24", "32"], ssds: ["512", "1TB", "2TB", "4TB"] },
       },
       Pro: {
         M1: { sizes: ["13"], rams: ["8", "16"], ssds: ["256", "512", "1TB", "2TB"] },
-        "M1 Pro": { sizes: ["14", "16"], rams: ["16", "32"], ssds: ["512", "1TB", "2TB"] },
+        "M1 Pro": { sizes: ["14", "16"], rams: ["16", "32"], ssds: ["512", "1TB", "2TB", "4TB", "8TB"] },
         "M1 Max": { sizes: ["14", "16"], rams: ["32", "64"], ssds: ["512", "1TB", "2TB", "4TB", "8TB"] },
         M2: { sizes: ["13"], rams: ["8", "16", "24"], ssds: ["256", "512", "1TB", "2TB"] },
-        "M2 Pro": { sizes: ["14", "16"], rams: ["16", "32", "36"], ssds: ["512", "1TB", "2TB"] },
+        "M2 Pro": { sizes: ["14", "16"], rams: ["16", "32"], ssds: ["512", "1TB", "2TB", "4TB", "8TB"] },
         "M2 Max": { sizes: ["14", "16"], rams: ["32", "64", "96"], ssds: ["512", "1TB", "2TB", "4TB", "8TB"] },
         M3: { sizes: ["14"], rams: ["8", "16", "24"], ssds: ["512", "1TB", "2TB"] },
         "M3 Pro": { sizes: ["14", "16"], rams: ["18", "36"], ssds: ["512", "1TB", "2TB", "4TB"] },
-        "M3 Max": { sizes: ["14", "16"], rams: ["36", "48", "64"], ssds: ["1TB", "2TB", "4TB", "8TB"] },
-        M4: { sizes: ["14"], rams: ["8", "16", "24"], ssds: ["512", "1TB", "2TB"] },
+        "M3 Max": { sizes: ["14", "16"], rams: ["36", "48", "64", "96", "128"], ssds: ["1TB", "2TB", "4TB", "8TB"] },
+        M4: { sizes: ["14"], rams: ["16", "24", "32"], ssds: ["512", "1TB", "2TB"] },
         "M4 Pro": { sizes: ["14", "16"], rams: ["24", "48"], ssds: ["512", "1TB", "2TB", "4TB"] },
-        "M4 Max": { sizes: ["14", "16"], rams: ["48", "64", "128"], ssds: ["1TB", "2TB", "4TB", "8TB"] },
-        M5: { sizes: ["14"], rams: ["16", "24"], ssds: ["512", "1TB", "2TB"] },
+        "M4 Max": { sizes: ["14", "16"], rams: ["36", "48", "64", "128"], ssds: ["1TB", "2TB", "4TB", "8TB"] },
+        M5: { sizes: ["14"], rams: ["16", "24", "32"], ssds: ["1TB", "2TB", "4TB"] },
+        "M5 Pro": { sizes: ["14", "16"], rams: ["24", "48", "64"], ssds: ["1TB", "2TB", "4TB", "8TB"] },
+        "M5 Max": { sizes: ["14", "16"], rams: ["36", "48", "64", "128"], ssds: ["1TB", "2TB", "4TB", "8TB"] },
       },
     },
   },
@@ -243,11 +258,25 @@ export function normalizeProductVersionConfig(input?: Partial<ProductVersionConf
     else ipadProcessors[gama] = uniqueStrings([...(ipadProcessors[gama] || []), ...Object.keys(versions)]);
   });
 
+  // Los modelos conocidos son canónicos. No se deben mezclar con valores viejos
+  // guardados en la configuración (por ejemplo, iPhone 17 Plus o 17 E).
+  const iphoneModels = mergeRecordLists(DEFAULT_PRODUCT_VERSION_CONFIG.iphone.modelsByNumber, raw.iphone?.modelsByNumber);
+  Object.entries(DEFAULT_PRODUCT_VERSION_CONFIG.iphone.modelsByNumber).forEach(([number, models]) => {
+    iphoneModels[number] = [...models];
+  });
+  const iphoneStorage = mergeNestedRecordLists(DEFAULT_PRODUCT_VERSION_CONFIG.iphone.storageByNumberModel, raw.iphone?.storageByNumberModel);
+  Object.entries(DEFAULT_PRODUCT_VERSION_CONFIG.iphone.storageByNumberModel).forEach(([number, models]) => {
+    iphoneStorage[number] = {};
+    Object.entries(models).forEach(([model, capacities]) => {
+      iphoneStorage[number][model] = [...capacities];
+    });
+  });
+
   return {
     iphone: {
       numbers: uniqueStrings([...(DEFAULT_PRODUCT_VERSION_CONFIG.iphone.numbers), ...(raw.iphone?.numbers || [])]),
-      modelsByNumber: mergeRecordLists(DEFAULT_PRODUCT_VERSION_CONFIG.iphone.modelsByNumber, raw.iphone?.modelsByNumber),
-      storageByNumberModel: mergeNestedRecordLists(DEFAULT_PRODUCT_VERSION_CONFIG.iphone.storageByNumberModel, raw.iphone?.storageByNumberModel),
+      modelsByNumber: iphoneModels,
+      storageByNumberModel: iphoneStorage,
       simTypes: uniqueStrings([...(DEFAULT_PRODUCT_VERSION_CONFIG.iphone.simTypes), ...(raw.iphone?.simTypes || [])]),
     },
     ipad: {
@@ -271,6 +300,7 @@ export function normalizeProductVersionConfig(input?: Partial<ProductVersionConf
 
 export function getIphoneStorageOptionsFromConfig(config: ProductVersionConfig, numero: string, modelo: string) {
   const custom = config.iphone.storageByNumberModel[String(numero || "")]?.[String(modelo || "")];
+  if (custom?.length) return uniqueStrings(custom);
   const n = parseInt(String(numero || ""), 10);
   if (!Number.isFinite(n) || !modelo) return uniqueStrings(custom || []);
   let defaults: string[] = [];

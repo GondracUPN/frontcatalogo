@@ -6,6 +6,14 @@ function apiBase() {
 }
 
 export async function requireAdmin(req: NextRequest) {
+  return requireRoles(req, ["ADMIN"]);
+}
+
+export async function requireStaff(req: NextRequest) {
+  return requireRoles(req, ["ADMIN", "VENDEDOR"]);
+}
+
+async function requireRoles(req: NextRequest, roles: string[]) {
   const token = req.cookies.get("token")?.value;
   if (!token) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
@@ -20,7 +28,7 @@ export async function requireAdmin(req: NextRequest) {
       return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
     }
     const user = await res.json();
-    if (String(user?.role || "").toUpperCase() !== "ADMIN") {
+    if (!roles.includes(String(user?.role || "").toUpperCase())) {
       return NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 });
     }
     return null;
