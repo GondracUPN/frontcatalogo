@@ -320,6 +320,10 @@ function categoryLabel(cat: string) {
   }
 }
 
+function publicCatalogCategory(category: string) {
+  return ["macbook", "ipad", "iphone", "watch"].includes(category) ? category : "otros";
+}
+
 function buildTitle(tipo: string, gama: string, proc: string, tam: string, iphoneModel?: string, ipadConnectivity?: string, ipadGeneration?: string) {
   const isIphone = String(tipo || "").toLowerCase().includes("iphone");
   const isIpad = String(tipo || "").toLowerCase().includes("ipad");
@@ -1628,11 +1632,12 @@ export default function PublishModal({
         baseTitle = `Preventa ${baseTitle}`;
       }
       const fixedTitle = capitalize(baseTitle.trim());
+      const catalogCategory = publicCatalogCategory(category);
       let stagedId = String(item?.id || "").trim();
       if (!stagedId) {
         const created = await createManualPreventaDraft({
           saleType: saleType as SaleType,
-          category,
+          category: catalogCategory,
           sku: normalizedManualSku,
           title: fixedTitle || "Preventa",
           stock: productCondition === "Nuevo" ? Number(stock || 1) : 1,
@@ -1649,7 +1654,7 @@ export default function PublishModal({
         images,
         stock: productCondition === "Nuevo" ? Number(stock || 1) : 1,
         notes: JSON.stringify(newNotes),
-        category,
+        category: catalogCategory,
         productCondition,
         iphoneModel,
         iphoneNumber: iphoneNumber ? Number(iphoneNumber) : null,

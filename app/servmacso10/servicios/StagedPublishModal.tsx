@@ -86,11 +86,10 @@ function getAllIpadScreenSizes(config: ProductVersionConfig) {
 
 function toCategory(tipo: string) {
   const t = String(tipo || "").toLowerCase();
-  if (t.includes("mac")) return "macbook";
+  if (/mac\s*book/.test(t)) return "macbook";
   if (t.includes("ipad")) return "ipad";
   if (t.includes("iphone")) return "iphone";
   if (t.includes("watch")) return "watch";
-  if (t.includes("accesorios") || t.includes("airpods")) return "accesorios";
   return "otros";
 }
 
