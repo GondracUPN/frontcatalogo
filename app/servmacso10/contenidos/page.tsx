@@ -28,7 +28,7 @@ export default async function ContenidosAdminPage() {
             download="macsomenos-market-p.user.js"
             className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
-            Descargar Macsomenos Tampermonkey
+            Descargar Tampermonkey v4.6.1
           </a>
           <a href="/servmacso10/servicios" className="inline-flex items-center rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Volver a servicios

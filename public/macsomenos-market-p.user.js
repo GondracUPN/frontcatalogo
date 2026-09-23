@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Macsomenos Publicaciones Market P
 // @namespace    macsomenos-marketplace
-// @version      4.4.5
+// @version      4.6.1
 // @description  Recupera productos preparados desde MacsoMenos y rellena Facebook Marketplace sin publicar
 // @match        https://www.facebook.com/*
 // @match        https://facebook.com/*
@@ -217,29 +217,187 @@
   function findSelect(name) {
     const expected = normalize(name);
     const candidates = [...document.querySelectorAll('[role="combobox"],[aria-haspopup="listbox"],[aria-haspopup="menu"]')].filter(visible);
+    const exactText = [...document.querySelectorAll('label,span,div')]
+      .filter((element) => visible(element) && normalize(element.textContent) === expected)
+      .sort((left, right) => left.childElementCount - right.childElementCount)[0];
+    if (exactText) {
+      let container = exactText;
+      for (let level = 0; container && level < 5; level += 1, container = container.parentElement) {
+        if (container.matches?.('[role="combobox"],[aria-haspopup="listbox"],[aria-haspopup="menu"]') && visible(container)) return container;
+        const control = container.querySelector?.('[role="combobox"],[aria-haspopup="listbox"],[aria-haspopup="menu"]');
+        if (control && visible(control)) return control;
+      }
+    }
     return candidates.find((element) => String(element.getAttribute("aria-labelledby") || "").split(/\s+/).some((id) => normalize(document.getElementById(id)?.textContent) === expected))
       || candidates.find((element) => normalize(element.getAttribute("aria-label")).includes(expected))
       || candidates.find((element) => relatedText(element).includes(expected))
       || null;
   }
 
-  async function selectOption(fieldName, values) {
-    const select = findSelect(fieldName);
+  function pressKey(element, key, code = key) {
+    element.focus?.();
+    const keyCode = key === "Enter" ? 13 : key === " " ? 32 : key === "ArrowDown" ? 40 : 0;
+    for (const type of ["keydown", "keypress", "keyup"]) {
+      element.dispatchEvent(new KeyboardEvent(type, { key, code, keyCode, which: keyCode, bubbles: true, cancelable: true }));
+    }
+  }
+
+  function matchesOneOf(element, expected) {
+    const text = normalize(element?.textContent);
+    return expected.includes(text) || expected.some((value) => text.startsWith(value));
+  }
+
+  function selectedValueMatches(select, expected) {
     if (!select) return false;
-    const currentText = normalize(select.textContent);
-    const normalizedValues = values.map(normalize).filter(Boolean);
-    if (normalizedValues.some((value) => currentText.includes(value))) return true;
+    const labelText = String(select.getAttribute("aria-labelledby") || "")
+      .split(/\s+/)
+      .map((id) => document.getElementById(id)?.textContent || "")
+      .filter(Boolean);
+    let valueText = normalize(select.textContent);
+    for (const label of labelText) valueText = valueText.replace(normalize(label), "").trim();
+    const ariaValue = normalize([
+      select.getAttribute("aria-valuetext"),
+      select.getAttribute("aria-valuenow"),
+    ].filter(Boolean).join(" "));
+    return expected.some((value) => valueText === value || valueText.startsWith(value) || ariaValue.includes(value));
+  }
+
+  async function selectOption(fieldName, values, attempts = 2) {
+    const expected = values.map(normalize).filter(Boolean);
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const select = await waitFor(() => findSelect(fieldName), 500, 25);
+      if (!select) continue;
+      if (selectedValueMatches(select, expected)) return true;
+
+      select.scrollIntoView({ block: "center", behavior: "auto" });
+      select.click();
+      const option = await waitFor(() => {
+        const popup = [...document.querySelectorAll('[role="listbox"],[role="menu"]')]
+          .filter(visible)
+          .sort((left, right) => right.getBoundingClientRect().top - left.getBoundingClientRect().top)[0];
+        const root = popup || document;
+        const options = [...root.querySelectorAll('[role="option"],[role="menuitem"],[role="menuitemradio"],[role="radio"]')]
+          .filter(visible);
+        const semanticMatch = options.find((element) => matchesOneOf(element, expected));
+        if (semanticMatch) return semanticMatch;
+        const textMatch = [...root.querySelectorAll('span,div')]
+          .filter((element) => visible(element) && matchesOneOf(element, expected))
+          .sort((left, right) => left.childElementCount - right.childElementCount)[0];
+        return textMatch?.closest?.('[role="option"],[role="menuitem"],[role="menuitemradio"],[role="radio"],button,[role="button"]') || textMatch || null;
+      }, 600, 25);
+      if (!option) {
+        pressKey(select, "Escape");
+        continue;
+      }
+
+      option.scrollIntoView({ block: "nearest", behavior: "auto" });
+      option.click();
+      const saved = await waitFor(() => {
+        const refreshed = findSelect(fieldName);
+        return (refreshed && selectedValueMatches(refreshed, expected))
+          || option.getAttribute("aria-selected") === "true";
+      }, 550, 25);
+      if (saved) return true;
+      select.click();
+      pressKey(select, "ArrowDown", "ArrowDown");
+      pressKey(select, "Enter", "Enter");
+      if (await waitFor(() => selectedValueMatches(findSelect(fieldName), expected), 300, 25)) return true;
+    }
+    return false;
+  }
+
+  // Facebook sirve el menú de Categoría en un portal separado del formulario.
+  // Esta es la estrategia del script original, que sí funcionaba de forma fiable.
+  async function selectCategory() {
+    const select = findSelect("Categoría");
+    if (!select) return false;
+    const expected = [
+      "electronica e informatica",
+      "electronica y computadoras",
+      "electronics & computers",
+    ];
+    select.scrollIntoView({ block: "center", behavior: "auto" });
     select.click();
-    const expected = normalizedValues;
     const option = await waitFor(() => {
-      const options = [...document.querySelectorAll('[role="option"],[role="menuitem"],[role="menuitemradio"],[role="radio"],span,div')].filter(visible);
-      return options.find((element) => expected.includes(normalize(element.textContent)))
-        || options.find((element) => expected.some((value) => normalize(element.textContent).startsWith(value)));
-    }, 1400);
+      const elements = [...document.querySelectorAll('[role="option"],[role="menuitem"],[role="menuitemradio"],[role="radio"],span,div')]
+        .filter(visible);
+      return elements.find((element) => expected.includes(normalize(element.textContent)))
+        || elements.find((element) => expected.some((value) => normalize(element.textContent).startsWith(value)));
+    }, 1500, 40);
     if (!option) return false;
-    (option.closest('[role="option"],[role="menuitem"],[role="menuitemradio"],[role="radio"],button,[role="button"]') || option).click();
+    const target = option.closest('[role="option"],[role="menuitem"],[role="menuitemradio"],[role="radio"],button,[role="button"]') || option;
+    target.scrollIntoView({ block: "nearest", behavior: "auto" });
+    target.click();
     await sleep(120);
     return true;
+  }
+
+  function findDeliveryPreference(names) {
+    const expected = names.map(normalize);
+    const controls = [...document.querySelectorAll('input[type="checkbox"],[role="checkbox"],[role="switch"]')];
+    const directMatch = controls.find((control) => expected.some((value) => relatedText(control).includes(value)));
+    if (directMatch) return { control: directMatch, clickTarget: directMatch.closest('label,[role="checkbox"],[role="switch"]') || directMatch };
+    const label = [...document.querySelectorAll('label,span,div')]
+      .filter((element) => {
+        const text = normalize(element.textContent);
+        return visible(element) && expected.some((value) => text === value || text.includes(value));
+      })
+      .sort((left, right) => left.childElementCount - right.childElementCount)[0];
+    if (!label) return null;
+    const owningControl = label.closest('[role="checkbox"],[role="switch"]');
+    if (owningControl) return { control: owningControl, clickTarget: owningControl };
+    let container = label;
+    for (let level = 0; container && level < 10; level += 1, container = container.parentElement) {
+      const control = container.matches?.('input[type="checkbox"],[role="checkbox"],[role="switch"]')
+        ? container
+        : container.querySelector?.('input[type="checkbox"],[role="checkbox"],[role="switch"]');
+      if (control) return { control, clickTarget: control.closest('label,[role="checkbox"],[role="switch"]') || label };
+    }
+    return { control: null, clickTarget: label.closest('label,[role="button"]') || label };
+  }
+
+  async function enableDeliveryPreference(names) {
+    const preference = await waitFor(() => findDeliveryPreference(names), 400, 25);
+    if (!preference) return false;
+    const { control, clickTarget } = preference;
+    const isChecked = () => {
+      const current = findDeliveryPreference(names);
+      const currentControl = current?.control;
+      if (currentControl instanceof HTMLInputElement) return currentControl.checked;
+      const stateNode = currentControl || current?.clickTarget?.closest?.('[aria-checked]') || current?.clickTarget?.querySelector?.('[aria-checked]');
+      return stateNode?.getAttribute("aria-checked") === "true";
+    };
+    if (isChecked()) return true;
+    clickTarget.scrollIntoView({ block: "center", behavior: "auto" });
+    clickTarget.click();
+    if (!control && !clickTarget.closest?.('[aria-checked]') && !clickTarget.querySelector?.('[aria-checked]')) return true;
+    if (await waitFor(isChecked, 250, 20)) return true;
+    if (control) pressKey(control, " ", "Space");
+    else clickTarget.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    return Boolean(await waitFor(isChecked, 250, 20));
+  }
+
+  async function fillDeliveryPreferences() {
+    const [publicPlace, doorPickup] = await Promise.all([
+      enableDeliveryPreference([
+        "Encuentro en un lugar público",
+        "Encuentro en lugar público",
+        "Encuentro público",
+        "Punto de encuentro público",
+        "Ofrecer encuentro en un lugar público",
+        "Public meetup",
+      ]),
+      enableDeliveryPreference([
+        "Retiro en la puerta",
+        "Recogida en la puerta",
+        "Recolección en la puerta",
+        "Recogida en puerta",
+        "Ofrecer retiro en la puerta",
+        "Door pickup",
+        "Pickup at door",
+      ]),
+    ]);
+    return { publicPlace, doorPickup };
   }
 
   async function fillTags(tags) {
@@ -308,11 +466,10 @@
       || findControlInExactLabel("Brand", "input")
       || [findInput("Marca"), findInput("Brand")]
         .find((candidate) => candidate && !/(?:etiqueta|product tag)/.test(relatedText(candidate)))
-    ), 2500, 80);
+    ), 1500, 40);
     if (input) {
       if (normalize(input.value) === "apple") return true;
       setInput(input, "Apple");
-      await sleep(180);
       const brandLabel = input.closest("label");
       const appleOption = await waitFor(() => {
         const semanticOption = [...document.querySelectorAll('[role="option"],[role="menuitem"],[role="menuitemradio"]')]
@@ -322,15 +479,15 @@
         return [...document.querySelectorAll('button,[role="button"],span,div')]
           .filter((element) => visible(element) && !brandLabel?.contains(element) && normalize(element.textContent) === "apple")
           .sort((left, right) => left.childElementCount - right.childElementCount)[0] || null;
-      }, 2200, 80);
+      }, 650, 30);
       if (appleOption) {
         (appleOption.closest('[role="option"],[role="menuitem"],[role="button"],button') || appleOption).click();
-        await sleep(220);
+        if (await waitFor(() => normalize(input.value) === "apple" || normalize(brandLabel?.textContent).includes("apple"), 300, 25)) return true;
       }
-      if (normalize(input.value) === "apple" || normalize(brandLabel?.textContent).includes("apple")) return true;
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", code: "Tab", keyCode: 9, which: 9, bubbles: true }));
+      pressKey(input, "ArrowDown", "ArrowDown");
+      pressKey(input, "Enter", "Enter");
+      if (await waitFor(() => normalize(input.value) === "apple" || normalize(brandLabel?.textContent).includes("apple"), 250, 25)) return true;
       input.blur();
-      await sleep(150);
       return normalize(input.value) === "apple" || normalize(brandLabel?.textContent).includes("apple");
     }
     return selectOption("Marca", ["Apple"]);
@@ -345,9 +502,9 @@
     return `producto-${index + 1}.${extensionByType[String(contentType).toLowerCase()] || "jpg"}`;
   }
 
-  async function fillImages(imageUrls) {
+  async function prepareImages(imageUrls) {
     const urls = Array.from(new Set((Array.isArray(imageUrls) ? imageUrls : []).map((url) => String(url || "").trim()).filter(Boolean)));
-    if (!urls.length) return { uploaded: 0, total: 0 };
+    if (!urls.length) return { files: [], total: 0 };
     const downloaded = new Array(urls.length);
     let nextIndex = 0;
     const worker = async () => {
@@ -361,46 +518,53 @@
       }
     };
     await Promise.all(Array.from({ length: Math.min(4, urls.length) }, () => worker()));
-    const input = [...document.querySelectorAll('input[type="file"]')]
-      .find((element) => element.multiple && normalize(element.getAttribute("accept")).includes("image"));
-    if (!input) return { uploaded: 0, total: urls.length };
-    const transfer = new DataTransfer();
+    const files = [];
     downloaded.forEach((download, index) => {
       if (!download) return;
       const { blob, contentType } = download;
-      transfer.items.add(new File([blob], imageFileName(urls[index], index, contentType), { type: contentType || blob.type || "image/jpeg", lastModified: Date.now() }));
+      files.push(new File([blob], imageFileName(urls[index], index, contentType), { type: contentType || blob.type || "image/jpeg", lastModified: Date.now() }));
     });
-    if (!transfer.files.length) return { uploaded: 0, total: urls.length };
+    return { files, total: urls.length };
+  }
+
+  async function attachPreparedImages(prepared) {
+    const { files, total } = prepared;
+    if (!total) return { uploaded: 0, total: 0 };
+    const input = [...document.querySelectorAll('input[type="file"]')]
+      .find((element) => element.multiple && normalize(element.getAttribute("accept")).includes("image"));
+    if (!input) return { uploaded: 0, total };
+    const transfer = new DataTransfer();
+    files.forEach((file) => transfer.items.add(file));
+    if (!transfer.files.length) return { uploaded: 0, total };
     input.files = transfer.files;
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
     await waitFor(() => [...document.querySelectorAll('[role="status"]')].some((element) => /\d+\s+fotos?\s+adjuntas?/i.test(String(element.textContent || ""))), 2500, 100);
-    return { uploaded: transfer.files.length, total: urls.length };
+    return { uploaded: transfer.files.length, total };
   }
 
   async function fillFacebook(product) {
     const results = [];
-    const photosPromise = fillImages(product.images);
+    const preparedPhotosPromise = prepareImages(product.images);
     results.push(setInput(findInput("Título"), product.titulo) ? "Título ✅" : "Título ❌");
-    await sleep(80);
     results.push(setInput(findInput("Precio"), product.precio) ? "Precio ✅" : "Precio ❌");
-    await sleep(100);
-    const category = await selectOption("Categoría", ["Electrónica e informática"]);
+    const category = await selectCategory();
     results.push(category ? "Categoría ✅" : "Categoría ⚠️");
-    await sleep(120);
     const isNew = normalize(product.estadoMarketplace).includes("nuevo") && !normalize(product.estadoMarketplace).includes("usado");
     const condition = await selectOption("Estado", isNew ? ["Nuevo"] : ["Usado: como nuevo", "Usado - Como nuevo", "Usado como nuevo"]);
     results.push(condition ? "Estado ✅" : "Estado ⚠️");
+    const delivery = await fillDeliveryPreferences();
+    results.push(delivery.publicPlace ? "Entrega: lugar público ✅" : "Entrega: lugar público ⚠️");
+    results.push(delivery.doorPickup ? "Entrega: retiro en la puerta ✅" : "Entrega: retiro en la puerta ⚠️");
     await openMoreDetails();
     const brand = await fillBrand();
     results.push(brand ? "Marca: Apple ✅" : "Marca: Apple ⚠️");
     const skuInput = findInput("SKU") || findInput("Número de SKU") || findInput("Numero de SKU");
     results.push(setInput(skuInput, product.sku) ? "SKU ✅" : "SKU ⚠️");
-    await sleep(80);
     results.push(setTextArea(findTextArea("Descripción") || findTextArea("Descripcion"), product.descripcion) ? "Descripción ✅" : "Descripción ❌");
     const insertedTags = await fillTags(product.etiquetas);
     results.push(insertedTags > 0 ? `Etiquetas ${insertedTags}/${product.etiquetas.length} ✅` : "Etiquetas ⚠️");
-    const photos = await photosPromise;
+    const photos = await attachPreparedImages(await preparedPhotosPromise);
     results.unshift(photos.total === 0 ? "Fotos: no recibidas ⚠️" : photos.uploaded > 0 ? `Fotos ${photos.uploaded}/${photos.total} ✅` : "Fotos ❌");
     return results;
   }
@@ -668,7 +832,7 @@
       if (openAfterNavigation) sessionStorage.removeItem(OPEN_AFTER_NAVIGATION_KEY);
     } catch {}
     const startMinimized = !openAfterNavigation;
-    console.log(`[MacsoMenos Marketplace] ${MODE_LABEL} activo v4.4.5 en`, location.href);
+    console.log(`[MacsoMenos Marketplace] ${MODE_LABEL} activo v4.6.1 en`, location.href);
     new MutationObserver(scheduleQuickChatButtonUpdate).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-label", "contenteditable"] });
     updateQuickChatButton();
     createPanel(null, "Tampermonkey está activo. Consultando el backend...", startMinimized);

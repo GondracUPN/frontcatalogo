@@ -334,7 +334,10 @@ export default async function ProductPage({
   const unavailable = sold || outOfStock;
   const stockLabel = isNewCondition(productCondition) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
   const visibleSpecs = especs.filter((item) => item.value);
-  const productDescription = productDetails || (category === "otros" ? String(det?.descripcionOtro || notes?.descripcionOtro || "").trim() : "");
+  // `descripcionOtro` describe el tipo/modelo de productos de la categoría
+  // "otros"; no es una observación estética. Mostrarlo aquí hacía aparecer
+  // el bloque "Estado verificado" aunque la casilla de detalles estuviera apagada.
+  const productDescription = productDetails;
   const detailImages = uniqueStrings([
     ...(Array.isArray(notes?.detailImages) ? notes.detailImages : []),
     ...(Array.isArray(notes?.detailPhotos) ? notes.detailPhotos : []),

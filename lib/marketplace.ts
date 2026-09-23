@@ -35,6 +35,7 @@ type ProductFacts = {
   includesExtra: string;
   details: string;
   warrantyEnabled: boolean;
+  warrantyType: string;
   warranty: string;
   iphoneNumber: string;
   iphoneModel: string;
@@ -103,6 +104,16 @@ function productFacts(product: MarketplaceProduct): ProductFacts {
     warrantyObject.hasta,
     typeof notes.garantia === "string" ? notes.garantia : "",
   );
+  const warrantyType = text(
+    notes.warrantyType,
+    notes.garantiaTipo,
+    notes.tipoGarantia,
+    specs.warrantyType,
+    specs.garantiaTipo,
+    warrantyObject.type,
+    warrantyObject.tipo,
+    warrantyObject.plan,
+  );
   const title = text(product.title, notes.title);
   const category = text(product.category, notes.category, specs.tipo, notes.tipo);
   const inferredType = /mac\s*book/i.test(`${category} ${title}`)
@@ -136,6 +147,7 @@ function productFacts(product: MarketplaceProduct): ProductFacts {
     includesExtra: text(product.includes_extra, notes.includesExtra),
     details: text(detail.detalles, detail.productDetails, notes.productDetails, notes.detalles),
     warrantyEnabled: storedBoolean(notes.warrantyEnabled ?? notes.garantiaActiva ?? warrantyObject.enabled ?? warrantyObject.activa) || Boolean(warranty),
+    warrantyType,
     warranty,
     iphoneNumber: text(product.iphone_number, notes.iphoneNumber),
     iphoneModel: text(product.iphone_model, notes.iphoneModel),
@@ -202,7 +214,13 @@ function joinSpanish(values: string[]) {
 function sealedTitleParts(facts: ProductFacts) {
   if (!isSealed(facts)) return [];
   const sealedWord = isMacBook(facts) ? "Sellada" : "Sellado";
-  return [sealedWord, facts.warrantyEnabled && facts.warranty && warrantyStatus(facts.warranty) === "active" ? formatWarrantyDate(facts.warranty) : ""];
+  return [sealedWord, warrantyTitlePart(facts)];
+}
+
+function warrantyTitlePart(facts: ProductFacts) {
+  if (!facts.warrantyEnabled || !facts.warranty || warrantyStatus(facts.warranty) !== "active") return "";
+  const label = /apple\s*care/i.test(facts.warrantyType) ? "AppleCare" : "Garantía";
+  return `${label} ${formatWarrantyDate(facts.warranty)}`;
 }
 
 function warrantyText(facts: ProductFacts) {
@@ -326,7 +344,7 @@ export function generateMarketplaceTitle(product: MarketplaceProduct) {
     if (facts.batteryHealth && (isMacBook(facts) || isIpad(facts) || isIphone(facts))) parts.push(`${facts.batteryHealth}% Batería`);
   }
   if (!isSealed(facts) && facts.warrantyEnabled && facts.warranty && warrantyStatus(facts.warranty) === "active") {
-    parts.push(formatWarrantyDate(facts.warranty));
+    parts.push(warrantyTitlePart(facts));
   }
   return parts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
 }
