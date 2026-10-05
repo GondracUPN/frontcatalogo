@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PriceWithIgv from "@/app/components/PriceWithIgv";
 import { catalogFacts } from "@/lib/catalog-display";
+import { reportGoogleAdsConversion } from "@/lib/google-ads";
 import {
   clearCartItemsCache,
   getCachedCartItems,
@@ -200,6 +201,8 @@ export default function CartPage() {
         locationScope: locationScope as "almacen" | "punto_medio",
         locationValue: locationScope === "almacen" ? "Recoger en almacen" : locationValue.trim(),
       });
+      // Count only requests that the server accepted, not attempted submissions.
+      reportGoogleAdsConversion("AW-18491059831/wm_qCMXiwo4dEPfcnPFE");
       clearCartItemsCache();
       setItems([]);
       setContactName("");

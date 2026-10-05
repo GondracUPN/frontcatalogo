@@ -1,5 +1,6 @@
+import WhatsAppContactLink from "./WhatsAppContactLink";
+
 const PHONE_NUMBER = "976283856";
-const WHATSAPP_LINK = "https://wa.me/+51976283856";
 const STORAGE_LINK = "https://maps.app.goo.gl/ttGMLJEKx4LEwNet6";
 const MAP_EMBED =
   "https://maps.google.com/maps?q=-12.1654307,-76.996673(Macsomenos)&t=&z=20&ie=UTF8&iwloc=&output=embed";
@@ -46,14 +47,7 @@ export default function ContactPage() {
                 </p>
 
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                  <a
-                    href={WHATSAPP_LINK}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn-primary inline-flex items-center justify-center rounded-full bg-white px-5 py-3 text-sm font-medium text-[#141414] hover:bg-white/90"
-                  >
-                    Contactar por WhatsApp
-                  </a>
+                  <WhatsAppContactLink />
                   <a
                     href={STORAGE_LINK}
                     target="_blank"
