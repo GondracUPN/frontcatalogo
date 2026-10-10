@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import InventoryCatalogPanels from "./InventoryCatalogPanels";
 import AdminToolbar from "./AdminToolbar";
 import PreventaManualButton from "./PreventaManualButton";
+import PromotionsButton from "./PromotionsButton";
 import ContactAlertsPanel from "./ContactAlertsPanel";
 import SoldProductsPanel from "./SoldProductsPanel";
 import ButtonClickFeedback from "./ButtonClickFeedback";
@@ -30,15 +31,16 @@ export default async function ServiciosPage() {
   return (
     <div className="services-panel mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       <ButtonClickFeedback />
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold text-gray-900">Panel de Servicios</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="hidden md:flex gap-3">
             <Stat label="Usuario" value={me.username} />
             <Stat label="Rol" value={me.role} />
           </div>
           {isAdmin && <AdminToolbar />}
           <PreventaManualButton />
+          <PromotionsButton />
           {isAdmin && <a href="/servmacso10/analisis" className="bg-[#0071e3] hover:bg-[#0a84ff] text-white rounded px-4 py-2">Analisis</a>}
           {isAdmin && <a href="/servmacso10/contenidos" className="bg-gray-900 hover:bg-black text-white rounded px-4 py-2">Configurar contenidos</a>}
           <form action={logoutAction}>
