@@ -373,7 +373,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   );
   const [discount, setDiscount] = React.useState<number>(Number(item?.discount || legacyDiscount || 0));
   const [discountMode, setDiscountMode] = React.useState<DiscountMode>(() => {
-    const raw = String(notes?.discountMode || notes?.discountType || "percent").toLowerCase();
+    const raw = String(notes?.discountMode || notes?.discountType || (Number(item?.discount || legacyDiscount || 0) > 0 ? "percent" : "amount")).toLowerCase();
     return raw === "amount" || raw === "flat" || raw === "soles" ? "amount" : "percent";
   });
   const [minOfferPrice, setMinOfferPrice] = React.useState<number>(Number(item?.min_offer_price || 0));
@@ -1316,8 +1316,8 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
                   <div className="grid grid-cols-[minmax(0,1fr)_92px] gap-2">
                     <input type="number" value={discount} onChange={(e)=>setDiscount(Number(e.target.value))} className="w-full border rounded px-3 py-2" />
                     <select value={discountMode} onChange={(e)=>setDiscountMode(e.target.value as DiscountMode)} className="w-full border rounded px-2 py-2 bg-white">
-                      <option value="percent">%</option>
                       <option value="amount">S/</option>
+                      <option value="percent">%</option>
                     </select>
                   </div>
                 </div>

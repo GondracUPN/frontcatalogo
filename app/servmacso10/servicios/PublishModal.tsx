@@ -801,7 +801,7 @@ export default function PublishModal({
   );
   const [discount, setDiscount] = React.useState<number>(Number(item?.discount || legacyDiscount || 0));
   const [discountMode, setDiscountMode] = React.useState<DiscountMode>(() => {
-    const raw = String(notes?.discountMode || notes?.discountType || "percent").toLowerCase();
+    const raw = String(notes?.discountMode || notes?.discountType || (Number(item?.discount || legacyDiscount || 0) > 0 ? "percent" : "amount")).toLowerCase();
     return raw === "amount" || raw === "flat" || raw === "soles" ? "amount" : "percent";
   });
   const [minOfferPrice, setMinOfferPrice] = React.useState<number>(Number(item?.min_offer_price || 0));
@@ -2682,8 +2682,8 @@ export default function PublishModal({
                       onChange={(e) => setDiscountMode(e.target.value as DiscountMode)}
                       className="w-full border border-gray-300 rounded-lg px-2 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
                     >
-                      <option value="percent">%</option>
                       <option value="amount">S/</option>
+                      <option value="percent">%</option>
                     </select>
                   </div>
                 </div>
