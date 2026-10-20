@@ -12,7 +12,7 @@ async function main(){
   const originalEnv={...process.env},originalFetch=global.fetch;
   const state={cloud:true,watermarks:0,uploads:[],deleted:[],calls:[],access:true,role:'ADMIN',failUpload:false,committed:new Set(),lostResponse:false};
   global.__photoRouteTest=state;
-  process.env.CATALOG_SYNC_SECRET='synthetic-sync-secret';process.env.REVALIDATE_SECRET='synthetic-revalidate-secret';
+  process.env.PHOTO_DELETE_SECRET='synthetic-photo-secret';process.env.CATALOG_SYNC_SECRET='synthetic-sync-secret';process.env.REVALIDATE_SECRET='synthetic-revalidate-secret';
   process.env.UPLOAD_DIR=temp;process.env.ORIGINAL_UPLOAD_DIR=path.join(temp,'originals');
   const nativeRequire=Module.createRequire(path.join(root,'package.json'));
   const compile=async(relative)=>{
@@ -31,7 +31,7 @@ async function main(){
     }}]});
     const m={exports:{}};new Function('require','module','exports',Buffer.from(result.outputFiles[0].contents).toString())(nativeRequire,m,m.exports);return m.exports;
   };
-  const makeRequest=(route,body,token=true,internal=false)=>new NextRequest('http://localhost'+route,{method:'POST',headers:{...(token?{cookie:'token=synthetic-token'}:{}),...(internal?{'x-revalidate-secret':process.env.REVALIDATE_SECRET}:{}),...(!(body instanceof FormData)?{'Content-Type':'application/json'}:{})},body:body instanceof FormData?body:JSON.stringify(body)});
+  const makeRequest=(route,body,token=true,internal=false)=>new NextRequest('http://localhost'+route,{method:'POST',headers:{...(token?{cookie:'token=synthetic-token'}:{}),...(internal?{'x-photo-delete-secret':process.env.PHOTO_DELETE_SECRET}:{}),...(!(body instanceof FormData)?{'Content-Type':'application/json'}:{})},body:body instanceof FormData?body:JSON.stringify(body)});
   const image=await sharp({create:{width:64,height:40,channels:3,background:{r:180,g:190,b:200}}}).png().toBuffer();
   const form=(type='image/png',buffer=image)=>{const f=new FormData();f.set('file',new File([buffer],'test.png',{type}));f.set('productId','aaaaaaaa-1111-4111-8111-111111111111');f.set('url_old','/uploads/wm-old.png');return f;};
   try{
@@ -59,6 +59,12 @@ async function main(){
     const upload=await compile('app/api/admin/upload/route.ts');await upload.POST(makeRequest('/api/admin/upload',form()));assert.equal(state.watermarks,1,'new image watermarked once');
     state.cloud=false;await upload.POST(makeRequest('/api/admin/upload',form()));assert.equal(state.watermarks,2);assert.ok(!(await fs.readdir(temp)).includes('originals'),'no new retained original');
     const deleteFile=await compile('app/api/admin/photos/delete-file/route.ts');
+    const photoSecret=process.env.PHOTO_DELETE_SECRET;
+    delete process.env.PHOTO_DELETE_SECRET;
+    assert.equal((await deleteFile.POST(makeRequest('/api/admin/photos/delete-file',{url:'/uploads/wm-old.png'},false,true))).status,503,'missing delete secret fails closed');
+    process.env.PHOTO_DELETE_SECRET=photoSecret;
+    const revalidateOnly=new NextRequest('http://localhost/api/admin/photos/delete-file',{method:'POST',headers:{'Content-Type':'application/json','x-revalidate-secret':process.env.REVALIDATE_SECRET},body:JSON.stringify({url:'/uploads/wm-old.png'})});
+    assert.equal((await deleteFile.POST(revalidateOnly)).status,401,'revalidation secret cannot delete photos');
     await fs.mkdir(process.env.ORIGINAL_UPLOAD_DIR);await fs.writeFile(path.join(temp,'wm-old.png'),image);await fs.writeFile(path.join(process.env.ORIGINAL_UPLOAD_DIR,'old.png'),image);
     assert.equal((await deleteFile.POST(makeRequest('/api/admin/photos/delete-file',{url:'/uploads/wm-old.png'},false))).status,401);
     assert.equal((await deleteFile.POST(makeRequest('/api/admin/photos/delete-file',{url:'/uploads/wm-old.png'},false,true))).status,200);

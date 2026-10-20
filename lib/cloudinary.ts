@@ -123,7 +123,7 @@ export function publicIdFromCloudinaryUrl(url: string) {
     const afterUpload = parsed.pathname.slice(index + marker.length);
     const parts = afterUpload.split("/").filter(Boolean);
     const version = parts.findIndex(part => /^v\d+$/.test(part));
-    const start = version >= 0 ? version + 1 : parts.findIndex(part => part === "macsomenos");
+    const start = version >= 0 ? version + 1 : parts.findIndex(part => !part.includes(',') && !/^[a-z]{1,3}_/.test(part));
     if (start < 0) return "";
     const withoutVersion = parts.slice(start);
     const joined = decodeURIComponent(withoutVersion.join("/"));
