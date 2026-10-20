@@ -1,11 +1,12 @@
 "use client";
 
 import React from "react";
+import { SalesTab, SellersTab } from "./SalesAnalyticsPanels";
 import { funnelAction, overviewAction, productsAction, searchesAction, sourcesAction } from "./actions";
 import { ColumnChart, Empty, fmt, LineChart, RankBars } from "./charts";
 import { allowedGroups, bucketLabel, limaDateInput, presetPeriod, PRESETS, type Group, type Period } from "./period";
 
-type Tab = "resumen" | "productos" | "busquedas" | "embudo" | "procedencia";
+type Tab = "resumen" | "productos" | "busquedas" | "embudo" | "procedencia" | "ventas" | "vendedores";
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "resumen", label: "Resumen" },
   { id: "productos", label: "Productos" },
@@ -76,13 +77,15 @@ function Status({ loading, error }: { loading: boolean; error: string }) {
   return null;
 }
 
-export default function AnalyticsDashboard() {
+export default function AnalyticsDashboard({ isAdmin = true }: { isAdmin?: boolean }) {
+  const [owner, setOwner] = React.useState("macsomenos");
+  const tabs = isAdmin ? [...TABS, { id: "ventas" as Tab, label: "Ventas" }, { id: "vendedores" as Tab, label: "Vendedores" }] : [{ id: "ventas" as Tab, label: "Mis ventas" }];
   const [presetKey, setPresetKey] = React.useState("30d");
   const [custom, setCustom] = React.useState(() => {
     const p = presetPeriod("30d");
     return { from: limaDateInput(p.from), to: limaDateInput(new Date(p.to.getTime() - 1)) };
   });
-  const [tab, setTab] = React.useState<Tab>("resumen");
+  const [tab, setTab] = React.useState<Tab>(isAdmin ? "resumen" : "ventas");
   const [nowStamp, setNowStamp] = React.useState(() => Date.now());
   const period: Period = React.useMemo(() => presetPeriod(presetKey, new Date(nowStamp), custom), [presetKey, custom, nowStamp]);
   const groups = allowedGroups(period);
@@ -131,18 +134,20 @@ export default function AnalyticsDashboard() {
       </div>
 
       <div role="tablist" aria-label="Secciones de análisis" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
-        {TABS.map((item) => (
+        {tabs.map((item) => (
           <button key={item.id} role="tab" aria-selected={tab === item.id} type="button" onClick={() => setTab(item.id)} className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${tab === item.id ? "bg-[#2a78d6] text-white" : "border border-gray-300 bg-white text-gray-800"}`}>
             {item.label}
           </button>
         ))}
       </div>
 
-      {tab === "resumen" && <OverviewTab from={from} to={to} group={group} multiDay={period.to.getTime() - period.from.getTime() > 864e5 + 1} />}
-      {tab === "productos" && <ProductsTab from={from} to={to} />}
-      {tab === "busquedas" && <SearchesTab from={from} to={to} />}
-      {tab === "embudo" && <FunnelTab from={from} to={to} />}
-      {tab === "procedencia" && <SourcesTab from={from} to={to} />}
+      {tab === "ventas" && <SalesTab from={from} to={to} group={group} isAdmin={isAdmin} owner={owner} onOwner={setOwner} />}
+      {isAdmin && tab === "vendedores" && <SellersTab from={from} to={to} onSelect={id=>{setOwner(id);setTab("ventas");}} />}
+      {isAdmin && tab === "resumen" && <OverviewTab from={from} to={to} group={group} multiDay={period.to.getTime() - period.from.getTime() > 864e5 + 1} />}
+      {isAdmin && tab === "productos" && <ProductsTab from={from} to={to} />}
+      {isAdmin && tab === "busquedas" && <SearchesTab from={from} to={to} />}
+      {isAdmin && tab === "embudo" && <FunnelTab from={from} to={to} />}
+      {isAdmin && tab === "procedencia" && <SourcesTab from={from} to={to} />}
     </div>
   );
 }

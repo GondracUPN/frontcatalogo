@@ -18,7 +18,8 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function ServiciosPage() {
+export default async function ServiciosPage({ searchParams }: { searchParams: Promise<{ owner?: string }> }) {
+  const requestedOwner = (await searchParams)?.owner;
   const me = await getSessionUser();
   if (!me || !["admin", "vendedor"].includes(String(me.role).toLowerCase())) redirect("/servmacso10?next=/servmacso10/servicios");
   const isAdmin = String(me.role).toLowerCase() === "admin";
@@ -42,7 +43,7 @@ export default async function ServiciosPage() {
           <PreventaManualButton independent={!isAdmin && !me.canViewServiceInventory} />
           <PromotionsButton />
           <a href="/servmacso10/solicitudes" className="bg-[#0071e3] hover:bg-[#0a84ff] text-white rounded px-4 py-2">Solicitudes</a>
-          {isAdmin && <a href="/servmacso10/analisis" className="bg-[#0071e3] hover:bg-[#0a84ff] text-white rounded px-4 py-2">Analisis</a>}
+          {<a href="/servmacso10/analisis" className="bg-[#0071e3] hover:bg-[#0a84ff] text-white rounded px-4 py-2">{isAdmin ? "Análisis" : "Mis ventas"}</a>}
           {isAdmin && <a href="/servmacso10/contenidos" className="bg-gray-900 hover:bg-black text-white rounded px-4 py-2">Configurar contenidos</a>}
           {isAdmin && <a href="/servmacso10/apariencia" className="bg-gray-900 hover:bg-black text-white rounded px-4 py-2">Apariencia</a>}
           <form action={logoutAction}>
@@ -53,7 +54,7 @@ export default async function ServiciosPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <SoldProductsPanel initialSales={[]} isAdmin={isAdmin} />
+        <SoldProductsPanel initialSales={[]} isAdmin={isAdmin} initialOwner={isAdmin ? requestedOwner : undefined} />
         <ContactAlertsPanel initialItems={[]} />
       </div>
 

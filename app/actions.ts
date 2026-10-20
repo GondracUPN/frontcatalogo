@@ -665,11 +665,11 @@ export async function retrySaleSync(eventId: string) {
 }
 
 // ----- Admin: listar ventas -----
-export async function listSales() {
+export async function listSales(owner?: string) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) return { items: [] as any[] };
-  return apiFetch<{ items: any[] }>(`/admin/sales`, { headers: { Authorization: `Bearer ${token}` } });
+  return apiFetch<{ items: any[] }>(`/admin/sales${owner ? `?owner=${encodeURIComponent(owner)}` : ""}`, { headers: { Authorization: `Bearer ${token}` } });
 }
 
 export async function manageSoldPhotos(productId: string, action: "cleanup" | "hold", patch: { hold?: boolean; reason?: string } = {}) {

@@ -13,7 +13,8 @@
     "prepare:photo-editor": "node scripts/prepare-photo-editor.js",
     "postinstall": "npm run prepare:photo-editor",
     "prebuild": "npm run prepare:photo-editor",
-    "test:photos": "node scripts/test-photo-routes.js && node scripts/test-photo-editor.js"
+    "test:photos": "node scripts/test-photo-routes.js && node scripts/test-photo-editor.js",
+    "test:sales-analytics": "node scripts/test-seller-analytics.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.9.5",

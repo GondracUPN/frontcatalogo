@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import type { SalesSummary, SalesTimeline, SalesProducts, SalesChannels, SalesStock, Sellers } from "./sales-types";
 
 function apiBase() {
   const raw = process.env.API_BASE_URL || "http://127.0.0.1:3101";
@@ -46,4 +47,23 @@ export async function funnelAction(from: string, to: string) {
 }
 export async function sourcesAction(from: string, to: string) {
   return call<any>(`/admin/analytics/sources?${qs({ from, to })}`);
+}
+
+export async function salesSummaryAction(from: string, to: string, owner: string) {
+  return call<SalesSummary>(`/admin/analytics/sales/summary?${qs({from,to,owner})}`);
+}
+export async function salesTimelineAction(from: string, to: string, owner: string, group: string) {
+  return call<SalesTimeline>(`/admin/analytics/sales/timeline?${qs({from,to,owner,group})}`);
+}
+export async function salesProductsAction(from: string, to: string, owner: string) {
+  return call<SalesProducts>(`/admin/analytics/sales/products?${qs({from,to,owner})}`);
+}
+export async function salesChannelsAction(from: string, to: string, owner: string) {
+  return call<SalesChannels>(`/admin/analytics/sales/channels?${qs({from,to,owner})}`);
+}
+export async function salesStockAction(owner: string) {
+  return call<SalesStock>(`/admin/analytics/sales/stock?${qs({owner})}`);
+}
+export async function sellersAction(from: string, to: string) {
+  return call<Sellers>(`/admin/analytics/sellers?${qs({from,to})}`);
 }

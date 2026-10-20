@@ -1,5 +1,7 @@
 "use client";
 import React from "react";
+import { sellersAction } from "../analisis/actions";
+import type { SellerRow } from "../analisis/sales-types";
 import { listSales, retrySaleSync, unsellProduct, updateSale, manageSoldPhotos, planSoldPhotos } from "../../actions";
 import { dateInputInPeru, formatPeruDate } from "../../utils/peruTime";
 import SaleClientPhotoEditor from "./SaleClientPhotoEditor";
@@ -56,7 +58,10 @@ function salePlace(sale: Sale) {
   return "-";
 }
 
-export default function SoldProductsPanel({ initialSales, isAdmin = false }: { initialSales: Sale[]; isAdmin?: boolean }) {
+export default function SoldProductsPanel({ initialSales, isAdmin = false, initialOwner }: { initialSales: Sale[]; isAdmin?: boolean; initialOwner?: string }) {
+  const [owner, setOwner] = React.useState(initialOwner || "macsomenos");
+  const [sellers, setSellers] = React.useState<SellerRow[]>([]);
+  React.useEffect(()=>{if(!isAdmin)return;let active=true;const to=new Date(),from=new Date(to.getTime()-30*86400000);sellersAction(from.toISOString(),to.toISOString()).then(result=>{if(active&&result.ok)setSellers(result.data.items);});return()=>{active=false;};},[isAdmin]);
   const [sales, setSales] = React.useState<Sale[]>(initialSales || []);
   const [loading, setLoading] = React.useState((initialSales || []).length === 0);
   const [open, setOpen] = React.useState(false);
@@ -70,12 +75,12 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false }: { i
 
   const refresh = React.useCallback(async () => {
     try {
-      const res = await listSales();
+      const res = await listSales(isAdmin ? owner : undefined);
       setSales(Array.isArray(res?.items) ? (res.items as Sale[]) : []);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [owner,isAdmin]);
 
   React.useEffect(() => {
     refresh().catch(() => {});
@@ -211,6 +216,7 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false }: { i
           Lista Completa
         </button>
       </div>
+      {isAdmin && <label className="mb-3 flex flex-wrap items-center gap-2 text-xs text-gray-500">Ventas de<select aria-label="Vendedor en Vendidos" value={owner} onChange={e=>setOwner(e.target.value)} className="min-h-10 max-w-full rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-800"><option value="macsomenos">Macsomenos</option>{sellers.map(seller=><option key={seller.owner_id} value={String(seller.owner_id)}>{seller.username}</option>)}<option value="all">Todos</option></select></label>}
       <div className="overflow-auto max-h-[340px]">
         <table className="min-w-full text-sm">
           <thead>
