@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import { isThemePreviewContext, trackCatalogEvent } from "@/lib/analytics";
+import { CONSENT_EVENT, hasConsent } from "@/lib/consent";
 
 type Props = {
   productId: string;
@@ -31,8 +33,37 @@ function getSessionId() {
 }
 
 export default function ProductViewTracker({ productId, productSlug, productTitle, category }: Props) {
+  // Solo se registra la vista si el visitante aceptó las cookies analíticas.
+  const [allowed, setAllowed] = React.useState(false);
   React.useEffect(() => {
-    if (typeof window === "undefined" || !productId || !productSlug) return;
+    const sync = () => setAllowed(hasConsent("analytics"));
+    sync();
+    window.addEventListener(CONSENT_EVENT, sync);
+    return () => window.removeEventListener(CONSENT_EVENT, sync);
+  }, []);
+
+  // Vista y tiempo en la ficha: se cuentan siempre de forma agregada (sin
+  // identificadores si no hay consentimiento; ver lib/analytics).
+  React.useEffect(() => {
+    if (!productId) return;
+    trackCatalogEvent("view_product", { product_id: productId, product_slug: productSlug, category: category || "" });
+    const startedAt = Date.now();
+    let sent = false;
+    const leave = () => {
+      if (sent) return;
+      sent = true;
+      trackCatalogEvent("product_leave", { product_id: productId, duration_ms: Date.now() - startedAt });
+    };
+    window.addEventListener("pagehide", leave);
+    return () => {
+      window.removeEventListener("pagehide", leave);
+      leave();
+    };
+  }, [category, productId, productSlug]);
+
+  // Registro anterior de vistas (panel «Vistas»): solo con consentimiento analítico.
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !allowed || !productId || !productSlug || isThemePreviewContext()) return;
 
     const key = `${VIEW_PREFIX}${productId}`;
     const lastSentAt = Number(window.localStorage.getItem(key) || 0);
@@ -60,7 +91,7 @@ export default function ProductViewTracker({ productId, productSlug, productTitl
       credentials: "include",
       keepalive: true,
     }).catch(() => {});
-  }, [category, productId, productSlug, productTitle]);
+  }, [allowed, category, productId, productSlug, productTitle]);
 
   return null;
 }

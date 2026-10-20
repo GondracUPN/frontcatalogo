@@ -1,14 +1,25 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import RootShell from "./components/RootShell";
 import ClientDomCleanup from "./components/ClientDomCleanup";
 import NavigationProgress from "./components/NavigationProgress";
+import CookieConsent from "./components/CookieConsent";
+import PageViewTracker from "./components/PageViewTracker";
+import SiteThemeProvider from "./components/theme/SiteThemeProvider";
+import { getActiveSiteTheme } from "@/lib/site-theme";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+});
+
+// Serifa editorial de algunas campañas. Sin precarga: solo se descarga si se usa.
+const editorialSerif = Instrument_Serif({
+  variable: "--font-serif",
+  subsets: ["latin"],
+  weight: "400",
+  preload: false,
 });
 
 const geistMono = Geist_Mono({
@@ -17,8 +28,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Macsomenos | Catálogo",
-  description: "Tienda premium de equipos Apple nuevos, open box y usados seleccionados.",
+  metadataBase: new URL("https://www.macsomenos.com"),
+  title: { default: "Macsomenos | Equipos Apple en Perú", template: "%s | Macsomenos" },
+  description: "Explora MacBook, iPhone, iPad y Apple Watch nuevos, Open Box y usados. Consulta fotografías, condición y precio antes de solicitar tu equipo.",
+  alternates: { canonical: "/" },
+  openGraph: { type: "website", locale: "es_PE", siteName: "Macsomenos", title: "Macsomenos | Equipos Apple en Perú", description: "Explora equipos Apple y solicita el que mejor se adapte a ti.", url: "/" },
+  twitter: { card: "summary_large_image" },
   icons: {
     icon: [
       { url: "/favicon.ico?v=2", sizes: "any" },
@@ -29,32 +44,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export const viewport: Viewport = { themeColor: "#f5f5f7" };
+
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const theme = await getActiveSiteTheme();
   return (
     <html lang="es">
-      <head>
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=AW-18491059831"
-          strategy="beforeInteractive"
-        />
-        <Script id="google-ads-tag" strategy="beforeInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'AW-18491059831');
-          `}
-        </Script>
-      </head>
       <body
         suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} bg-[var(--background)] text-[var(--foreground)] antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${editorialSerif.variable} bg-[var(--background)] text-[var(--foreground)] antialiased`}
       >
         <ClientDomCleanup />
         <NavigationProgress />
-        <RootShell>{children}</RootShell>
+        <PageViewTracker />
+        <SiteThemeProvider initialTheme={theme}>
+          <RootShell>{children}</RootShell>
+        </SiteThemeProvider>
+        <CookieConsent />
       </body>
     </html>
   );

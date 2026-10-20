@@ -1,94 +1,76 @@
 "use client";
 
 import Image from "next/image";
+import { BrandHeading } from "./home/BrandBits";
+import { categoryLabel } from "@/lib/catalog-display";
 import { useEffect, useMemo, useState } from "react";
 
-type Props = {
-  images: string[];
-};
+type Purchase = { id: string; photoUrl: string; productTitle: string; productImageUrl?: string | null; category?: string | null; purchasedMonth?: string | null };
 
-export default function CategoryClientsCarouselClient({ images }: Props) {
-  const [currentImages, setCurrentImages] = useState(images);
+// «2026-10» → «octubre de 2026», en hora de Lima y sin depender del navegador.
+function monthLabel(value?: string | null) {
+  if (!value || !/^\d{4}-\d{2}$/.test(value)) return "";
+  return new Intl.DateTimeFormat("es-PE", { month: "long", year: "numeric", timeZone: "America/Lima" }).format(new Date(`${value}-15T12:00:00-05:00`));
+}
+
+export default function CategoryClientsCarouselClient() {
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [index, setIndex] = useState(0);
-  const count = currentImages.length;
-  const canLoop = count > 0;
-
-  useEffect(() => {
-    setCurrentImages(images);
-  }, [images]);
+  const count = purchases.length;
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/clientes/list", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((json) => {
-        if (cancelled || !json?.ok || !Array.isArray(json.urls)) return;
-        const next = json.urls.map((url: unknown) => String(url || "").trim()).filter(Boolean);
-        if (next.length) {
-          setCurrentImages(next);
-          setIndex(0);
-        }
+      .then((response) => response.json())
+      .then((data) => {
+        if (cancelled || !data?.ok || !Array.isArray(data.items)) return;
+        const items = data.items.filter((item: Purchase) => item?.id && item?.photoUrl && item?.productTitle);
+        setPurchases(items);
+        setIndex(0);
       })
       .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const visible = useMemo(() => {
-    if (!canLoop) return ["", "", ""];
-    const getAt = (offset: number) => {
-      const i = (index + offset + count) % count;
-      return currentImages[i];
-    };
-    return [getAt(0), getAt(1), getAt(2)];
-  }, [canLoop, count, currentImages, index]);
+    if (!count) return [];
+    return Array.from({ length: Math.min(3, count) }, (_, offset) => purchases[(index + offset) % count]);
+  }, [count, index, purchases]);
 
-  if (!currentImages.length) {
-    return (
-      <div className="rounded-[26px] border border-dashed border-black/10 bg-white/70 p-6 text-center text-sm text-[color:var(--foreground-soft)]">
-        No hay clientes disponibles.
-      </div>
-    );
-  }
+  // Sin fotos de clientes la sección no se muestra: nada de cajas vacías.
+  if (!count) return null;
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        aria-label="Anterior"
-        onClick={() => setIndex((v) => (v - 1 + count) % count)}
-        className="absolute -left-2 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white/85 shadow-lg backdrop-blur-xl"
-      >
-        <span className="text-lg text-[color:var(--foreground)]">{`<`}</span>
-      </button>
-      <div className="flex flex-nowrap gap-4 pb-2">
-        {visible.map((src, idx) => (
-          <div
-            key={`${src}-${idx}`}
-            className="overflow-hidden rounded-[28px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(239,244,250,0.92))] shadow-[0_18px_40px_rgba(15,23,42,0.08)] shrink-0 w-[48%] sm:w-[32%]"
-          >
-            <div className="aspect-[3/4] relative bg-[linear-gradient(145deg,#eff3f7,#dfe7f1)]">
-              <Image
-                src={src}
-                alt=""
-                fill
-                sizes="(max-width: 640px) 48vw, 32vw"
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/18 via-transparent to-white/14" />
+    <section aria-labelledby="clients-title" className="px-4 pt-14 sm:px-6 sm:pt-20">
+    <div className="mx-auto max-w-7xl">
+    <BrandHeading id="clients-title" title="Equipos entregados" note="Clientes de Macsomenos con el equipo que compraron." />
+    <div className="relative mt-8">
+      {count > 3 && <button type="button" aria-label="Anterior" onClick={() => setIndex((value) => (value - 1 + count) % count)} className="absolute -left-2 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[color:var(--foreground)] text-2xl text-white hover:bg-[color:var(--accent)]">‹</button>}
+      <div className="flex gap-2 pb-2 sm:gap-4">
+        {visible.map((purchase) => (
+          <figure key={purchase.id} className="ms-store-card m-0 w-[49%] shrink-0 overflow-hidden rounded-[24px] bg-white sm:w-[32%]">
+            <div className="relative aspect-[3/4] bg-[color:var(--brand-tint)]">
+              <Image src={purchase.photoUrl} alt={`Cliente con su ${purchase.productTitle}`} fill sizes="(max-width: 640px) 48vw, 32vw" className="object-cover" />
+              {purchase.productImageUrl && (
+                <span className="ms-leaf-sm absolute bottom-3 right-3 block h-16 w-16 overflow-hidden bg-white p-1.5 shadow-md sm:h-20 sm:w-20">
+                  <span className="relative block h-full w-full">
+                    <Image src={purchase.productImageUrl} alt="" fill sizes="80px" className="object-contain" />
+                  </span>
+                </span>
+              )}
             </div>
-          </div>
+            <figcaption className="px-4 py-3">
+              <span className="line-clamp-2 text-[15px] font-semibold leading-snug text-[color:var(--foreground)]" title={purchase.productTitle}>{purchase.productTitle}</span>
+              <span className="mt-0.5 block text-[13px] text-[color:var(--foreground-soft)]">
+                {[purchase.category ? categoryLabel(purchase.category) : "", monthLabel(purchase.purchasedMonth)].filter(Boolean).join(" · ") || "Entregado"}
+              </span>
+            </figcaption>
+          </figure>
         ))}
       </div>
-      <button
-        type="button"
-        aria-label="Siguiente"
-        onClick={() => setIndex((v) => (v + 1) % count)}
-        className="absolute -right-2 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white/85 shadow-lg backdrop-blur-xl"
-      >
-        <span className="text-lg text-[color:var(--foreground)]">{`>`}</span>
-      </button>
+      {count > 3 && <button type="button" aria-label="Siguiente" onClick={() => setIndex((value) => (value + 1) % count)} className="absolute -right-2 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[color:var(--foreground)] text-2xl text-white hover:bg-[color:var(--accent)]">›</button>}
     </div>
+    </div>
+    </section>
   );
 }

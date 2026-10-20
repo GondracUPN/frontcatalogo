@@ -1,10 +1,12 @@
 import Image from "next/image";
+import Link from "next/link";
+import { formatSoles, withIgv } from "@/lib/catalog-price";
 
 const CATS = [
   { key: "macbook", label: "MacBook", href: "/c/macbook", icon: "/imagenestipos/mac.webp", note: "Trabajo y estudio." },
   { key: "iphone", label: "iPhone", href: "/c/iphone", icon: "/imagenestipos/iphone.webp", note: "Uso diario." },
   { key: "ipad", label: "iPad", href: "/c/ipad", icon: "/imagenestipos/ipad.webp", note: "Movilidad y creatividad." },
-  { key: "watch", label: "Watch", href: "/c/watch", icon: "/imagenestipos/watch.webp", note: "Estilo y ecosistema." },
+  { key: "watch", label: "Apple Watch", href: "/c/watch", icon: "/imagenestipos/watch.webp", note: "Estilo y ecosistema." },
   { key: "otros", label: "Otros", href: "/c/otros", icon: "/imagenestipos/accesorios.webp", note: "Más opciones." },
 ] as const;
 
@@ -14,7 +16,7 @@ type CategorySummary = {
   minPrice: number | null;
 };
 
-export default function CategoryStripHome({ categories }: { categories: CategorySummary[] }) {
+export default function CategoryStripHome({ categories, catalogUnavailable = false }: { categories: CategorySummary[]; catalogUnavailable?: boolean }) {
   const summaryByKey = new Map((categories || []).map((cat) => [cat.key, cat]));
   const data = CATS.map((cat) => {
       const summary = summaryByKey.get(cat.key);
@@ -28,7 +30,7 @@ export default function CategoryStripHome({ categories }: { categories: Category
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                Categorias
+                Categorías
               </div>
               <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[color:var(--foreground)] sm:text-4xl">
                 Entra directo a lo que buscas.
@@ -38,7 +40,7 @@ export default function CategoryStripHome({ categories }: { categories: Category
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {data.map((cat) => (
-              <a
+              <Link
                 key={cat.key}
                 href={cat.href}
                 className="group rounded-[24px] border border-black/10 bg-white/80 p-5 shadow-sm hover:-translate-y-0.5 hover:shadow-md"
@@ -56,7 +58,7 @@ export default function CategoryStripHome({ categories }: { categories: Category
                     </div>
                   </div>
                   <span className="text-xs font-medium text-[color:var(--foreground-soft)]">
-                    {cat.total} items
+                    {catalogUnavailable ? "Explorar" : `${cat.total} ${cat.total === 1 ? "equipo" : "equipos"}`}
                   </span>
                 </div>
 
@@ -68,15 +70,15 @@ export default function CategoryStripHome({ categories }: { categories: Category
                 <div className="mt-5 flex items-end justify-between gap-3 border-t border-black/6 pt-4">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
-                      Desde
+                      Desde, con IGV
                     </div>
                     <div className="mt-1 text-xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
-                      {cat.minPrice ? `S/ ${cat.minPrice.toFixed(2)}` : "Consultar"}
+                      {catalogUnavailable ? "Consultar" : cat.minPrice ? formatSoles(withIgv(cat.minPrice)) : "Consultar"}
                     </div>
                   </div>
                   <span className="text-sm font-medium text-[color:var(--accent)]">Ver</span>
                 </div>
-              </a>
+              </Link>
             ))}
           </div>
         </div>

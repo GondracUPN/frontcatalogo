@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { formatSoles, withIgv } from "@/lib/catalog-price";
 import { getHomeCatalog } from "../actions";
 
 export const revalidate = 300;
@@ -28,13 +29,13 @@ export default async function CategoriasPage() {
         <div className="surface-card-strong soft-outline overflow-hidden px-6 py-8 sm:px-8 sm:py-10">
           <div className="max-w-3xl">
             <div className="pill-chip text-[10px] font-semibold uppercase tracking-[0.28em] text-[color:var(--foreground-soft)]">
-              Categorias
+              Categorías
             </div>
             <h1 className="mt-5 text-4xl font-semibold tracking-[-0.06em] text-[color:var(--foreground)] sm:text-5xl">
-              Explora el catalogo por familia.
+              Explora el catálogo por categoría.
             </h1>
             <p className="mt-4 text-base leading-7 text-[color:var(--foreground-soft)]">
-              Las categorias ahora se sienten mas cercanas a una vitrina premium y no a una cuadricula generica.
+              Encuentra el equipo que buscas y revisa sus características, condición y disponibilidad antes de solicitarlo.
             </p>
           </div>
 
@@ -58,7 +59,7 @@ export default async function CategoriasPage() {
                     </div>
                   </div>
                   <span className="text-xs font-medium text-[color:var(--foreground-soft)]">
-                    {cat.total} items
+                    {cat.total} {cat.total === 1 ? "equipo" : "equipos"}
                   </span>
                 </div>
 
@@ -70,10 +71,10 @@ export default async function CategoriasPage() {
                 <div className="mt-5 flex items-end justify-between gap-3 border-t border-black/6 pt-4">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
-                      Desde
+                      Desde, con IGV
                     </div>
                     <div className="mt-1 text-xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
-                      {cat.minPrice ? `S/ ${cat.minPrice.toFixed(2)}` : "Consultar"}
+                      {cat.minPrice ? formatSoles(withIgv(cat.minPrice)) : "Consultar"}
                     </div>
                   </div>
                   <span className="text-sm font-medium text-[color:var(--accent)]">Ver</span>

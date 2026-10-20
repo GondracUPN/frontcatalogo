@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "../actions";
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ [k: string]: string | string[] | undefined }> }) {
   const sp = await searchParams;
-  const next = typeof sp?.next === "string" ? sp.next : "/servmacso10/servicios";
+  const next = safeInternalPath(typeof sp?.next === "string" ? sp.next : "", "http://internal.local");
   const hasError = Boolean(sp?.error);
   const err = typeof sp?.error === "string" ? sp.error : "";
 

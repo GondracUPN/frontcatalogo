@@ -1,4 +1,4 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getSessionUser, logoutAction, listStaged, listAdminCatalog } from "../../actions";
 export const dynamic = "force-dynamic";
 import InventoryCatalogPanels from "./InventoryCatalogPanels";
@@ -39,10 +39,12 @@ export default async function ServiciosPage() {
             <Stat label="Rol" value={me.role} />
           </div>
           {isAdmin && <AdminToolbar />}
-          <PreventaManualButton />
+          <PreventaManualButton independent={!isAdmin && !me.canViewServiceInventory} />
           <PromotionsButton />
+          <a href="/servmacso10/solicitudes" className="bg-[#0071e3] hover:bg-[#0a84ff] text-white rounded px-4 py-2">Solicitudes</a>
           {isAdmin && <a href="/servmacso10/analisis" className="bg-[#0071e3] hover:bg-[#0a84ff] text-white rounded px-4 py-2">Analisis</a>}
           {isAdmin && <a href="/servmacso10/contenidos" className="bg-gray-900 hover:bg-black text-white rounded px-4 py-2">Configurar contenidos</a>}
+          {isAdmin && <a href="/servmacso10/apariencia" className="bg-gray-900 hover:bg-black text-white rounded px-4 py-2">Apariencia</a>}
           <form action={logoutAction}>
             <input type="hidden" name="next" value="/servmacso10" />
             <button className="bg-red-600 hover:bg-red-700 text-white rounded px-4 py-2">Cerrar sesión</button>

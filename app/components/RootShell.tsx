@@ -1,29 +1,54 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getCachedCartItems } from "@/app/cart/cartClient";
+import { CookiePreferencesButton } from "./CookieConsent";
+import BrandLogo from "./BrandLogo";
+import HeaderSearch from "./HeaderSearch";
+import { WHATSAPP_DISPLAY, whatsappUrl } from "@/lib/store-config";
+import { LeafMark } from "./home/BrandBits";
+import { useSiteTheme } from "./theme/SiteThemeProvider";
 
 const NAV_ITEMS = [
+  { href: "/ofertas", label: "Ofertas" },
   { href: "/c/macbook", label: "MacBook" },
   { href: "/c/ipad", label: "iPad" },
   { href: "/c/iphone", label: "iPhone" },
-  { href: "/c/watch", label: "Watch" },
+  { href: "/c/watch", label: "Apple Watch" },
   { href: "/c/otros", label: "Otros" },
   { href: "/proximos", label: "Próximos" },
   { href: "/contact", label: "Contacto" },
 ];
 
+const HELP_ITEMS = [
+  { href: "/preguntas-frecuentes", label: "Preguntas frecuentes" },
+  { href: "/clientes", label: "Clientes" },
+];
+
 export default function RootShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
+  const siteTheme = useSiteTheme();
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuCloseRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const close = () => setMenuOpen(false);
     window.addEventListener("resize", close);
     return () => window.removeEventListener("resize", close);
   }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const returnFocusTo = menuTriggerRef.current;
+    document.body.style.overflow = "hidden";
+    menuCloseRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", onKey); returnFocusTo?.focus(); };
+  }, [menuOpen]);
 
   useEffect(() => {
     const updateCount = (event?: Event) => {
@@ -37,14 +62,18 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-50 px-3 py-3 sm:px-4">
+    <div className="flex min-h-svh flex-col">
+      <a href="#contenido" className="sr-only z-[80] rounded-full bg-[color:var(--foreground)] px-5 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Saltar al contenido</a>
+      <header className="sticky top-0 z-50 bg-[color:var(--background)] px-4 sm:px-6">
         <div className="mx-auto max-w-7xl">
-          <div className="surface-card soft-outline flex items-center justify-between px-4 py-3 sm:px-6">
+          <div className="flex min-h-[72px] items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <button
-                aria-label="Abrir menu"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white/70 text-[color:var(--foreground)] xl:hidden"
+                ref={menuTriggerRef}
+                aria-label="Abrir menú"
+                aria-expanded={menuOpen}
+                aria-controls="mobile-navigation"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[color:var(--foreground)] xl:hidden"
                 onClick={() => setMenuOpen(true)}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
@@ -52,24 +81,18 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
                 </svg>
               </button>
 
-              <Link href="/" className="group flex items-center gap-4" aria-label="Inicio">
-                <div className="relative h-9 w-[112px] overflow-hidden">
-                  <Image src="/logo.png" alt="Macsomenos" fill sizes="112px" className="object-contain" priority />
-                </div>
-                <div className="hidden lg:block">
-                  <div className="text-[13px] font-semibold tracking-[0.18em] text-[color:var(--foreground)] uppercase">
-                    Macsomenos
-                  </div>
-                </div>
+              <Link href="/" className="group flex items-center gap-2.5" aria-label="Macsomenos, ir al inicio">
+                <BrandLogo preset={siteTheme?.preset} className="h-10 w-10" />
+                <span translate="no" className="hidden text-lg font-bold tracking-[-0.02em] text-[color:var(--foreground)] sm:inline">Macsomenos</span>
               </Link>
             </div>
 
-            <nav className="hidden items-center gap-2 xl:flex">
+            <nav aria-label="Categorías principales" className="hidden items-center gap-1 xl:flex">
               {NAV_ITEMS.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="btn-ghost rounded-full px-4 py-2 text-sm text-[color:var(--foreground-soft)] hover:bg-white/70 hover:text-[color:var(--foreground)]"
+                  className="rounded-full px-3.5 py-2 text-[15px] text-[color:var(--foreground)] hover:bg-white"
                 >
                   {item.label}
                 </Link>
@@ -77,21 +100,20 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              <Link
-                href="/novedades"
-                className="btn-secondary hidden rounded-full border border-black/10 bg-white/75 px-4 py-2 text-sm font-medium text-[color:var(--foreground)] shadow-sm sm:inline-flex"
-              >
-                Ver novedades
+              <HeaderSearch className="hidden w-56 lg:block xl:hidden 2xl:block 2xl:w-64" />
+              <Link href="/buscar" className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-white px-4 text-[15px] font-semibold text-[color:var(--foreground)] lg:hidden xl:inline-flex 2xl:hidden">
+                <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="h-4 w-4"><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
+                <span className="max-[359px]:sr-only xl:sr-only">Buscar</span>
               </Link>
               <Link
                 href="/cart"
-                aria-label="Carrito"
-                className="btn-primary relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-[color:var(--foreground)] text-white shadow-sm hover:bg-black"
+                aria-label={cartCount > 0 ? `Carrito: ${cartCount} ${cartCount === 1 ? "producto" : "productos"}` : "Carrito"}
+                className="relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-[color:var(--foreground)] text-white transition hover:bg-black"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.6" stroke="currentColor" className="h-5 w-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.089.835l.383 1.437M7.5 14.25h9.75m-12-9l1.5 6h10.5l2.036-7.127A1.125 1.125 0 0018.72 3.75H5.118M7.5 19.5a.75.75 0 110-1.5.75.75 0 010 1.5zm9.75 0a.75.75 0 110-1.5.75.75 0 010 1.5z" />
                 </svg>
-                {cartCount > 0 && <span aria-live="polite" className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[color:var(--accent)] px-1 text-[10px] font-bold text-white">{cartCount}</span>}
+                {cartCount > 0 && <span aria-live="polite" aria-label={`${cartCount} ${cartCount === 1 ? "producto" : "productos"} en el carrito`} className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[color:var(--accent)] px-1 text-[11px] font-bold leading-none text-white ring-2 ring-white">{cartCount > 99 ? "99+" : cartCount}</span>}
               </Link>
             </div>
           </div>
@@ -101,21 +123,19 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
       {menuOpen && (
         <div className="fixed inset-0 z-[60] xl:hidden">
           <button
-            className="absolute inset-0 bg-[rgba(14,20,32,0.44)] backdrop-blur-sm"
-            aria-label="Cerrar menu"
+            className="absolute inset-0 bg-[rgba(14,20,32,0.55)]"
+            aria-label="Cerrar menú"
             onClick={() => setMenuOpen(false)}
           />
-          <aside className="surface-card-strong soft-outline absolute left-3 top-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] max-w-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b border-black/6 px-5 py-5">
+          <aside id="mobile-navigation" role="dialog" aria-modal="true" aria-label="Menú de navegación" className="absolute left-0 top-0 h-full w-[min(24rem,100%)] overflow-y-auto overscroll-contain bg-[color:var(--background)]">
+            <div className="flex items-center justify-between px-5 py-5">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--foreground-soft)]">
-                  Navegacion
-                </div>
                 <div className="mt-1 text-lg font-semibold text-[color:var(--foreground)]">
                   Catálogo Macsomenos
                 </div>
               </div>
               <button
+                ref={menuCloseRef}
                 aria-label="Cerrar"
                 onClick={() => setMenuOpen(false)}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white/70"
@@ -127,14 +147,22 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="space-y-3 px-5 py-5">
+              <form action="/buscar" role="search"><label htmlFor="mobile-search" className="sr-only">Buscar equipos</label><input id="mobile-search" name="q" type="search" placeholder="Buscar equipos" className="min-h-11 w-full px-4" /></form>
               <div className="grid gap-3">
                 {NAV_ITEMS.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="rounded-[22px] border border-black/6 bg-white/70 px-4 py-4 text-[15px] font-medium text-[color:var(--foreground)] shadow-sm"
+                    className="flex min-h-14 items-center rounded-2xl bg-white px-5 text-[17px] font-semibold text-[color:var(--foreground)] hover:bg-[color:var(--surface-muted)]"
                     onClick={() => setMenuOpen(false)}
                   >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                {HELP_ITEMS.map((item) => (
+                  <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className="flex min-h-12 items-center rounded-2xl bg-[color:var(--brand-tint)] px-4 text-[15px] font-semibold text-[color:var(--accent-strong)]">
                     {item.label}
                   </Link>
                 ))}
@@ -144,46 +172,50 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <main className="flex-1">{children}</main>
+      <main id="contenido" tabIndex={-1} className="flex-1 focus:outline-none">{children}</main>
 
-      <footer className="px-3 pb-6 pt-12 sm:px-4">
+      <footer className="mt-20 bg-white px-4 pb-10 pt-14 sm:px-6">
         <div className="mx-auto max-w-7xl">
-          <div className="surface-card soft-outline px-5 py-8 sm:px-8">
-            <div className="grid gap-8 lg:grid-cols-[1.3fr_0.8fr_0.8fr]">
-              <div>
-                <div className="relative h-9 w-[122px] overflow-hidden">
-                  <Image src="/logo.png" alt="Macsomenos" fill sizes="122px" className="object-contain" />
-                </div>
-                <p className="mt-4 max-w-xl text-sm leading-6 text-[color:var(--foreground-soft)]">
-                  Más Apple, menos gasto.
-                </p>
+          <div className="grid gap-10 lg:grid-cols-[1.3fr_1fr_1fr]">
+            <div>
+              <div className="flex items-center gap-3">
+                <BrandLogo preset={siteTheme?.preset} className="h-10 w-10" />
+                <span translate="no" className="text-lg font-semibold tracking-[-0.02em]">Macsomenos</span>
               </div>
-
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                  Explora
-                </div>
-                <div className="mt-4 grid gap-3 text-sm text-[color:var(--foreground)]">
-                  <Link href="/novedades" className="hover:text-[color:var(--accent)]">Novedades</Link>
-                  <Link href="/categorias" className="hover:text-[color:var(--accent)]">Categorías</Link>
-                  <Link href="/contact" className="hover:text-[color:var(--accent)]">Contacto</Link>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                  Estado de equipo
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {["Nuevo", "Open box", "Usado premium", "Próximos"].map((item) => (
-                    <span key={item} className="pill-chip !px-3 !py-2 !text-xs !font-medium !tracking-[0.08em]">
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </div>
+              <p className="mt-5 flex items-center gap-2 text-[28px] font-semibold leading-tight tracking-[-0.03em]"><LeafMark className="h-6 w-6 shrink-0" />Más Apple, menos gasto.</p>
+              <p className="mt-3 max-w-[46ch] text-[15px] leading-relaxed text-[color:var(--foreground-soft)]">
+                Equipos Apple nuevos, open box y usados en Perú. Revisa cada unidad, envía tu solicitud sin pago y coordinamos contigo por WhatsApp.
+              </p>
+              <p className="mt-4 text-[15px] leading-relaxed text-[color:var(--foreground)]">
+                Almacén: Jr. Ganimedes 245, Surco, Lima<br />
+                WhatsApp: <a href={whatsappUrl()} target="_blank" rel="noopener noreferrer" className="font-semibold text-[color:var(--accent)] hover:underline">{WHATSAPP_DISPLAY}</a>
+              </p>
             </div>
+            <nav aria-label="Comprar">
+              <h2 className="text-[15px] font-semibold">Comprar</h2>
+              <ul className="mt-2 text-[15px] text-[color:var(--foreground-soft)]">
+                <li><Link href="/c/macbook" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">MacBook</Link></li>
+                <li><Link href="/c/iphone" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">iPhone</Link></li>
+                <li><Link href="/c/ipad" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">iPad</Link></li>
+                <li><Link href="/c/watch" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">Apple Watch</Link></li>
+                <li><Link href="/ofertas" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">Ofertas</Link></li>
+                <li><Link href="/novedades" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">Novedades</Link></li>
+              </ul>
+            </nav>
+            <nav aria-label="Ayuda">
+              <h2 className="text-[15px] font-semibold">Ayuda</h2>
+              <ul className="mt-2 text-[15px] text-[color:var(--foreground-soft)]">
+                <li><Link href="/preguntas-frecuentes" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">Preguntas frecuentes</Link></li>
+                <li><Link href="/clientes" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">Clientes y entregas</Link></li>
+                <li><a href={whatsappUrl()} target="_blank" rel="noopener noreferrer" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">WhatsApp</a></li>
+                <li><Link href="/contact" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">Contacto</Link></li>
+                <li><Link href="/proximos" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">Próximos ingresos</Link></li>
+                <li><Link href="/cookies" className="flex min-h-10 items-center hover:text-[color:var(--foreground)] hover:underline">Política de cookies</Link></li>
+                <li><CookiePreferencesButton className="flex min-h-10 items-center text-left hover:text-[color:var(--foreground)] hover:underline" /></li>
+              </ul>
+            </nav>
           </div>
+          <p className="mt-12 border-t border-[#e8e8ed] pt-6 text-[13px] text-[color:var(--foreground-soft)]">Macsomenos · Equipos Apple en Perú. Apple, MacBook, iPhone, iPad y Apple Watch son marcas de Apple Inc.</p>
         </div>
       </footer>
     </div>

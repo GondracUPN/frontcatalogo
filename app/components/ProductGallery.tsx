@@ -1,8 +1,13 @@
 "use client";
 import Image from "next/image";
 import React from "react";
+import dynamic from "next/dynamic";
+import { OPEN_GALLERY_EVENT, SHOW_DETAILS_EVENT } from "./DetailHighlights";
 
-type Point = { x: number; y: number };
+// Ancho real del marco: toda la pantalla hasta 1024 px; en escritorio, la
+// columna izquierda de la ficha (~620 px como máximo).
+const GALLERY_IMAGE_SIZES = "(min-width: 1280px) 620px, (min-width: 1024px) 48vw, 100vw";
+const ImageZoomViewer = dynamic(() => import("./ImageZoomViewer"), { ssr: false });
 
 export default function ProductGallery({ images, detailImages = [], sold }: { images: string[]; detailImages?: string[]; sold?: boolean }) {
   const imgs = React.useMemo(
@@ -17,14 +22,11 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
   const [active, setActive] = React.useState(0);
   const [viewerIndex, setViewerIndex] = React.useState(0);
   const [viewerOpen, setViewerOpen] = React.useState(false);
-  const [zoom, setZoom] = React.useState(1);
-  const [pan, setPan] = React.useState<Point>({ x: 0, y: 0 });
   const [mainDragOffset, setMainDragOffset] = React.useState(0);
   const [mainDragging, setMainDragging] = React.useState(false);
   const [mainTrackIndex, setMainTrackIndex] = React.useState(imgs.length > 1 ? 1 : 0);
   const [mainAnimating, setMainAnimating] = React.useState(false);
   const imageSignature = React.useMemo(() => imgs.join("|"), [imgs]);
-  const safeIndex = React.useCallback((i: number) => Math.max(0, Math.min(i, imgs.length - 1)), [imgs.length]);
   const wrapIndex = React.useCallback((i: number) => {
     if (!imgs.length) return 0;
     return ((i % imgs.length) + imgs.length) % imgs.length;
@@ -34,21 +36,31 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
     [imgs]
   );
   const mainImageFitClass = "object-contain";
+  // Fotos ya descargadas: mientras una no termina, se ve un indicador en el
+  // fondo gris del marco en lugar de un hueco vacío.
+  const [loadedSources, setLoadedSources] = React.useState<Set<string>>(() => new Set());
+  const markLoaded = React.useCallback((src: string) => {
+    setLoadedSources((current) => (current.has(src) ? current : new Set(current).add(src)));
+  }, []);
+  // Fotos que no se pudieron descargar: se muestra un aviso en su lugar,
+  // nunca otra foto (podría ser de otro equipo).
+  const [failedSources, setFailedSources] = React.useState<Set<string>>(() => new Set());
+  const markFailed = React.useCallback((src: string) => {
+    setFailedSources((current) => (current.has(src) ? current : new Set(current).add(src)));
+  }, []);
   const mainFrameAspect = "aspect-[4/3]";
-  const stageRef = React.useRef<HTMLDivElement | null>(null);
+  const trackElRef = React.useRef<HTMLDivElement | null>(null);
+  const dragFrameRef = React.useRef<number | null>(null);
   const thumbRailRef = React.useRef<HTMLDivElement | null>(null);
-  const dragRef = React.useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
   const mainSwipeRef = React.useRef<{ active: boolean; dragging: boolean; x: number; y: number }>({ active: false, dragging: false, x: 0, y: 0 });
   const mainAnimationTimerRef = React.useRef<number | null>(null);
   const suppressOpenRef = React.useRef(false);
-  const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
-  const swipeRef = React.useRef<{ active: boolean; x: number; y: number } | null>(null);
   const viewerTriggerRef = React.useRef<HTMLButtonElement>(null);
-  const viewerCloseRef = React.useRef<HTMLButtonElement>(null);
 
   React.useEffect(() => {
     setActive(0);
     setViewerIndex(0);
+    setFailedSources(new Set());
     setMainTrackIndex(imgs.length > 1 ? 1 : 0);
     setMainAnimating(false);
     setMainDragging(false);
@@ -61,95 +73,48 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
     };
   }, []);
 
-  React.useEffect(() => {
-    if (!viewerOpen || typeof document === "undefined") return;
-    const returnFocusTo = viewerTriggerRef.current;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    viewerCloseRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setViewerOpen(false);
-      if (event.key === "ArrowRight") setViewerIndex((value) => wrapIndex(value + 1));
-      if (event.key === "ArrowLeft") setViewerIndex((value) => wrapIndex(value - 1));
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKey);
-      returnFocusTo?.focus();
-    };
-  }, [viewerOpen, wrapIndex]);
-
-  React.useEffect(() => {
-    if (!viewerOpen) {
-      setZoom(1);
-      setPan({ x: 0, y: 0 });
-    }
-  }, [viewerOpen]);
-
-  React.useEffect(() => {
-    if (!viewerOpen) return;
-    const endDrag = () => {
-      dragRef.current.active = false;
-    };
-    window.addEventListener("mouseup", endDrag);
-    return () => window.removeEventListener("mouseup", endDrag);
-  }, [viewerOpen]);
-
-  const openViewer = () => {
+  const openViewer = (index = active) => {
     if (suppressOpenRef.current) {
       suppressOpenRef.current = false;
       return;
     }
-    setViewerIndex(active);
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+    setViewerIndex(index);
     setViewerOpen(true);
   };
 
+  // Otros bloques de la ficha (detalles estéticos) abren el visor en una foto concreta.
+  React.useEffect(() => {
+    const onOpen = (event: Event) => {
+      const index = Number((event as CustomEvent<{ index?: number }>).detail?.index ?? 0);
+      if (!Number.isFinite(index) || index < 0 || index >= imgs.length) return;
+      suppressOpenRef.current = false;
+      setViewerIndex(index);
+      setViewerOpen(true);
+    };
+    window.addEventListener(OPEN_GALLERY_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_GALLERY_EVENT, onOpen);
+  }, [imgs.length]);
+
+  const detailCount = imgs.length - primaryCount;
+
+  // «Ver detalles» (junto al precio): cambia al grupo de fotos estéticas.
+  React.useEffect(() => {
+    const onShowDetails = () => { if (detailCount > 0) goToImage(primaryCount); };
+    window.addEventListener(SHOW_DETAILS_EVENT, onShowDetails);
+    return () => window.removeEventListener(SHOW_DETAILS_EVENT, onShowDetails);
+  // goToImage se declara más abajo y solo depende del número de fotos.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailCount, primaryCount, imgs.length]);
+
   const closeViewer = () => {
     setViewerOpen(false);
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
-
-  const zoomAtPoint = React.useCallback((nextZoom: number, clientX?: number, clientY?: number) => {
-    const clamped = Math.max(1, Math.min(5, +nextZoom.toFixed(2)));
-    if (clamped === 1) {
-      setZoom(1);
-      setPan({ x: 0, y: 0 });
-      return;
+    // La foto principal queda en la última que se vio ampliada.
+    if (viewerIndex !== active) {
+      setActive(viewerIndex);
+      setMainTrackIndex(imgs.length > 1 ? viewerIndex + 1 : 0);
+      setMainAnimating(false);
     }
-
-    const stage = stageRef.current;
-    if (!stage || clientX === undefined || clientY === undefined || zoom === 1) {
-      setZoom(clamped);
-      return;
-    }
-
-    const rect = stage.getBoundingClientRect();
-    const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    const ratio = clamped / zoom;
-    const relative = { x: clientX - center.x, y: clientY - center.y };
-
-    setPan((current) => ({
-      x: +(relative.x - ratio * (relative.x - current.x)).toFixed(2),
-      y: +(relative.y - ratio * (relative.y - current.y)).toFixed(2),
-    }));
-    setZoom(clamped);
-  }, [zoom]);
-
-  const normalizeZoom = React.useCallback((nextZoom: number) => {
-    const clamped = Math.max(1, Math.min(5, +nextZoom.toFixed(2)));
-    setZoom(clamped);
-    if (clamped === 1) setPan({ x: 0, y: 0 });
-  }, []);
-
-  const getTouchDistance = (touches: React.TouchList) => {
-    if (touches.length < 2) return 0;
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.hypot(dx, dy);
+    window.setTimeout(() => viewerTriggerRef.current?.focus(), 0);
   };
 
   const goToImage = React.useCallback((index: number) => {
@@ -159,8 +124,6 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
     setMainAnimating(imgs.length > 1);
     setMainDragging(false);
     setMainDragOffset(0);
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
   }, [imgs.length, wrapIndex]);
 
   const slideMainImage = React.useCallback((direction: -1 | 1) => {
@@ -171,8 +134,6 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
     setMainDragging(false);
     setMainDragOffset(0);
     setMainTrackIndex((current) => current + direction);
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
     mainAnimationTimerRef.current = window.setTimeout(() => {
       setMainAnimating(false);
       setMainTrackIndex((current) => {
@@ -216,14 +177,28 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
       suppressOpenRef.current = true;
       setMainDragging(true);
     }
-    event.preventDefault();
     const width = event.currentTarget.getBoundingClientRect().width || 1;
     const offset = Math.max(-width, Math.min(width, dx));
-    setMainDragOffset(offset);
+    // Sin re-renderizar React en cada movimiento: se escribe el transform directo.
+    if (dragFrameRef.current !== null) cancelAnimationFrame(dragFrameRef.current);
+    dragFrameRef.current = requestAnimationFrame(() => {
+      dragFrameRef.current = null;
+      const el = trackElRef.current;
+      if (!el) return;
+      el.style.transition = "none";
+      el.style.transform = `translate3d(calc(${-(active + 1) * 100}% + ${offset}px), 0, 0)`;
+    });
   };
 
   const handleMainTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (dragFrameRef.current !== null) {
+      cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
+    }
     const swipe = mainSwipeRef.current;
+    const el = trackElRef.current;
+    // Se quita el "transition: none" del arrastre; React anima el cambio de foto.
+    if (el && swipe.dragging) el.style.transition = "";
     const wasDragging = swipe.active && swipe.dragging;
     if (swipe.active && swipe.dragging && imgs.length > 1) {
       const touch = event.changedTouches[0];
@@ -239,6 +214,12 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
       }
     }
     mainSwipeRef.current = { active: false, dragging: false, x: 0, y: 0 };
+    if (el && wasDragging) {
+      // Vuelve a la misma foto: la posición final es la misma que React ya
+      // tiene, así que se anima directamente en el DOM.
+      el.style.transition = "transform 380ms cubic-bezier(0.22,1,0.36,1)";
+      el.style.transform = `translate3d(${-(active + 1) * 100}%, 0, 0)`;
+    }
     setMainDragging(false);
     setMainAnimating(wasDragging);
     setMainDragOffset(0);
@@ -266,113 +247,19 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
     suppressOpenRef.current = false;
   };
 
-  const goToViewerImage = React.useCallback((index: number) => {
-    setViewerIndex(wrapIndex(index));
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, [wrapIndex]);
-
-  const nextViewerImage = React.useCallback(() => {
-    goToViewerImage(viewerIndex + 1);
-  }, [goToViewerImage, viewerIndex]);
-
-  const prevViewerImage = React.useCallback(() => {
-    goToViewerImage(viewerIndex - 1);
-  }, [goToViewerImage, viewerIndex]);
+  // La miniatura de la foto visible siempre queda a la vista en la tira.
+  React.useEffect(() => {
+    const rail = thumbRailRef.current;
+    const thumb = rail?.children[active] as HTMLElement | undefined;
+    if (!rail || !thumb) return;
+    const left = thumb.offsetLeft - rail.offsetLeft;
+    if (left < rail.scrollLeft || left + thumb.offsetWidth > rail.scrollLeft + rail.clientWidth) {
+      rail.scrollTo({ left: left - (rail.clientWidth - thumb.offsetWidth) / 2, behavior: "smooth" });
+    }
+  }, [active]);
 
   const scrollThumbs = (direction: -1 | 1) => {
     thumbRailRef.current?.scrollBy({ left: direction * 260, behavior: "smooth" });
-  };
-
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const delta = event.deltaY < 0 ? 0.25 : -0.25;
-    zoomAtPoint(zoom + delta, event.clientX, event.clientY);
-  };
-
-  const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (zoom <= 1) return;
-    event.preventDefault();
-    dragRef.current = { active: true, x: event.clientX, y: event.clientY };
-  };
-
-  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!dragRef.current.active || zoom <= 1) return;
-    const deltaX = event.clientX - dragRef.current.x;
-    const deltaY = event.clientY - dragRef.current.y;
-    dragRef.current = { active: true, x: event.clientX, y: event.clientY };
-    setPan((current) => ({ x: current.x + deltaX, y: current.y + deltaY }));
-  };
-
-  const handleDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (zoom > 1) {
-      setZoom(1);
-      setPan({ x: 0, y: 0 });
-      return;
-    }
-    zoomAtPoint(2.5, event.clientX, event.clientY);
-  };
-
-  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length === 2) {
-      event.preventDefault();
-      pinchRef.current = { distance: getTouchDistance(event.touches), zoom };
-      return;
-    }
-    if (event.touches.length === 1 && zoom > 1) {
-      dragRef.current = {
-        active: true,
-        x: event.touches[0].clientX,
-        y: event.touches[0].clientY,
-      };
-      swipeRef.current = null;
-      return;
-    }
-    if (event.touches.length === 1) {
-      swipeRef.current = {
-        active: true,
-        x: event.touches[0].clientX,
-        y: event.touches[0].clientY,
-      };
-    }
-  };
-
-  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length === 2 && pinchRef.current) {
-      event.preventDefault();
-      const distance = getTouchDistance(event.touches);
-      if (!distance) return;
-      const nextZoom = pinchRef.current.zoom * (distance / pinchRef.current.distance);
-      normalizeZoom(nextZoom);
-      return;
-    }
-
-    if (event.touches.length === 1 && dragRef.current.active && zoom > 1) {
-      event.preventDefault();
-      const touch = event.touches[0];
-      const deltaX = touch.clientX - dragRef.current.x;
-      const deltaY = touch.clientY - dragRef.current.y;
-      dragRef.current = { active: true, x: touch.clientX, y: touch.clientY };
-      setPan((current) => ({ x: current.x + deltaX, y: current.y + deltaY }));
-    }
-  };
-
-  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (swipeRef.current?.active && zoom <= 1) {
-      const start = swipeRef.current;
-      const touch = event.changedTouches[0];
-      if (touch) {
-        const dx = touch.clientX - start.x;
-        const dy = touch.clientY - start.y;
-        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.3) {
-          if (dx < 0 && viewerIndex < imgs.length - 1) nextViewerImage();
-          if (dx > 0 && viewerIndex > 0) prevViewerImage();
-        }
-      }
-    }
-    dragRef.current.active = false;
-    pinchRef.current = null;
-    swipeRef.current = null;
   };
 
   return (
@@ -388,12 +275,13 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
         <button
           ref={viewerTriggerRef}
           type="button"
-          onClick={openViewer}
-          className="absolute inset-0 z-[2]"
+          onClick={() => openViewer()}
+          className="absolute inset-0 z-[2] cursor-zoom-in"
           aria-label="Abrir imagen en grande"
         />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.32),transparent_42%)]" />
         <div
+          ref={trackElRef}
           className={`relative z-[1] flex h-full w-full will-change-transform ${
             mainDragging ? "transition-none" : mainAnimating ? "transition-transform duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)]" : "transition-none"
           }`}
@@ -404,16 +292,37 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
         >
           {carouselImages.map((src, index) => {
             const shouldLoad = Math.abs(index - mainTrackIndex) <= 1 || carouselImages.length <= 3;
+            const isCurrent = index === mainTrackIndex;
             return (
               <div key={`${src}-${index}`} className="relative h-full w-full shrink-0">
-                {shouldLoad && (
+                {shouldLoad && failedSources.has(src) && (
+                  <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center text-sm text-[color:var(--foreground-soft)]">
+                    <span className="font-semibold text-[color:var(--foreground)]">No se pudo cargar esta foto</span>
+                    <span>Prueba con la siguiente o vuelve a cargar la página.</span>
+                  </span>
+                )}
+                {shouldLoad && !loadedSources.has(src) && !failedSources.has(src) && (
+                  <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
+                    <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-slate-300/80 border-t-slate-500" />
+                  </span>
+                )}
+                {shouldLoad && !failedSources.has(src) && (
                   <Image
                     src={src}
                     alt="Vista del producto"
                     fill
-                    sizes="(max-width: 1024px) 100vw, 54vw"
+                    sizes={GALLERY_IMAGE_SIZES}
+                    // Sin ocultar la foto hasta onLoad: la primera llega en el HTML
+                    // y no debe esperar a la hidratación (LCP). El indicador queda
+                    // detrás y la foto lo tapa al pintarse.
                     className={`h-full w-full ${mainImageFitClass}`}
-                    {...(index === mainTrackIndex ? { priority: true } : { loading: "lazy" as const })}
+                    // La foto actual tiene prioridad; la anterior y la siguiente se
+                    // cargan ya (no `lazy`): están fuera de la vista dentro de un
+                    // carrusel desplazado y `lazy` las pediría recién al deslizar,
+                    // dejando el marco vacío durante la transición.
+                    {...(isCurrent ? { priority: true } : { loading: "eager" as const })}
+                    onLoad={() => markLoaded(src)}
+                    onError={() => markFailed(src)}
                     draggable={false}
                   />
                 )}
@@ -454,6 +363,37 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
           </div>
         )}
       </div>
+      {/* Acceso rápido: fotos del equipo y fotos de detalles, sin perder ninguna. */}
+      {imgs.length > 1 && (
+        <div className="mx-auto flex w-full max-w-[760px] flex-wrap items-center gap-2">
+          {primaryCount > 0 && detailCount > 0 ? (
+            <div role="group" aria-label="Elegir fotos" className="flex min-w-0 flex-1 gap-2">
+              <button
+                type="button"
+                onClick={() => goToImage(0)}
+                aria-pressed={active < primaryCount}
+                className={`min-h-11 flex-1 rounded-full px-3 text-sm font-semibold transition-colors sm:flex-none sm:px-4 ${active < primaryCount ? "bg-[color:var(--foreground)] text-white" : "bg-[color:var(--surface-muted)] text-[color:var(--foreground)] hover:bg-[color:var(--border-strong)]"}`}
+              >
+                Fotos del equipo · {primaryCount}
+              </button>
+              <button
+                type="button"
+                onClick={() => goToImage(primaryCount)}
+                aria-pressed={active >= primaryCount}
+                className={`min-h-11 flex-1 rounded-full px-3 text-sm font-semibold transition-colors sm:flex-none sm:px-4 ${active >= primaryCount ? "bg-amber-400 text-amber-950" : "bg-amber-100 text-amber-900 hover:bg-amber-200"}`}
+              >
+                Detalles estéticos · {detailCount}
+              </button>
+            </div>
+          ) : (
+            <span className="flex-1 text-sm text-[color:var(--foreground-soft)]">{imgs.length} fotos</span>
+          )}
+          <button type="button" onClick={() => openViewer(active)} className="hidden min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-[color:var(--accent-strong)] hover:bg-[color:var(--brand-tint)] sm:inline-flex">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>
+            Ampliar
+          </button>
+        </div>
+      )}
       <div className="mx-auto flex w-full max-w-full items-center gap-1.5 overflow-hidden sm:max-w-[760px] sm:gap-2">
         {imgs.length > 3 && (
           <button
@@ -474,14 +414,21 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
               key={i}
               aria-label={i >= primaryCount ? `Ver detalle estético ${i - primaryCount + 1}` : `Ver foto ${i + 1} del producto`}
               onClick={() => goToImage(i)}
-              className={`shrink-0 snap-start overflow-hidden rounded-[15px] border p-0.5 sm:rounded-[20px] sm:p-1 ${
+              aria-current={i === active ? "true" : undefined}
+              className={`shrink-0 snap-start overflow-hidden rounded-[15px] border-2 p-0.5 transition-colors sm:rounded-[20px] ${
                 i === active
-                  ? "border-[rgba(26,115,232,0.45)] bg-[rgba(26,115,232,0.08)] shadow-[0_16px_30px_rgba(26,115,232,0.12)]"
-                  : "border-black/8 bg-white/82 hover:border-black/15"
+                  ? "border-[color:var(--accent)] bg-[color:var(--brand-tint)]"
+                  : i >= primaryCount
+                    ? "border-amber-300 bg-amber-50 opacity-90 hover:opacity-100"
+                    : "border-transparent bg-white/82 opacity-80 hover:border-black/15 hover:opacity-100"
               }`}
             >
               <div className="relative h-14 w-14 overflow-hidden rounded-[11px] bg-[linear-gradient(145deg,#f6f8fb,#e8edf4)] sm:h-[4.5rem] sm:w-[4.5rem] sm:rounded-[14px] md:h-[5.5rem] md:w-[5.5rem]">
-                <Image src={u} alt={i >= primaryCount ? "Miniatura de detalle estético" : "Miniatura del producto"} fill sizes="88px" className="h-full w-full object-cover" />
+                {failedSources.has(u) ? (
+                  <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-[color:var(--foreground-soft)]">Sin foto</span>
+                ) : (
+                  <Image src={u} alt={i >= primaryCount ? "Miniatura de detalle estético" : "Miniatura del producto"} fill sizes="88px" loading="lazy" onError={() => markFailed(u)} className="h-full w-full object-cover" />
+                )}
                 {i >= primaryCount && <span className="absolute inset-x-0 bottom-0 bg-amber-950/85 py-0.5 text-center text-[8px] font-bold uppercase tracking-wide text-white">Detalle</span>}
               </div>
             </button>
@@ -500,75 +447,14 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
       </div>
 
       {viewerOpen && (
-        <div className="fixed inset-0 z-[80] bg-white/45 p-3 backdrop-blur-md sm:p-5">
-          <button className="absolute inset-0" aria-label="Cerrar imagen" onClick={closeViewer} />
-
-          <div className="relative z-[1] flex h-full flex-col">
-            <div className="flex items-center justify-between gap-3 pb-3 text-neutral-700">
-              <div className="rounded-full border border-black/8 bg-white/78 px-3 py-2 text-sm font-medium shadow-[0_10px_26px_rgba(0,0,0,0.08)] backdrop-blur-xl">
-                Imagen {viewerIndex + 1} de {imgs.length}
-              </div>
-              <button
-                ref={viewerCloseRef}
-                type="button"
-                onClick={closeViewer}
-                className="rounded-full border border-black/8 bg-neutral-950 px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(0,0,0,0.18)] backdrop-blur-xl hover:bg-black"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <div className="relative flex-1 overflow-hidden rounded-[28px] border border-black/6 bg-transparent">
-              {imgs.length > 1 && (
-                <button
-                  type="button"
-                  onClick={prevViewerImage}
-                  className="absolute left-4 top-1/2 z-[2] hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-black/8 bg-white/86 text-3xl font-light leading-none text-neutral-950 shadow-[0_16px_38px_rgba(0,0,0,0.16)] backdrop-blur-xl hover:-translate-x-0.5 hover:bg-white sm:inline-flex"
-                  aria-label="Imagen anterior"
-                >
-                  {"‹"}
-                </button>
-              )}
-              {imgs.length > 1 && (
-                <button
-                  type="button"
-                  onClick={nextViewerImage}
-                  className="absolute right-4 top-1/2 z-[2] hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-black/8 bg-white/86 text-3xl font-light leading-none text-neutral-950 shadow-[0_16px_38px_rgba(0,0,0,0.16)] backdrop-blur-xl hover:translate-x-0.5 hover:bg-white sm:inline-flex"
-                  aria-label="Imagen siguiente"
-                >
-                  {"›"}
-                </button>
-              )}
-
-              <div
-                ref={stageRef}
-                className={`flex h-full touch-none items-center justify-center overflow-hidden p-4 select-none sm:p-8 ${zoom > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"}`}
-                onWheel={handleWheel}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={() => {
-                  dragRef.current.active = false;
-                }}
-                onMouseLeave={() => {
-                  dragRef.current.active = false;
-                }}
-                onDoubleClick={handleDoubleClick}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onTouchCancel={handleTouchEnd}
-              >
-                <img
-                  key={`viewer-${safeIndex(viewerIndex)}`}
-                  src={imgs[safeIndex(viewerIndex)]}
-                  alt={safeIndex(viewerIndex) >= primaryCount ? "Detalle estético ampliado del equipo" : "Vista ampliada del producto"}
-                  className="product-photo-enter max-h-full w-auto max-w-full object-contain transition-transform duration-300 ease-out"
-                  style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        <ImageZoomViewer
+          images={imgs}
+          index={viewerIndex}
+          onIndexChange={setViewerIndex}
+          onClose={closeViewer}
+          detailStart={primaryCount > 0 && detailCount > 0 ? primaryCount : undefined}
+          labelFor={(i) => (i >= primaryCount ? "Detalle estético ampliado del equipo" : "Vista ampliada del producto")}
+        />
       )}
     </div>
   );

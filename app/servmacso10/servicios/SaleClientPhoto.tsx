@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 
 type Region = { x: number; y: number; w: number; h: number };
 
-export default function SaleClientPhoto({ disabled = false }: { disabled?: boolean }) {
+export default function SaleClientPhoto({ disabled = false, onUploaded }: { disabled?: boolean; onUploaded?: (url: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const startRef = useRef<{ x: number; y: number } | null>(null);
@@ -88,6 +88,8 @@ export default function SaleClientPhoto({ disabled = false }: { disabled?: boole
       const response = await fetch("/api/admin/clientes/upload", { method: "POST", body });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.message || "No se pudo subir la foto.");
+      if (!result.url) throw new Error("La foto se subió sin una dirección válida.");
+      onUploaded?.(String(result.url));
       setUploaded(true);
     } catch (err) { setError(err instanceof Error ? err.message : "No se pudo subir la foto."); }
     finally { setBusy(false); }
@@ -95,7 +97,7 @@ export default function SaleClientPhoto({ disabled = false }: { disabled?: boole
 
   return (
     <fieldset disabled={locked} className="my-4 space-y-3 rounded-xl border border-gray-200 p-3 text-sm">
-      <legend className="px-1 font-medium text-gray-700">Foto del cliente (opcional)</legend>
+      <legend className="px-1 font-medium text-gray-700">Foto del cliente (requerida para la venta)</legend>
       {!uploaded && <label className="block">Agregar foto
         <input type="file" accept="image/*" className="mt-1 block w-full text-xs" onChange={(event) => { void select(event.target.files?.[0]); event.target.value = ""; }} />
       </label>}

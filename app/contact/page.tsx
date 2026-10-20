@@ -1,6 +1,10 @@
 import WhatsAppContactLink from "./WhatsAppContactLink";
+import ConsentMap from "./ConsentMap";
+import type { Metadata } from "next";
+import { WHATSAPP_DISPLAY as PHONE_NUMBER } from "@/lib/store-config";
 
-const PHONE_NUMBER = "976283856";
+export const metadata: Metadata = { title: "Contacto", description: "Contacta a Macsomenos por WhatsApp y consulta la ubicación del almacén.", alternates: { canonical: "/contact" } };
+
 const STORAGE_LINK = "https://maps.app.goo.gl/ttGMLJEKx4LEwNet6";
 const MAP_EMBED =
   "https://maps.google.com/maps?q=-12.1654307,-76.996673(Macsomenos)&t=&z=20&ie=UTF8&iwloc=&output=embed";
@@ -83,13 +87,7 @@ export default function ContactPage() {
                 </div>
 
                 <div className="overflow-hidden rounded-[22px] border border-black/6 bg-white">
-                  <iframe
-                    title="Almacen Macsomenos"
-                    src={MAP_EMBED}
-                    className="h-[320px] w-full sm:h-[380px]"
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
+                  <ConsentMap title="Almacen Macsomenos" src={MAP_EMBED} />
                 </div>
               </div>
 

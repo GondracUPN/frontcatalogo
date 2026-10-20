@@ -1,20 +1,21 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 function apiBase() {
   const raw = process.env.API_BASE_URL || "http://127.0.0.1:3101";
   return raw.trim().replace(/\/+$/, "");
 }
 
+// El backend limita intentos por IP; sin esto vería la IP de este servidor para todo
+// el personal. Vercel fija x-real-ip / x-forwarded-for en su borde (no las toma del cliente).
+function clientIpHeaders(req: NextRequest): Record<string, string> {
+  const secret = String(process.env.LOGIN_PROXY_SECRET || "").trim();
+  const ip = String(req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",")[0] || "").trim();
+  return secret && ip ? { "x-login-proxy-secret": secret, "x-login-client-ip": ip } : {};
+}
+
 export async function POST(req: NextRequest) {
   try {
-    // Debug: entrada
-    // eslint-disable-next-line no-console
-    console.log("[api/login] New request", {
-      ct: req.headers.get("content-type"),
-      envBase: String(process.env.API_BASE_URL || ""),
-      base: apiBase(),
-    });
-
     const contentType = req.headers.get("content-type") || "";
     let username = "";
     let password = "";
@@ -38,17 +39,21 @@ export async function POST(req: NextRequest) {
       next = String(form.get("next") || next);
     }
 
+    next = safeInternalPath(next, req.url);
     const target = `${apiBase()}/auth/login`;
-    // eslint-disable-next-line no-console
-    console.log("[api/login] POST", target, { username });
     const res = await fetch(target, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...clientIpHeaders(req) },
       body: JSON.stringify({ username, password }),
       cache: "no-store",
     });
 
     if (!res.ok) {
+      if (res.status === 429) {
+        return new NextResponse("Demasiados intentos. Inténtalo de nuevo en 10 minutos.", {
+          status: 429, headers: { "Retry-After": "600", "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
       // eslint-disable-next-line no-console
       console.error("[api/login] Backend responded NOT OK", res.status);
       const status = res.status;
@@ -65,8 +70,6 @@ export async function POST(req: NextRequest) {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
     });
-    // eslint-disable-next-line no-console
-    console.log("[api/login] OK, redirecting to", next);
     return rsp;
   } catch (e: any) {
     // eslint-disable-next-line no-console

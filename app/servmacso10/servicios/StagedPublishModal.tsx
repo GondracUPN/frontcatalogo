@@ -822,7 +822,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         discountMode: saleType === "PROMOCION" ? discountMode : null,
         finalPrice: saleType === "PROMOCION" ? finalPrice : null,
         minOfferPrice: saleType === "OFERTA" ? minOfferPrice : null,
-      });
+      }, { revalidate: false });
       if (!updateResult.ok) throw new Error(updateResult.error || "No se pudo guardar el producto");
       const publishResult = await publishStaged(item.id, { slug: toSlug(fixedTitle) });
       if (!publishResult.ok) throw new Error(publishResult.error || "No se pudo publicar el producto");

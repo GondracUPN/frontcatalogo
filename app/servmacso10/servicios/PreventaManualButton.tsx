@@ -5,18 +5,20 @@ import PublishModal from "./PublishModal";
 
 type DraftItem = Record<string, unknown>;
 
-export default function PreventaManualButton() {
+// Para un vendedor independiente (sin acceso al inventario de Macsomenos) el
+// botón se llama «Ingresar producto» y abre el formulario como venta normal.
+export default function PreventaManualButton({ independent = false }: { independent?: boolean }) {
   const [open, setOpen] = React.useState(false);
   const draft = React.useMemo<DraftItem>(() => ({
-    title: "Preventa",
+    title: independent ? "" : "Preventa",
     price: "0",
     stock: 1,
     status: "draft",
     category: "",
     images: [],
     notes: null,
-    sale_type: "PREVENTA",
-  }), []);
+    sale_type: independent ? "VENTA_SIMPLE" : "PREVENTA",
+  }), [independent]);
 
   return (
     <>
@@ -25,7 +27,7 @@ export default function PreventaManualButton() {
         onClick={() => setOpen(true)}
         className="bg-gray-900 hover:bg-black text-white rounded px-4 py-2"
       >
-        Preventa/extra
+        {independent ? "+ Ingresar producto" : "Preventa/extra"}
       </button>
 
       {open && (

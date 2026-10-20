@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser, listCatalogRepairs } from "../../actions";
 import CatalogRepairsPanel from "./CatalogRepairsPanel";
-import ClientesUploader from "./ClientesUploader";
 import ProductVersionsEditor from "./ProductVersionsEditor";
 import RecalculateInventoryButton from "./RecalculateInventoryButton";
 
@@ -41,10 +40,8 @@ export default async function ContenidosAdminPage() {
 
       <div className="rounded-2xl border bg-white p-4">
         <h2 className="font-semibold text-gray-900">Clientes</h2>
-        <p className="text-sm text-gray-600">Sube fotos de clientes para mostrar en la página principal.</p>
-        <div className="mt-4">
-          <ClientesUploader />
-        </div>
+        <p className="text-sm text-gray-600">Las fotos se vinculan al registrar una venta. En la página principal se muestra cada foto con el producto de esa misma venta.</p>
+        <a href="/servmacso10/servicios" className="mt-3 inline-block text-sm font-medium text-blue-700 underline">Ir a ventas</a>
       </div>
 
       <div className="rounded-2xl border bg-white p-4">

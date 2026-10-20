@@ -183,6 +183,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
     customerKind: "tranquilo" | "regateador";
     salePlaceType: "" | "almacen" | "otro";
     saleLocation: string;
+    clientPhotoUrl?: string;
   } | null>(null);
   const [selling, setSelling] = React.useState(false);
   const sellingRef = React.useRef(false);
@@ -737,7 +738,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                 />
               </>
             )}
-            <SaleClientPhoto disabled={selling} />
+            <SaleClientPhoto disabled={selling} onUploaded={(url) => setSoldModal((current) => current ? { ...current, clientPhotoUrl: url } : null)} />
             <div className="flex justify-end gap-2">
               <button disabled={selling} onClick={() => setSoldModal(null)} className="px-3 py-1 rounded border bg-white shadow-sm disabled:opacity-50">
                 Cancelar
@@ -747,6 +748,14 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                   className="px-3 py-1 rounded bg-amber-600 text-white shadow-sm disabled:cursor-wait disabled:opacity-60"
                   onClick={async () => {
                     if (sellingRef.current) return;
+                    if (!soldModal.customerName.trim() || !soldModal.customerPhone.replace(/\D+/g, "")) {
+                      alert("Completa el nombre y número del cliente");
+                      return;
+                    }
+                    if (!soldModal.clientPhotoUrl) {
+                      alert("Sube la foto del cliente antes de registrar la venta");
+                      return;
+                    }
                     try {
                       sellingRef.current = true;
                       setSelling(true);
@@ -759,6 +768,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                         saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
                         stagedId: soldModal.unit?.id || undefined,
                         exchangeRate: soldModal.exchangeRate || undefined,
+                        clientPhotoUrl: soldModal.clientPhotoUrl,
                       });
                       if (!result.ok) throw new Error(result.error || "No se pudo marcar como vendido");
                       try {

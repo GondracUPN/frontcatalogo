@@ -68,28 +68,6 @@ export function getCartId() {
   return id;
 }
 
-function fingerprintSeed() {
-  if (typeof navigator === "undefined" || typeof window === "undefined") return "";
-  const parts = [
-    navigator.userAgent,
-    navigator.language,
-    navigator.platform,
-    String(window.screen?.width || ""),
-    String(window.screen?.height || ""),
-    String(window.screen?.colorDepth || ""),
-    String(Intl.DateTimeFormat().resolvedOptions().timeZone || ""),
-  ];
-  return parts.join("|");
-}
-
-function hashDjb2(input: string) {
-  let hash = 5381;
-  for (let i = 0; i < input.length; i += 1) {
-    hash = ((hash << 5) + hash) + input.charCodeAt(i);
-  }
-  return Math.abs(hash).toString(16);
-}
-
 export function getFingerprint() {
   if (typeof window === "undefined") return "";
   const cached = window.localStorage.getItem("fp");
@@ -107,9 +85,12 @@ export function getFingerprint() {
     }
     return fromCookie;
   }
-  const seed = fingerprintSeed();
-  const fp = seed ? hashDjb2(seed) : globalThis.crypto?.randomUUID?.() || String(Date.now());
-  window.localStorage.setItem("fp", fp);
+  // Identificador aleatorio de este navegador para limitar intentos de oferta.
+  // No se deriva de características del dispositivo (sin fingerprinting).
+  const fp = globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  try {
+    window.localStorage.setItem("fp", fp);
+  } catch {}
   setCookie("fp", fp);
   return fp;
 }
@@ -189,14 +170,20 @@ async function cartFetch<T>(path: string, init: RequestInit = {}) {
     });
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error("[cart] fetch failed", { path, cartId, err });
-    throw err;
+    console.error("[cart] fetch failed", { path, err });
+    throw new Error("No hay conexión con la tienda. Revisa tu internet e inténtalo de nuevo.");
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     // eslint-disable-next-line no-console
-    console.error("[cart] endpoint error", { path, cartId, status: res.status, text });
-    throw new Error(text || `cart ${res.status}`);
+    console.error("[cart] endpoint error", { path, status: res.status });
+    let message = "";
+    try {
+      const json = text ? JSON.parse(text) : null;
+      message = Array.isArray(json?.message) ? json.message.join(". ") : String(json?.message || "");
+    } catch {}
+    if (res.status >= 500 || !message) message = "No pudimos completar la operación. Inténtalo de nuevo en unos segundos.";
+    throw new Error(message);
   }
   try {
     return (await res.json()) as T;
@@ -252,13 +239,43 @@ export async function removeCartItem(id: string) {
   });
 }
 
+export type DeliveryOptionPublic = {
+  id: string;
+  code: string;
+  name: string;
+  kind: string;
+  description: string | null;
+  cost: number;
+  costNote: string | null;
+  schedule: string | null;
+  conditions: string | null;
+  requiresPoint: boolean;
+  requiresDistrict: boolean;
+  requiresAddress: boolean;
+};
+
+export type DeliveryPointPublic = { id: string; name: string; kind: string; district: string | null };
+
+export async function getDeliveryConfig(): Promise<{ options: DeliveryOptionPublic[]; points: DeliveryPointPublic[] }> {
+  const res = await fetch(`${apiBase()}/site/delivery`, { cache: "no-store" });
+  if (!res.ok) throw new Error("delivery config unavailable");
+  return res.json();
+}
+
 export async function submitContactRequest(payload: {
   name: string;
   phone: string;
-  locationScope: "almacen" | "punto_medio";
-  locationValue: string;
+  locationScope?: "almacen" | "punto_medio" | "shalom";
+  locationValue?: string;
+  deliveryOptionId?: string;
+  deliveryPointId?: string;
+  pointText?: string;
+  district?: string;
+  address?: string;
+  notes?: string;
+  submissionKey?: string;
 }) {
-  return cartFetch<{ ok: boolean; id?: string | null }>("/cart/contact-request", {
+  return cartFetch<{ ok: boolean; id?: string | null; numbers?: string[] }>("/cart/contact-request", {
     method: "POST",
     body: JSON.stringify(payload),
   });

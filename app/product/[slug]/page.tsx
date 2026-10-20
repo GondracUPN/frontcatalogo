@@ -2,16 +2,49 @@ import ProductGallery from "@/app/components/ProductGallery";
 import AddToCartClient from "@/app/components/AddToCartClient";
 import ProductViewTracker from "@/app/components/ProductViewTracker";
 import PriceWithIgv from "@/app/components/PriceWithIgv";
-import ProductDetailPhotos from "@/app/components/ProductDetailPhotos";
 import PurchaseInformation from "@/app/components/PurchaseInformation";
+import UnitDetails, { type DetailRow } from "@/app/components/UnitDetails";
+import ProductUnitPicker from "@/app/components/ProductUnitPicker";
+import DetailHighlights from "@/app/components/DetailHighlights";
+import { WAREHOUSE_MAP_URL } from "@/lib/help-content";
+import WhatsAppProductLink from "@/app/components/WhatsAppProductLink";
+import MobileProductAction from "@/app/components/MobileProductAction";
 import { getCatalogItem } from "@/app/actions";
+import { Suspense } from "react";
+import ProductAlternatives from "@/app/components/ProductAlternatives";
+import { accessoryBreakdown, categoryLabel, screenSizeLabel, badgeTone, formatRam, isUsedCondition, keyboardLabel, productBadges, publicSku } from "@/lib/catalog-display";
+import { catalogPrice } from "@/lib/catalog-price";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { formatStorageCompact, formatStorageDisplay } from "@/lib/storage";
 import { buildAppleWatchTitle } from "@/lib/watch";
 import { formatWarrantyDate, warrantyStatus } from "@/lib/warranty";
+import { dateInputInPeru } from "@/app/utils/peruTime";
+import type { Metadata } from "next";
+import ThemedSaleBadge from "@/app/components/theme/ThemedSaleBadge";
 
 export const revalidate = 300;
+
+// Con generateStaticParams la ficha entra en ISR: cada ficha se genera en su
+// primera visita y queda en caché 5 minutos (o hasta revalidateTag). Devuelve
+// [] a propósito: pre-generarlas en el build haría fallar el despliegue si la
+// API tarda o no responde para alguna ficha.
+export async function generateStaticParams() {
+  return [];
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const { item } = await getCatalogItem(slug).catch(() => ({ item: null as any }));
+  if (!item) return { title: "Equipo no disponible", robots: { index: false } };
+  const title = String(item.product?.title || item.staged?.title || "Equipo Apple");
+  const description = `Consulta fotografías, condición, características y precio de ${title} en Macsomenos.`;
+  const url = `/product/${item.slug || slug}`;
+  // Una unidad vendida o reservada no se ofrece en buscadores; su URL sigue
+  // abriendo (enlaces compartidos) con alternativas disponibles.
+  const notForSale = item.availability === "sold" || item.availability === "reserved";
+  return { title, description, alternates: { canonical: url }, ...(notForSale ? { robots: { index: false, follow: true } } : {}), openGraph: { title, description, url, images: item.images?.[0] ? [{ url: item.images[0] }] : undefined } };
+}
 
 function parseNotes(notes: any) {
   try {
@@ -19,13 +52,6 @@ function parseNotes(notes: any) {
   } catch {
     return {};
   }
-}
-
-function formatIncludesAccessories(value: string, cuboFake: boolean, cableFake: boolean) {
-  let formatted = String(value || "");
-  if (cuboFake) formatted = formatted.replace(/\bCubo\b/i, "Cubo Genérico");
-  if (cableFake) formatted = formatted.replace(/\bCable\b/i, "Cable Genérico");
-  return formatted;
 }
 
 function buildIphoneTitle(number?: number | string | null, model?: string | null, storageGb?: number | string | null, color?: string | null) {
@@ -68,22 +94,10 @@ function formatWarrantyValue(value?: string | null) {
   return raw;
 }
 
-function toneForCondition(condition: string, sold?: boolean) {
-  if (sold) return "bg-[rgba(15,23,42,0.92)] text-white";
-  if (condition.toLowerCase().includes("agotado")) return "bg-[rgba(255,235,235,0.96)] text-[#9f1d1d]";
-  const value = condition.toLowerCase();
-  if (value.includes("nuevo")) return "bg-[rgba(230,245,236,0.94)] text-[#1f6c43]";
-  if (value.includes("open")) return "bg-[rgba(255,242,214,0.96)] text-[#8a5b11]";
-  if (value.includes("usad")) return "bg-[rgba(231,239,255,0.96)] text-[#305fbe]";
-  return "bg-white/88 text-[color:var(--foreground-soft)]";
-}
+const NOT_RECORDED = "No registrado";
 
 function isNewCondition(condition: unknown) {
   return String(condition || "").toLowerCase().includes("nuevo");
-}
-
-function publicSku(value: unknown) {
-  return String(value || "").trim().replace(/^MS(?:[-_\s]+)?/i, "");
 }
 
 function variantOptionLabel(variant: any) {
@@ -91,35 +105,35 @@ function variantOptionLabel(variant: any) {
   const includes = String(variant?.includes || "").trim();
   const pieces = [
     variant?.color,
+    variant?.condition,
+    variant?.ram ? `${formatRam(variant.ram)} RAM` : "",
+    variant?.storage ? `${formatStorageDisplay(variant.storage)} almacenamiento` : "",
     batteryHealth ? `${batteryHealth}% batería` : "",
+    variant?.batteryCycles ? `${variant.batteryCycles} ciclos` : "",
     includes && includes !== "Ninguno" ? includes : "",
   ].filter(Boolean);
-  return String(variant?.variantLabel || pieces.join(" · ") || variant?.title || "Opcion");
+  return String(pieces.join(" · ") || variant?.variantLabel || variant?.title || "Opción");
 }
 
 function uniqueStrings(values: unknown[]) {
   return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
 }
 
-export default async function ProductPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ slug: string }>;
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-}) {
+// La ficha no lee `searchParams`: así Next la genera una vez y la sirve desde
+// caché (ISR, 5 minutos) en lugar de renderizarla en cada visita.
+export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const query = (await searchParams) || {};
-  const { item } = await getCatalogItem(slug).catch(() => ({ item: null as any }));
-  if (!item) return <div className="mx-auto max-w-7xl px-4 py-10 text-sm text-[color:var(--foreground-soft)]">Producto no encontrado.</div>;
-  if (item.slug && item.slug !== slug) {
-    const suffix = new URLSearchParams(
-      Object.entries(query).flatMap(([key, value]) =>
-        Array.isArray(value) ? value.map((entry) => [key, entry]) : value === undefined ? [] : [[key, value]]
-      )
-    ).toString();
-    redirect(`/product/${item.slug}${suffix ? `?${suffix}` : ""}`);
+  let item: any;
+  try {
+    ({ item } = await getCatalogItem(slug));
+  } catch (error) {
+    if (error instanceof Error && /\/catalog\/.* 404\b/.test(error.message)) notFound();
+    throw new Error("El catálogo no está disponible temporalmente.");
   }
+  if (!item) notFound();
+  // Slug antiguo (sufijo -svc-N): redirige al vigente. Una página en caché no
+  // conoce la query de cada visita, por eso esa redirección ya no la conserva.
+  if (item.slug && item.slug !== slug) redirect(`/product/${item.slug}`);
 
   const images: string[] = Array.isArray(item.images) && item.images.length ? item.images : Array.isArray(item.staged?.images) ? item.staged.images : [];
   const category = String(item.category || item.staged?.category || item.product?.category || "").toLowerCase();
@@ -128,15 +142,8 @@ export default async function ProductPage({
   const notes = parseNotes(item.staged?.notes);
   const product = item.product || {};
   const staged = item.staged || {};
-  const saleType = String(product?.sale_type || staged?.sale_type || notes?.saleType || "").toUpperCase();
   const salePrice = Number(product?.price ?? staged?.price ?? 0);
-  const discount = Number(product?.discount ?? staged?.discount ?? notes?.discount ?? notes?.descuentoPorc ?? 0);
-  const finalPrice = product?.final_price ?? staged?.final_price ?? notes?.finalPrice ?? null;
-  let price: number = salePrice;
-  let compareAt: number | null = null;
-  const rawOffer = Array.isArray(query?.offer) ? query?.offer[0] : query?.offer;
-  const offerApplied = rawOffer !== undefined && rawOffer !== null && rawOffer !== "";
-  const offerPrice = offerApplied ? Number(rawOffer) : NaN;
+  const { price, compareAt, saleType, promoLabel } = catalogPrice(item);
   const specsAny: any = notes?.specs || notes || {};
   const det: any = specsAny?.detalle || notes?.detalle || {};
   const productDetails = String(det?.detalles || det?.productDetails || notes?.productDetails || notes?.detalles || "").trim();
@@ -156,40 +163,11 @@ export default async function ProductPage({
     return d2["tamaño"] || d2.tamanio || d2.tamano || "";
   })();
 
-  if (saleType === "PROMOCION") {
-    const mode = String(notes?.discountMode || notes?.discountType || "percent").toLowerCase();
-    const computed = finalPrice !== null
-      ? Number(finalPrice)
-      : +(mode === "amount" ? Math.max(0, salePrice - discount) : salePrice * (1 - discount / 100)).toFixed(2);
-    if (isFinite(computed) && computed > 0) price = computed;
-    compareAt = salePrice || null;
-  } else if (!saleType && typeof notes?.precioLista !== "undefined") {
-    compareAt = Number(notes.precioLista);
-    if ((!price || price <= 0) && compareAt) {
-      const d = Number(notes?.descuentoPorc || 0);
-      const f = +(compareAt * (1 - d / 100)).toFixed(2);
-      if (isFinite(f) && f > 0) price = f;
-    }
-  }
-  if (offerApplied && isFinite(offerPrice) && offerPrice > 0) {
-    compareAt = price;
-    price = offerPrice;
-  }
-
   const colorRaw = notes?.color ? String(notes.color) : product?.color || staged?.color || "";
   const colorCap = colorRaw ? colorRaw.charAt(0).toUpperCase() + colorRaw.slice(1) : "";
 
-  const normalizeUnit = (val: any, fallbackUnit: "GB" | "TB" = "GB") => {
-    if (!val && val !== 0) return "";
-    const s = String(val).trim();
-    if (!s) return "";
-    if (/\b(gb|tb)\b/i.test(s)) return s.replace(/\s+/g, " ");
-    if (/^\d+(\.\d+)?$/.test(s)) return `${s} ${fallbackUnit}`;
-    return s;
-  };
-
-  const ramVal = normalizeUnit(det?.ram, "GB");
-  const almVal = normalizeUnit(det?.almacenamiento, "GB");
+  const ramVal = formatRam(det?.ram);
+  const almVal = formatStorageDisplay(det?.almacenamiento);
 
   const iphoneModel = product?.iphone_model || staged?.iphone_model || notes?.iphoneModel || "";
   const iphoneNumber = product?.iphone_number ?? staged?.iphone_number ?? notes?.iphoneNumber;
@@ -207,22 +185,12 @@ export default async function ProductPage({
   const iphoneSimType = formatSimType(notes?.iphoneSimType || notes?.simType || notes?.chipType || det?.esim || det?.sim || specsAny?.sim);
   const iphoneTitle = category === "iphone" ? buildIphoneTitle(iphoneNumber, iphoneModel, storageGb, colorCap) : "";
   const isPreventa = saleType === "PREVENTA";
-  const isPromocion = saleType === "PROMOCION";
-  const promoMode = String(notes?.discountMode || notes?.discountType || "percent").toLowerCase();
-  const promoSavings = compareAt && compareAt > price ? compareAt - price : 0;
-  const promoLabel = isPromocion
-    ? promoMode === "amount" && promoSavings > 0
-      ? `Ahorra S/ ${promoSavings.toFixed(2)}`
-      : discount > 0
-        ? `${discount}% OFF`
-        : promoSavings > 0
-          ? `Ahorra S/ ${promoSavings.toFixed(2)}`
-          : ""
-    : "";
   const preventaFromRaw = notes?.preventaDateFrom || notes?.preventa?.from || "";
   const preventaToRaw = notes?.preventaDateTo || notes?.preventa?.to || "";
   const preventaFromLabel = formatSpanishDate(preventaFromRaw);
   const preventaToLabel = formatSpanishDate(preventaToRaw);
+  const preventaEndDay = String(preventaToRaw || "").match(/^\d{4}-\d{2}-\d{2}/)?.[0] || "";
+  const preventaDateExpired = Boolean(preventaEndDay && preventaEndDay < dateInputInPeru());
   const conectividad = det?.conectividad || notes?.conectividad || "";
   const gama = det?.gama || "";
   const watchType = notes?.watchType || "";
@@ -236,9 +204,8 @@ export default async function ProductPage({
     : "";
   const baseShownTitle = iphoneTitle || watchTitle || titleFallback;
   const baseTitle = isPreventa ? (/^preventa\s+/i.test(baseShownTitle) ? baseShownTitle : `Preventa ${baseShownTitle}`.trim()) : baseShownTitle;
-  const tecladoLabel = teclado === "Ingles" ? "Ingles" : teclado === "Espanol" ? "Espanol" : teclado;
+  const tecladoLabel = keyboardLabel(teclado);
   const productCondition = product?.product_condition || staged?.product_condition || notes?.productCondition || notes?.estado || notes?.specs?.estado || "";
-  const isSealed = String(productCondition || "").toLowerCase().includes("nuevo");
   const warrantyObject = [notes?.warranty, notes?.garantiaDetalle, notes?.garantia]
     .find((value) => value && typeof value === "object") || {};
   const rawWarrantyValue = notes?.warrantyDate
@@ -257,15 +224,23 @@ export default async function ProductPage({
   const warrantyFlag = parseWarrantyFlag(
     notes?.warrantyEnabled ?? notes?.garantiaActiva ?? warrantyObject?.enabled ?? warrantyObject?.activa,
   );
-  const hasWarranty = isSealed ? true : warrantyFlag ?? Boolean(String(rawWarrantyValue || warrantyType || "").trim());
+  const hasWarranty = warrantyFlag ?? Boolean(String(rawWarrantyValue || warrantyType || "").trim());
   const warrantyExpired = hasWarranty && warrantyStatus(rawWarrantyValue) === "expired";
-  const warrantyDetail = formatWarrantyValue(isSealed ? (rawWarrantyValue || "1 año de garantía") : rawWarrantyValue);
+  const warrantyDetail = formatWarrantyValue(rawWarrantyValue);
   const warrantyDisplay = warrantyExpired
     ? `Garantía Vencida: ${formatWarrantyDate(rawWarrantyValue)}`
-    : hasWarranty ? [warrantyType || (isSealed ? "Garantía limitada de Apple" : ""), warrantyDetail].filter(Boolean).join(" · ") : "";
-  const hasAppleWarranty = hasWarranty && (isSealed || /apple/i.test(`${warrantyType} ${warrantyDisplay}`));
+    : hasWarranty ? [warrantyType, warrantyDetail].filter(Boolean).join(" · ") : "";
+  const hasAppleWarranty = hasWarranty && /apple/i.test(`${warrantyType} ${warrantyDisplay}`);
   const title = baseTitle;
 
+  // En equipos usados u Open Box la batería es un dato clave: si falta, se
+  // indica «No registrado» en lugar de ocultarlo. Lo que no aplica se oculta.
+  const usedUnit = isUsedCondition(productCondition);
+  const batteryApplies = usedUnit && ["macbook", "ipad", "iphone"].includes(category);
+  // iOS muestra los ciclos desde el iPhone 15; en modelos anteriores no aplica.
+  const cyclesApply = batteryApplies && (category !== "iphone" || Number(iphoneNumber) >= 15);
+  const keyValue = (value: unknown, applies: boolean) => (String(value ?? "").trim() ? value : applies ? NOT_RECORDED : "");
+  const healthLabel = String(batteryHealth ?? "").trim() ? `${String(batteryHealth).replace(/%$/, "")}%` : "";
   const especs: Array<{ label: string; value: any }> = [];
   if (productCondition) especs.push({ label: "Estado", value: productCondition });
   if (category === "macbook") {
@@ -274,38 +249,39 @@ export default async function ProductPage({
       { label: "Procesador", value: proc },
       { label: "RAM", value: ramVal },
       { label: "SSD", value: almVal },
-      { label: "Pantalla", value: tamPantalla },
-      { label: "Ciclos", value: notes?.bateria?.ciclos },
-      { label: "Salud de batería", value: notes?.bateria?.salud ? `${notes?.bateria?.salud}%` : "" },
+      { label: "Pantalla", value: screenSizeLabel(category, tamPantalla) },
+      { label: "Ciclos de batería", value: keyValue(batteryCycles, cyclesApply) },
+      { label: "Salud de batería", value: keyValue(healthLabel, batteryApplies) },
       { label: "Color", value: colorCap },
-      { label: "Teclado", value: tecladoLabel },
+      // El aviso de la «ñ» va en el propio dato, no como advertencia aparte.
+      { label: "Teclado", value: /ingl/i.test(tecladoLabel) ? "Inglés (sin la tecla ñ impresa)" : tecladoLabel },
     );
   } else if (category === "ipad") {
     especs.push(
       { label: "Procesador", value: proc },
       { label: "Gama", value: gama },
-      { label: "Pantalla", value: tamPantalla },
+      { label: "Pantalla", value: screenSizeLabel(category, tamPantalla) },
       { label: "Almacenamiento", value: almVal },
       { label: "Conectividad", value: conectividad },
-      { label: "Ciclos", value: notes?.bateria?.ciclos },
-      { label: "Salud de batería", value: notes?.bateria?.salud ? `${notes?.bateria?.salud}%` : "" },
+      { label: "Ciclos de batería", value: keyValue(batteryCycles, cyclesApply) },
+      { label: "Salud de batería", value: keyValue(healthLabel, batteryApplies) },
       { label: "Color", value: colorCap },
     );
   } else if (category === "iphone") {
     especs.push(
       { label: "SIM", value: iphoneSimType },
-      { label: "Modelo", value: iphoneModel },
+      { label: "Versión", value: iphoneModel },
       { label: "Número", value: iphoneNumber },
       { label: "Almacenamiento", value: formatStorageDisplay(storageGb) },
-      { label: "Ciclos", value: batteryCycles },
-      { label: "Salud de batería", value: batteryHealth ? `${batteryHealth}%` : "" },
+      { label: "Ciclos de batería", value: keyValue(batteryCycles, cyclesApply) },
+      { label: "Salud de batería", value: keyValue(healthLabel, batteryApplies) },
       { label: "Color", value: colorCap },
     );
   } else if (category === "watch") {
     especs.push(
       { label: "Tipo", value: watchType },
       { label: "Serie", value: watchType === "Normal" ? watchSeries : "" },
-      { label: "Version", value: watchType === "Ultra" ? watchVersion : "" },
+      { label: "Versión", value: watchType === "Ultra" ? watchVersion : "" },
       { label: "Tamaño", value: watchSize ? `${String(watchSize).replace(/\s*mm$/i, "")} mm` : "" },
       { label: "Conexión", value: watchConnection },
       { label: "Accesorios", value: watchAccessories },
@@ -320,18 +296,10 @@ export default async function ProductPage({
 
   const includesValue = product?.includes || staged?.includes || notes?.includes || notes?.watchIncludes || null;
   const includesExtra = product?.includes_extra || staged?.includes_extra || notes?.includesExtra || "";
-  const includesDisplay = includesValue
-    ? includesValue === "Ninguno"
-      ? "-"
-      : includesValue === "Otros"
-        ? includesExtra || "Otros"
-        : formatIncludesAccessories(includesValue, notes?.cuboFake === true || notes?.cuboFake === "true", notes?.cableFake === true || notes?.cableFake === "true")
-    : "";
   const incluyeLegacy = notes?.incluye || {};
-  const sold = item.product?.status === "sold";
-  const stock = Number(product?.stock ?? staged?.stock ?? 1);
+  const sold = item.product?.status === "sold" || item.staged?.status === "sold";
+  const stock = Number(product?.stock ?? staged?.stock ?? 0);
   const outOfStock = !sold && Number.isFinite(stock) && stock <= 0;
-  const unavailable = sold || outOfStock;
   const stockLabel = isNewCondition(productCondition) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
   const visibleSpecs = especs.filter((item) => item.value);
   // `descripcionOtro` describe el tipo/modelo de productos de la categoría
@@ -343,257 +311,206 @@ export default async function ProductPage({
     ...(Array.isArray(notes?.detailPhotos) ? notes.detailPhotos : []),
     ...(Array.isArray(det?.detailImages) ? det.detailImages : []),
   ]);
-  const includeItems = isSealed
-    ? []
-    : includesDisplay
-      ? [includesDisplay]
-      : [
-          incluyeLegacy?.caja ? "Caja" : "",
-          incluyeLegacy?.cubo ? "Cubo" : "",
-          incluyeLegacy?.cable ? "Cable" : "",
-        ].filter(Boolean);
+  const accessories = accessoryBreakdown({
+    category,
+    includes: includesValue,
+    includesExtra,
+    legacy: incluyeLegacy,
+    cuboGeneric: notes?.cuboFake === true || notes?.cuboFake === "true",
+    cableGeneric: notes?.cableFake === true || notes?.cableFake === "true",
+  });
   const variants = Array.isArray(item.variants) ? item.variants : [];
+  // Línea que distingue esta unidad de otra del mismo modelo.
+  const unitSummary = [
+    category === "iphone" ? "" : [proc, ramVal && `${ramVal} RAM`, almVal].filter(Boolean).join(" · "),
+    category !== "iphone" && !title.toLowerCase().includes(colorCap.toLowerCase()) ? colorCap : "",
+    usedUnit && healthLabel ? `Batería ${healthLabel}` : "",
+  ].filter(Boolean).join(" · ");
+  // Avisos que no figuran en otro lugar de la ficha. El teclado inglés, la falta
+  // de cargador y la batería sin registrar ya se ven en sus propios datos.
+  const preventaArrival = preventaDateExpired
+    ? "La fecha estimada publicada ya pasó: consulta el estado actual antes de solicitar."
+    : preventaFromLabel && preventaToLabel ? `Llegada estimada entre el ${preventaFromLabel} y el ${preventaToLabel}.` : "Fecha de llegada por confirmar.";
+  const beforeRequest = [
+    category === "iphone" && iphoneSimType === "eSIM" ? "Funciona con eSIM: confirma con tu operador que pueda activarla." : "",
+    isPreventa ? `Preventa: ${preventaArrival} Las fotos son referenciales hasta que llegue la unidad; consulta las condiciones de separación antes de solicitar.` : "",
+  ].filter(Boolean);
+  // Disponibilidad pública (calculada en el backend: vendido, reservado, preventa).
+  const availability: string = String(item.availability || (sold ? "sold" : outOfStock ? "sold" : isPreventa ? "preorder" : "available"));
+  const notForSale = availability === "sold" || availability === "reserved";
+  const sku = publicSku(product?.sku || staged?.sku || notes?.manualSku || notes?.sourceSku);
+  const allUnits = variants.filter((variant: any) => variant?.slug);
+  // Fotos de detalles tal como las ordena la galería (después de las del equipo).
+  const galleryPrimaryCount = images.filter(Boolean).length;
+  const galleryDetailImages = detailImages.filter((src) => !images.includes(src));
+  // En una unidad vendida o reservada solo se ofrecen las demás.
+  const units = notForSale ? allUnits.filter((variant: any) => variant.slug !== (item.slug || slug)) : allUnits;
+  const structuredProduct = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: title,
+    image: images,
+    sku: product?.sku || staged?.sku || undefined,
+    description: productDescription || undefined,
+    url: `https://www.macsomenos.com/product/${encodeURIComponent(item.slug || slug)}`,
+  };
+
+  // Observaciones: el texto registrado, separado en frases cuando trae varias líneas.
+  const observations = productDescription
+    ? productDescription.split(/\n+|;\s*/).map((text) => text.trim()).filter(Boolean).map((text) => `${text.charAt(0).toLocaleUpperCase("es")}${text.slice(1)}`)
+    : [];
+  // Accesorios: un único lugar (junto al precio). En usados u Open Box, si no
+  // están registrados se dice, porque cambia la decisión de compra.
+  const accessoriesText = accessories.known
+    ? accessories.included.length
+      ? `Incluye ${accessories.included.join(", ").toLowerCase()}.${accessories.missing.length ? ` No incluye ${accessories.missing.join(", ").toLowerCase()}.` : ""}`
+      : "Solo el equipo, sin accesorios."
+    : usedUnit && category !== "otros" ? "No registrados: consúltalos antes de solicitar." : "";
+
+  // Especificaciones: solo datos registrados del modelo y la configuración.
+  const specRows: DetailRow[] = [
+    { label: "Modelo", value: baseShownTitle },
+    ...visibleSpecs.filter((spec) => !["Estado", "SKU", "Ciclos de batería", "Salud de batería"].includes(spec.label)),
+  ]
+    .map((spec) => ({ label: spec.label, value: String(spec.value ?? "").trim() }))
+    .filter((spec) => spec.value);
+
+  // Estado de la unidad: condición, batería (si aplica) y garantía registrada.
+  // «Nuevo» no implica «sellado»: solo se muestra la presentación registrada en el panel.
+  const presentationRaw = String(product?.presentation || staged?.presentation || "").toLowerCase();
+  const presentationLabel = isNewCondition(productCondition) && presentationRaw === "sellado" ? "Sellado" : isNewCondition(productCondition) && presentationRaw === "abierto" ? "Abierto" : "";
+  const cyclesText = cyclesApply && String(batteryCycles ?? "").trim() ? `${batteryCycles} ciclos` : "";
+  const conditionRows: DetailRow[] = ([
+    productCondition ? { label: "Estado", value: String(productCondition) } : null,
+    presentationLabel ? { label: "Presentación", value: presentationLabel } : null,
+    batteryApplies
+      ? healthLabel
+        ? { label: "Batería", value: [`${healthLabel} de salud`, cyclesText].filter(Boolean).join(" · ") }
+        : { label: "Batería", value: NOT_RECORDED, muted: true, note: "Pídela por WhatsApp antes de solicitar." }
+      : null,
+    // En un usado, saber que no hay detalles registrados también ayuda a decidir.
+    usedUnit && !observations.length && !detailImages.length ? { label: "Estética", value: "Sin observaciones registradas" } : null,
+    hasWarranty ? { label: hasAppleWarranty && !warrantyExpired ? "Garantía de Apple" : "Garantía", value: (warrantyDisplay || "Con garantía").replace(/^Garantía limitada de Apple\s*·\s*/i, "") } : null,
+  ] as Array<DetailRow | null>).filter((row): row is DetailRow => Boolean(row && row.value));
+  const badges = productBadges({ condition: productCondition, saleType, promoLabel, availability });
 
   return (
-    <div className="overflow-x-hidden px-2 pb-10 pt-4 sm:px-4 sm:pb-14 sm:pt-6">
+    <div className="route-enter overflow-x-clip px-2 pb-28 pt-4 sm:px-4 sm:pb-14 sm:pt-6">
       <div className="mx-auto min-w-0 max-w-7xl">
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredProduct).replace(/</g, "\\u003c") }} />
+        <nav aria-label="Ruta de navegación" className="mb-4 px-2 text-sm text-[color:var(--foreground-soft)]"><Link href="/">Inicio</Link><span aria-hidden="true"> / </span><Link href={`/c/${category || "otros"}`}>{categoryLabel(category)}</Link><span aria-hidden="true"> / </span><span aria-current="page">{title}</span></nav>
         <ProductViewTracker
           productId={productId}
           productSlug={slug}
           productTitle={title}
           category={category}
         />
-        <section className="surface-card-strong soft-outline overflow-hidden px-3 py-5 sm:px-8 sm:py-10">
-          <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.96fr)_minmax(340px,1.04fr)] lg:items-start lg:gap-8">
-            <section className="order-1 min-w-0 overflow-hidden">
-              <ProductGallery images={images} detailImages={detailImages} sold={sold} />
-            </section>
 
-            <aside className="order-2 min-w-0 space-y-4 sm:space-y-5">
-              <div className="flex flex-wrap gap-2">
-                <span className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] ${toneForCondition(String(outOfStock ? "Agotado" : productCondition || "Disponible"), sold)}`}>
-                  {sold ? "Vendido" : outOfStock ? "Agotado" : productCondition || "Disponible"}
-                </span>
-                {saleType && saleType !== "VENTA_SIMPLE" && (saleType !== "PROMOCION" || promoLabel) && (
-                  <span className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white ${isPromocion ? "bg-rose-600 shadow-[0_10px_26px_rgba(225,29,72,0.28)]" : "bg-black/90"}`}>
-                    {isPromocion ? promoLabel : saleType === "OFERTA" ? "Negociable" : saleType.toLowerCase()}
-                  </span>
-                )}
-                <span className="rounded-full bg-white/78 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
-                  {category || "producto"}
-                </span>
-                {stockLabel && !sold && (
-                  <span className="rounded-full bg-[rgba(230,245,236,0.92)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#1f6c43]">
-                    {stockLabel}
-                  </span>
-                )}
+        {/* NIVEL A: lo necesario para decidir y solicitar. En móvil: nombre, fotos y compra. */}
+        <section className="surface-card-strong soft-outline overflow-clip px-3 py-5 sm:px-8 sm:py-8">
+          <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:grid-rows-[auto_1fr] lg:gap-x-10 lg:gap-y-5">
+            <header className="min-w-0 lg:col-start-2 lg:row-start-1">
+              <div className="flex flex-wrap items-center gap-2">
+                {badges.map((badge) =>
+                  badge.kind === "promo" ? <ThemedSaleBadge key={badge.kind} label={badge.label} />
+                  : <span key={badge.kind} className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] ${badgeTone(badge)}`}>{badge.label}</span>)}
+                {stockLabel && !notForSale && <span className="text-xs font-semibold text-[#1f6c43]">{stockLabel}</span>}
+                {sku && <span className="text-xs font-medium text-[color:var(--foreground-soft)]">SKU {sku}</span>}
               </div>
+              <h1 className="mt-3 break-words text-[26px] font-semibold leading-tight tracking-[-0.03em] text-[color:var(--foreground)] sm:text-4xl sm:tracking-[-0.05em]">
+                {title}
+              </h1>
+              {unitSummary && <p className="mt-1.5 text-base font-medium text-[color:var(--foreground-soft)]">{unitSummary}</p>}
+            </header>
 
-              <div>
-                <h1 className="break-words text-2xl font-semibold text-[color:var(--foreground)] sm:text-4xl sm:tracking-[-0.06em]">
-                  {title}
-                </h1>
-              </div>
+            <div id="galeria" className="min-w-0 scroll-mt-24 lg:sticky lg:top-24 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:self-start">
+              <ProductGallery images={images} detailImages={detailImages} sold={availability === "sold"} />
+            </div>
 
-              <div className="min-w-0 rounded-[22px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(239,244,250,0.94))] p-4 shadow-[0_14px_34px_rgba(15,23,42,0.08)] sm:rounded-[28px] sm:p-6 sm:shadow-[0_20px_48px_rgba(15,23,42,0.1)]">
-                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                  {isPromocion && promoLabel ? promoLabel : "Precio sin IGV"}
+            <div className="min-w-0 space-y-5 lg:col-start-2 lg:row-start-2">
+              {notForSale ? (
+                <div role="status" className="rounded-[20px] bg-slate-900 p-5 text-white">
+                  <p className="text-lg font-semibold">{availability === "sold" ? "Este equipo ya se vendió." : "Este equipo está reservado."}</p>
+                  <p className="mt-1 text-sm leading-6 text-white/80">
+                    {availability === "sold"
+                      ? "Ya no se puede solicitar. Te mostramos otras unidades y equipos disponibles."
+                      : "Tiene una solicitud en curso y por ahora no se puede solicitar. Si se libera, volverá a estar disponible."}
+                  </p>
                 </div>
-                <PriceWithIgv
-                  price={price}
-                  compareAt={compareAt}
-                  wrapperClassName="mt-3"
-                  rowClassName="flex flex-wrap items-center gap-3"
-                  priceClassName="text-3xl font-semibold text-[color:var(--foreground)] sm:text-4xl sm:tracking-[-0.05em]"
-                  labelClassName="text-xs font-semibold uppercase tracking-[0.18em] text-rose-400"
-                  compareAtClassName="text-lg text-[color:var(--foreground-soft)] line-through"
-                  igvClassName="mt-2 text-base font-medium text-emerald-500"
-                />
-                {offerApplied && isFinite(offerPrice) && (
-                  <div className="mt-3 inline-flex rounded-full bg-[rgba(230,245,236,0.94)] px-3 py-1 text-sm font-medium text-[#1f6c43]">
-                    Oferta aplicada
-                  </div>
-                )}
-                {isPromocion && promoLabel && (
-                  <div className="mt-4 rounded-[18px] border border-rose-200 bg-[linear-gradient(135deg,#fff1f2,#ffe4e6)] px-4 py-3 text-rose-950 shadow-[0_14px_34px_rgba(225,29,72,0.12)]">
-                    <div className="text-xs font-bold uppercase tracking-[0.22em] text-rose-700">{promoLabel}</div>
-                    <div className="mt-1 text-sm font-semibold">
-                      {promoLabel}. {compareAt && compareAt > price ? `Precio regular S/ ${compareAt.toFixed(2)}.` : "Precio especial por tiempo limitado."}
-                    </div>
-                  </div>
-                )}
-                {(productDescription || detailImages.length > 0) && (
-                  <div className="mt-5">
-                    <ProductDetailPhotos images={detailImages} description={productDescription} />
-                  </div>
-                )}
-                <div className="mt-5">
+              ) : (
+                <div>
+                  <PriceWithIgv
+                    price={price}
+                    compareAt={compareAt}
+                    rowClassName="flex flex-wrap items-baseline gap-x-3 gap-y-1"
+                    labelClassName="text-xs font-semibold uppercase tracking-[0.16em] text-red-600"
+                    compareAtClassName="text-base text-[color:var(--foreground-soft)] line-through"
+                    igvClassName="mt-2"
+                    priceClassName="text-3xl font-bold tracking-[-0.04em] text-emerald-600 sm:text-[34px]"
+                  />
+                </div>
+              )}
+
+              {accessoriesText && (
+                <p className="text-sm leading-6">
+                  <span className="font-semibold text-[color:var(--foreground)]">Accesorios: </span>
+                  <span className={accessories.known ? "text-[color:var(--foreground-soft)]" : "italic text-[color:var(--foreground-soft)]"}>{accessoriesText}</span>
+                </p>
+              )}
+
+              {!notForSale && (
+                <DetailHighlights photoCount={galleryDetailImages.length} observations={observations} />
+              )}
+
+              {beforeRequest.length > 0 && !notForSale && (
+                <ul className={`space-y-1 rounded-[14px] px-4 py-3 text-sm leading-6 ${isPreventa ? "bg-[color:var(--brand-tint)] text-[color:var(--foreground)] ring-1 ring-inset ring-[rgba(37,99,235,0.3)]" : "bg-[color:var(--brand-tint)] text-[color:var(--foreground)]"}`}>
+                  {beforeRequest.map((line) => <li key={line}>{line}</li>)}
+                </ul>
+              )}
+
+              {notForSale && <ProductUnitPicker units={units} minUnits={1} currentSlug={item.slug || slug} showMemory={category !== "watch" && category !== "otros"} heading="Unidades disponibles de este modelo" />}
+
+              {!notForSale && (
+                <div id="product-action" className="scroll-mt-28">
                   <AddToCartClient
                     productId={productId}
                     saleType={saleType}
                     salePrice={salePrice}
-                    disabled={!productId || unavailable}
-                    disabledLabel={sold ? "Producto vendido" : outOfStock ? "Producto agotado" : undefined}
+                    disabled={!productId}
                   />
+                  <div className="mt-3"><WhatsAppProductLink productId={productId} title={title} sku={product?.sku || staged?.sku} slug={item.slug || slug} price={price} condition={productCondition} variant={variantOptionLabel({ color: colorCap, ram: ramVal, storage: almVal || formatStorageDisplay(storageGb), batteryHealth, batteryCycles })} /></div>
                 </div>
-              </div>
+              )}
 
-              <div className="grid min-w-0 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-                <div className="order-2 min-w-0 rounded-[22px] border border-black/6 bg-white/72 p-4 sm:rounded-[26px] sm:p-5 xl:order-1">
-                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                    Especificaciones
-                  </div>
-                  <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3">
-                    {visibleSpecs.length ? (
-                      visibleSpecs.map((item) => (
-                        <div key={item.label} className="rounded-[18px] border border-black/6 bg-[rgba(248,250,252,0.95)] px-3 py-3">
-                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
-                            {item.label}
-                          </div>
-                          <div className="mt-1 text-sm font-medium leading-5 text-[color:var(--foreground)]">
-                            {String(item.value)}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="col-span-2 text-sm text-[color:var(--foreground-soft)]">No disponible.</div>
-                    )}
-                  </div>
+              {!notForSale && (
+                <ul className="grid gap-1.5 border-t border-[color:var(--border)] pt-4 text-sm text-[color:var(--foreground-soft)]">
+                  <li>Solicitas sin pagar: confirmamos la disponibilidad por WhatsApp.</li>
+                  <li>Recojo siempre gratis en nuestro almacén de Surco (<a href={WAREHOUSE_MAP_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-[color:var(--accent-strong)] hover:underline">ver ubicación</a>) o entrega en centros comerciales de Lima, con costo a confirmar.</li>
+                  <li><a href="#condiciones" className="font-semibold text-[color:var(--accent-strong)] hover:underline">Garantía, pagos y entregas</a></li>
+                </ul>
+              )}
+
+              {/* Las demás unidades del modelo van al final: primero la que el cliente está viendo. */}
+              {!notForSale && units.length >= 2 && (
+                <div className="border-t border-[color:var(--border)] pt-5">
+                  <ProductUnitPicker units={units} currentSlug={item.slug || slug} showMemory={category !== "watch" && category !== "otros"} heading="Otras unidades de este modelo" />
                 </div>
-
-                <div className={`min-w-0 space-y-4 ${variants.length > 1 ? "order-1" : "order-3"} xl:order-2`}>
-                  {variants.length > 1 && (
-                    <div className="rounded-[18px] border border-black/6 bg-white/68 p-3 sm:p-4">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--foreground-soft)]">
-                        Opciones
-                      </div>
-                      <div className="mt-3 grid gap-1.5">
-                        {variants.map((variant: any) => {
-                          const activeVariant = String(variant.slug || "") === slug;
-                          const availableVariant = variant?.available !== false;
-                          const statusLabel = String(variant?.availabilityLabel || (availableVariant ? "Disponible" : "No disponible"));
-                          const variantStock = Number(variant?.stock ?? 0);
-                          const variantStockLabel = isNewCondition(variant?.condition) && Number.isFinite(variantStock) && variantStock >= 2 ? `${variantStock} unidades` : "";
-                          const canOpenVariant = Boolean(variant?.slug) && !activeVariant;
-                          const optionClass = `rounded-[13px] border px-3 py-2 text-xs transition ${
-                            activeVariant
-                              ? "border-[rgba(26,115,232,0.44)] bg-[rgba(26,115,232,0.08)] text-[color:var(--foreground)]"
-                              : availableVariant
-                                ? "border-black/8 bg-[rgba(248,250,252,0.92)] text-[color:var(--foreground-soft)] hover:border-black/15 hover:bg-white"
-                                : "border-black/6 bg-[rgba(248,250,252,0.62)] text-[color:var(--foreground-soft)] opacity-70 hover:border-black/12 hover:bg-white/78"
-                          }`;
-                          const content = (
-                            <>
-                              <div className="flex items-center justify-between gap-3">
-                                <span className={`font-medium ${availableVariant ? "" : "line-through decoration-2"}`}>
-                                  {variantOptionLabel(variant)}
-                                </span>
-                                {!availableVariant && (
-                                  <span className="shrink-0 rounded-full bg-black/8 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--foreground-soft)]">
-                                    {statusLabel}
-                                  </span>
-                                )}
-                                {availableVariant && variantStockLabel && (
-                                  <span className="shrink-0 rounded-full bg-[rgba(230,245,236,0.92)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#1f6c43]">
-                                    Stock: {variantStockLabel}
-                                  </span>
-                                )}
-                              </div>
-                              <PriceWithIgv
-                                price={Number(variant.price || 0)}
-                                wrapperClassName={`mt-1 ${availableVariant ? "" : "line-through"}`}
-                                rowClassName="flex flex-wrap items-center gap-1.5"
-                                priceClassName="text-[11px] font-medium text-[color:var(--foreground-soft)]"
-                                labelClassName="text-[9px] font-semibold uppercase tracking-[0.1em] text-rose-400"
-                                igvClassName="mt-0.5 text-[10px] text-emerald-500"
-                              />
-                            </>
-                          );
-                          if (!canOpenVariant) {
-                            return (
-                              <div
-                                key={variant.product_id || variant.slug}
-                                className={optionClass}
-                                aria-current={activeVariant ? "true" : undefined}
-                              >
-                                {content}
-                              </div>
-                            );
-                          }
-                          return (
-                            <Link
-                              key={variant.product_id || variant.slug}
-                              href={`/product/${variant.slug}`}
-                              className={optionClass}
-                            >
-                              {content}
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {!isSealed && (
-                    <div className="rounded-[26px] border border-black/6 bg-white/72 p-4 sm:p-5">
-                      <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                        Qué incluye
-                      </div>
-                      {includeItems.length ? (
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {includeItems.map((item) => (
-                            <span
-                              key={item}
-                              className="rounded-full border border-black/8 bg-[rgba(248,250,252,0.95)] px-3 py-2 text-sm font-medium text-[color:var(--foreground)]"
-                            >
-                              {item}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="mt-4 text-sm text-[color:var(--foreground-soft)]">No disponible.</div>
-                      )}
-                    </div>
-                  )}
-
-                  {hasWarranty && (
-                    <div className={warrantyExpired
-                      ? "rounded-[26px] border border-amber-200 bg-[linear-gradient(145deg,rgba(255,251,235,0.98),rgba(254,243,199,0.92))] p-4 sm:p-5"
-                      : "rounded-[26px] border border-emerald-200 bg-[linear-gradient(145deg,rgba(240,253,244,0.98),rgba(220,252,231,0.92))] p-4 sm:p-5"}>
-                      <div className={warrantyExpired
-                        ? "text-xs font-semibold uppercase tracking-[0.24em] text-amber-700"
-                        : "text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700"}>
-                        {hasAppleWarranty ? "Garantía limitada de Apple" : "Cobertura registrada"}
-                      </div>
-                      <div className={warrantyExpired
-                        ? "mt-3 text-sm font-medium leading-6 text-amber-950/80"
-                        : "mt-3 text-sm font-medium leading-6 text-emerald-950/80"}>
-                        {warrantyDisplay || "Con garantía"}
-                      </div>
-                    </div>
-                  )}
-
-                  {isPreventa && (
-                    <div className="rounded-[26px] border border-amber-200 bg-[linear-gradient(145deg,rgba(255,250,236,0.98),rgba(255,243,216,0.94))] p-4 sm:p-5">
-                      <div className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">Preventa</div>
-                      <div className="mt-3 space-y-2 text-sm leading-6 text-amber-950/80">
-                        <p>Llega entre {preventaFromLabel || "fecha por confirmar"} y {preventaToLabel || "fecha por confirmar"}.</p>
-                        <p>Separacion desde S/ 50.00.</p>
-                        <p>Reserva valida por 3 dias.</p>
-                      </div>
-                    </div>
-                  )}
-
-
-                </div>
-              </div>
-            </aside>
-          </div>
-          <div className="mt-6 sm:mt-8">
-            <PurchaseInformation hasAppleWarranty={hasAppleWarranty} appleWarrantyLabel={warrantyDisplay} />
+              )}
+            </div>
           </div>
         </section>
+
+        {/* NIVEL B: ficha completa de esta unidad (se adapta a lo registrado). */}
+        <UnitDetails specs={specRows} condition={conditionRows} photoCount={galleryPrimaryCount + galleryDetailImages.length} />
+
+        {/* Condiciones generales de la tienda (la garantía de esta unidad ya figura en sus características). */}
+        <div id="condiciones" className="mt-6 scroll-mt-24">
+          <PurchaseInformation category={category} />
+        </div>
+
+        {category && <Suspense fallback={null}><ProductAlternatives item={item} category={category} excludeSlugs={allUnits.map((variant: any) => String(variant.slug))} /></Suspense>}
       </div>
+      {!notForSale && <MobileProductAction price={price} unavailable={false} isPreventa={isPreventa} />}
     </div>
   );
 }

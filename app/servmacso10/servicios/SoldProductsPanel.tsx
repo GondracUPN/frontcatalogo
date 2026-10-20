@@ -2,6 +2,7 @@
 import React from "react";
 import { listSales, retrySaleSync, unsellProduct, updateSale } from "../../actions";
 import { dateInputInPeru, formatPeruDate } from "../../utils/peruTime";
+import SaleClientPhotoEditor from "./SaleClientPhotoEditor";
 
 type Sale = {
   id: string;
@@ -12,6 +13,9 @@ type Sale = {
   title?: string;
   customer_name?: string | null;
   customer_phone?: string | null;
+  client_photo_url?: string | null;
+  client_photo_public?: boolean | null;
+  product_image_url?: string | null;
   customer_kind?: string | null;
   sale_place_type?: string | null;
   sale_location?: string | null;
@@ -52,6 +56,7 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
   const [open, setOpen] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<Sale | null>(null);
+  const [photoSale, setPhotoSale] = React.useState<Sale | null>(null);
   const [editForm, setEditForm] = React.useState({
     saleDate: "",
     salePrice: "",
@@ -116,6 +121,8 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
     if (!sale.sync_event_id) return "Venta anterior";
     if (sale.sync_remote_status === "rejected") return "Venta rechazada";
     if (sale.sync_remote_status === "confirmed") return "Venta confirmada";
+    if (sale.sync_remote_status === "cancelled") return "Anulación confirmada";
+    if (sale.sync_remote_status === "pending_cancellation_confirmation") return "Anulación pendiente en Servicios";
     if (sale.sync_status === "sent") return "Pendiente en Servicios";
     if (sale.sync_status === "failed") return "Error de envío";
     if (sale.sync_status === "configuration_required") return "Falta configurar";
@@ -186,7 +193,7 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
           <tbody>
             {recentSales.map((sale) => (
               <tr key={sale.id} className="border-t">
-                <td className="p-2 text-gray-900">{sale.title || "-"}</td>
+                <td className="p-2 text-gray-900"><div className="flex items-center gap-2">{sale.product_image_url && <img src={sale.product_image_url} alt="" className="h-10 w-10 rounded object-cover" />}{sale.title || "-"}</div></td>
                 <td className="p-2 text-gray-900">{displaySku(sale.sku) || "-"}</td>
                 <td className="p-2 text-gray-900">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
                 <td className="p-2 text-gray-900">{formatDate(sale.sold_at)}</td>
@@ -256,11 +263,11 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
               <tbody>
                 {sales.map((sale) => (
                   <tr key={sale.id} className="border-t">
-                    <td className="p-2">{sale.title || "-"}</td>
+                    <td className="p-2"><div className="flex items-center gap-2">{sale.product_image_url && <img src={sale.product_image_url} alt="" className="h-10 w-10 rounded object-cover" />}{sale.title || "-"}</div></td>
                     <td className="p-2">{displaySku(sale.sku) || "-"}</td>
                     <td className="p-2">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
                     <td className="p-2">{formatDate(sale.sold_at)}</td>
-                    <td className="p-2">{sale.customer_name || "-"}</td>
+                    <td className="p-2"><div className="flex items-center gap-2">{sale.client_photo_url && <img src={sale.client_photo_url} alt="" className={`h-10 w-10 rounded-full object-cover ${sale.client_photo_public === false ? "opacity-40" : ""}`} title={sale.client_photo_public === false ? "Oculta en la web" : "Visible en la web"} />}{sale.customer_name || "-"}</div></td>
                     <td className="p-2">{phone(sale.customer_phone)}</td>
                     <td className="p-2">{sale.customer_kind || "-"}</td>
                     <td className="p-2">{salePlace(sale)}</td>
@@ -276,6 +283,12 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                         className="rounded bg-indigo-600 px-3 py-1 text-white shadow-sm transition active:translate-y-px active:scale-[0.97] active:bg-indigo-800"
                       >
                         Editar
+                      </button>
+                      <button
+                        onClick={() => setPhotoSale(sale)}
+                        className="rounded border border-indigo-200 px-3 py-1 text-indigo-700 transition hover:bg-indigo-50 active:translate-y-px active:scale-[0.97]"
+                      >
+                        {sale.client_photo_url ? (sale.client_photo_public === false ? "Foto (oculta)" : "Foto") : "Subir foto"}
                       </button>
                       <button
                         onClick={() => restoreSale(sale)}
@@ -353,6 +366,13 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
             </div>
           </div>
         </div>
+      )}
+    {photoSale && (
+        <SaleClientPhotoEditor
+          sale={photoSale}
+          onClose={() => setPhotoSale(null)}
+          onSaved={(patch) => setSales((current) => current.map((item) => (item.id === photoSale.id ? { ...item, ...patch } : item)))}
+        />
       )}
     </div>
   );

@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidateTag } from "next/cache";
+import { cache } from "react";
 import type { MarketplaceData } from "@/lib/marketplace";
 
 // Base URL de la API Nest (sin secretos)
@@ -16,17 +17,27 @@ type ApiInit = RequestInit & {
     revalidate?: number;
     tags?: string[];
   };
+  /** Corta la espera si la API no responde (solo lecturas públicas). */
+  timeoutMs?: number;
 };
+
+// Lecturas públicas del catálogo: margen para el arranque en frío del backend,
+// pero sin dejar una página colgada indefinidamente. Next conserva la caché
+// con `signal` y, en una regeneración ISR fallida, sigue sirviendo la última
+// versión buena.
+const PUBLIC_READ_TIMEOUT_MS = 10_000;
 
 async function apiFetch<T>(path: string, init: ApiInit = {}) {
   const base = apiBase();
+  const { timeoutMs, ...requestInit } = init;
   const res = await fetch(`${base}${path}`, {
-    ...init,
+    ...requestInit,
     headers: {
       "Content-Type": "application/json",
-      ...(init.headers || {}),
+      ...(requestInit.headers || {}),
     },
-    cache: init.cache ?? "no-store",
+    cache: requestInit.cache ?? "no-store",
+    signal: requestInit.signal ?? (timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -246,7 +257,10 @@ export async function createManualPreventaDraft(seed?: {
   }
 }
 
-export async function updateStaged(id: string, patch: any) {
+// `revalidate: false` cuando el guardado va seguido de publishStaged: cada
+// revalidateTag dentro de una server action vuelve a renderizar todo el panel,
+// y publicar ya revalida al terminar.
+export async function updateStaged(id: string, patch: any, options: { revalidate?: boolean } = {}) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
@@ -256,7 +270,7 @@ export async function updateStaged(id: string, patch: any) {
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify(patch),
     });
-    revalidateTag("catalog-products");
+    if (options.revalidate !== false) revalidateTag("catalog-products");
     return { ok: true as const };
   } catch (error) {
     return { ok: false as const, error: error instanceof Error ? error.message : "No se pudo guardar el producto" };
@@ -313,6 +327,7 @@ export async function listCatalog(params: { category?: string } = {}) {
     method: "GET",
     cache: "force-cache",
     next: { revalidate: 300, tags: ["catalog-products"] },
+    timeoutMs: PUBLIC_READ_TIMEOUT_MS,
   });
 }
 
@@ -417,6 +432,29 @@ export async function recalculateInventoryMetadata() {
   }
 }
 
+export type ClientPurchase = {
+  id: string;
+  photoUrl: string;
+  productTitle: string;
+  productImageUrl?: string | null;
+  category?: string | null;
+  purchasedMonth?: string | null;
+};
+
+/**
+ * Fotos de entregas publicadas desde el panel (ventas con foto marcada como
+ * pública). Solo trae la foto y el equipo comprado: nunca datos del cliente.
+ * Se renueva cada 2 minutos; si la API falla, la sección no se muestra.
+ */
+export async function getClientPurchases(): Promise<ClientPurchase[]> {
+  const data = await apiFetch<{ items?: ClientPurchase[] }>("/catalog/client-purchases", {
+    cache: "force-cache",
+    next: { revalidate: 120, tags: ["client-purchases"] },
+    timeoutMs: PUBLIC_READ_TIMEOUT_MS,
+  }).catch(() => ({ items: [] as ClientPurchase[] }));
+  return (Array.isArray(data.items) ? data.items : []).filter((item) => item?.id && item?.photoUrl && item?.productTitle);
+}
+
 export async function getHomeCatalog() {
   return apiFetch<{
     items: Array<{
@@ -426,6 +464,8 @@ export async function getHomeCatalog() {
       image: string;
       title: string;
       condition: string;
+      status?: string | null;
+      availabilityLabel?: string;
       saleType: string;
       discount?: number;
       discountMode?: string;
@@ -441,23 +481,69 @@ export async function getHomeCatalog() {
       detailCount?: number;
       hasConditionDetails?: boolean;
     }>;
+    featured: Array<{
+      id: string; slug: string; category: string | null; image: string; title: string;
+      condition: string; saleType: string; price: number; compareAt: number | null;
+      stock: number; status?: string | null; availabilityLabel?: string;
+      processor?: string | null; ram?: string | null; storage?: string | number | null;
+      batteryHealth?: string | number | null; batteryCycles?: string | number | null;
+      hasConditionDetails?: boolean; images?: string[];
+    }>;
+    /** Promociones reales para las campañas. Opcional: el backend puede desplegarse después. */
+    promotions?: Array<{
+      id: string; slug: string; category: string | null; image: string; title: string;
+      condition: string; saleType: string; price: number; compareAt: number | null;
+      stock: number; promoLabel?: string;
+    }>;
     categories: Array<{ key: string; total: number; minPrice: number | null }>;
+    budgets: Array<{ key: string; category: string; label: string; min?: number; max?: number; count: number }>;
   }>("/catalog/home", {
     method: "GET",
     cache: "force-cache",
     next: { revalidate: 300, tags: ["catalog-products"] },
+    timeoutMs: PUBLIC_READ_TIMEOUT_MS,
   });
 }
 
-export async function getCatalogItem(slug: string) {
+// Comparte metadata y página en la misma renderización, incluso con timeout.
+const readCatalogItem = cache(async (slug: string) => {
   return apiFetch<{ item: any }>(`/catalog/${encodeURIComponent(slug)}`, {
     method: "GET",
     cache: "force-cache",
     next: { revalidate: 300, tags: ["catalog-products"] },
+    timeoutMs: PUBLIC_READ_TIMEOUT_MS,
   });
+});
+
+export async function getCatalogItem(slug: string) {
+  return readCatalogItem(slug);
+}
+
+export async function getCatalogComparison(slugs: string[]) {
+  const items = Array.from(new Set(slugs.filter(slug => typeof slug === "string" && slug.length <= 200))).slice(0, 3);
+  return apiFetch<{ items: any[] }>(`/catalog/compare?${new URLSearchParams({ items: items.join(",") })}`, { cache: "no-store", timeoutMs: PUBLIC_READ_TIMEOUT_MS });
 }
 
 // ----- Admin: unpublish one -----
+/** Cambia o quita la promoción de un producto publicado (el servidor calcula el precio final). */
+export async function updatePromotionAction(productId: string, body: { discount?: number; mode?: "percent" | "amount"; remove?: boolean }) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) return { ok: false as const, error: "Tu sesión expiró. Vuelve a iniciar sesión." };
+  try {
+    const data = await apiFetch<{ ok: boolean; finalPrice: number | null; finalPriceWithIgv: number | null; discount: number | null; mode: string | null; saleType: string }>(
+      `/admin/public/${encodeURIComponent(productId)}/promotion`,
+      { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(body) },
+    );
+    // Solo la caché pública: no hace falta volver a renderizar el panel.
+    revalidateTag("catalog-products");
+    return { ok: true as const, data };
+  } catch (error) {
+    const message = error instanceof Error ? error.message.replace(/^API \S+ \d+: ?/, "") : "";
+    return { ok: false as const, error: message || "No se pudo guardar la promoción" };
+  }
+}
+
 export async function unpublishProduct(productId: string) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
@@ -497,6 +583,7 @@ export async function markProductSold(
     saleLocation?: string;
     stagedId?: string;
     exchangeRate?: string | number;
+    clientPhotoUrl?: string;
   }
 ) {
   const cookieStore = await cookies();
@@ -527,6 +614,7 @@ export async function markStagedProductSold(
     salePlaceType?: string;
     saleLocation?: string;
     exchangeRate?: string | number;
+    clientPhotoUrl?: string;
   }
 ) {
   const cookieStore = await cookies();
@@ -601,6 +689,17 @@ export async function updateSale(
   });
 }
 
+/** Cambia, quita u oculta la foto del cliente de una venta ya registrada. */
+export async function updateSaleClientPhoto(saleId: string, body: { clientPhotoUrl?: string; public?: boolean; remove?: boolean }) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
+  return apiFetch<{ ok: boolean; item: { id: string; client_photo_url: string | null; client_photo_public: boolean; product_image_url: string | null } }>(
+    `/admin/sales/${encodeURIComponent(saleId)}/client-photo`,
+    { method: "PUT", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(body) },
+  );
+}
+
 export async function listContactRequests() {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
@@ -646,7 +745,7 @@ export async function updatePossibleClient(id: string, data: Record<string, unkn
   });
 }
 
-export async function markPossibleClientPurchased(id: string, data: { customerKind: string; salePlaceType: string; saleLocation?: string }) {
+export async function markPossibleClientPurchased(id: string, data: { customerKind: string; salePlaceType: string; saleLocation?: string; clientPhotoUrl?: string }) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) return { ok: false };

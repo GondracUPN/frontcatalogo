@@ -1,45 +1,18 @@
 import Image from "next/image";
+import type { Metadata } from "next";
+import { catalogPrice } from "@/lib/catalog-price";
 import Link from "next/link";
 import { listCatalog } from "../actions";
 import PriceWithIgv from "../components/PriceWithIgv";
 import { catalogFacts, compactSpecs, detailCountLabel } from "@/lib/catalog-display";
+import ThemedSaleBadge from "../components/theme/ThemedSaleBadge";
 
 export const revalidate = 300;
+export const metadata: Metadata = { title: "Novedades", description: "Descubre los equipos incorporados recientemente al catálogo de Macsomenos.", alternates: { canonical: "/novedades" } };
 
 function priceFromRow(row: any): { price: number; compareAt: number | null; promoLabel: string } {
-  const saleType = String(row?.product?.sale_type || row?.staged?.sale_type || "").toUpperCase();
-  const salePrice = Number(row?.product?.price ?? row?.staged?.price ?? 0);
-  let price = salePrice;
-  let compareAt: number | null = null;
-  let promoLabel = "";
-  try {
-    const notes = row?.staged?.notes && typeof row.staged.notes === "string" ? JSON.parse(row.staged.notes) : row.staged?.notes || {};
-    const discount = Number(row?.product?.discount ?? row?.staged?.discount ?? notes?.discount ?? notes?.descuentoPorc ?? 0);
-    const finalPrice = row?.product?.final_price ?? row?.staged?.final_price ?? notes?.finalPrice ?? null;
-    if (saleType === "PROMOCION") {
-      const mode = String(notes?.discountMode || notes?.discountType || "percent").toLowerCase();
-      const computed = finalPrice !== null ? Number(finalPrice) : +(mode === "amount" ? Math.max(0, salePrice - discount) : salePrice * (1 - discount / 100)).toFixed(2);
-      if (isFinite(computed) && computed > 0) price = computed;
-      compareAt = salePrice || null;
-      const savings = compareAt && compareAt > price ? compareAt - price : 0;
-      promoLabel = mode === "amount" && discount > 0
-        ? `Ahorra S/ ${discount.toFixed(2)}`
-        : discount > 0
-          ? `${discount}% OFF`
-          : savings > 0
-            ? `Ahorra S/ ${savings.toFixed(2)}`
-            : "";
-      return { price: price || 0, compareAt, promoLabel };
-    }
-    if (!saleType && typeof notes?.precioLista !== "undefined") {
-      const p = Number(notes?.precioLista || 0);
-      const d = Number(notes?.descuentoPorc || 0);
-      const f = +(p * (1 - d / 100)).toFixed(2);
-      compareAt = p || null;
-      if (isFinite(f) && f > 0) price = f;
-    }
-  } catch {}
-  return { price: price || 0, compareAt, promoLabel };
+  const { price, compareAt, promoLabel } = catalogPrice(row);
+  return { price, compareAt, promoLabel };
 }
 
 function conditionFromRow(row: any) {
@@ -101,8 +74,8 @@ export default async function NovedadesPage() {
                         </div>
                       )}
                       {saleType === "PROMOCION" && promoLabel && (
-                        <div className={`absolute ${stockLabel ? "left-3 top-12" : "left-3 top-3"} z-10 rounded-full bg-rose-600 px-3 py-1 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(225,29,72,0.28)]`}>
-                          {promoLabel}
+                        <div className={`absolute ${stockLabel ? "left-3 top-12" : "left-3 top-3"} z-10`}>
+                          <ThemedSaleBadge label={promoLabel} size="sm" />
                         </div>
                       )}
                       <div className="relative aspect-[4/3] p-5">

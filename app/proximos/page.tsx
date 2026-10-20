@@ -1,10 +1,12 @@
 import Image from "next/image";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { listCatalog } from "../actions";
 import PriceWithIgv from "../components/PriceWithIgv";
 import { catalogFacts, compactSpecs, detailCountLabel } from "@/lib/catalog-display";
 
 export const revalidate = 300;
+export const metadata: Metadata = { title: "Equipos en camino", description: "Explora los equipos anunciados en preventa y consulta su estado actualizado en Macsomenos.", alternates: { canonical: "/proximos" } };
 
 function saleTypeFromRow(row: any) {
   try {

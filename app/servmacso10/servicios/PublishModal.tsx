@@ -713,6 +713,8 @@ export default function PublishModal({
   const [salud, setSalud] = React.useState<string>(String(item?.battery_health ?? notes?.batteryHealth ?? notes?.bateria?.salud ?? ""));
   const [color, setColor] = React.useState<string>(item?.color || notes?.color || specs?.color || detalle?.color || "");
   const [productCondition, setProductCondition] = React.useState<string>(item?.product_condition || notes?.productCondition || notes?.estado || "");
+  // Presentación de un equipo nuevo: "sellado", "abierto" o "" (no especificado).
+  const [presentation, setPresentation] = React.useState<string>(() => (["sellado", "abierto"].includes(String(item?.presentation || "")) ? String(item.presentation) : ""));
   const [openBoxType, setOpenBoxType] = React.useState<string>(() => normalizeOpenBoxType(notes?.openBoxType || notes?.openBoxCondition || notes?.estadoOpenBox || notes?.descripcion || ""));
   const initialWarranty = storedWarranty(notes, item, productCondition);
   const [hasWarranty, setHasWarranty] = React.useState<boolean>(() => initialWarranty.enabled);
@@ -898,6 +900,7 @@ export default function PublishModal({
       }
     }
     if (productCondition !== "Open Box") setOpenBoxType("");
+    if (productCondition !== "Nuevo") setPresentation("");
   }, [productCondition, category]);
 
   React.useEffect(() => {
@@ -1416,7 +1419,7 @@ export default function PublishModal({
       add("Descripcion", descriptionOther);
     }
     add("Color", color);
-    add("Estado", productCondition === "Open Box" && openBoxType ? `Open Box - ${openBoxType}` : productCondition);
+    add("Estado", productCondition === "Open Box" && openBoxType ? `Open Box - ${openBoxType}` : productCondition === "Nuevo" && presentation ? `Nuevo - ${presentation === "sellado" ? "Sellado" : "Abierto"}` : productCondition);
     if (productCondition === "Nuevo" || isUnusedOpenBox) {
       lines.push("Bateria: Nueva");
     } else {
@@ -1656,6 +1659,7 @@ export default function PublishModal({
         notes: JSON.stringify(newNotes),
         category: catalogCategory,
         productCondition,
+        presentation: productCondition === "Nuevo" ? (presentation || null) : null,
         iphoneModel,
         iphoneNumber: iphoneNumber ? Number(iphoneNumber) : null,
         storageGb: iphoneStorage ? iphoneStorageGb : null,
@@ -1671,7 +1675,7 @@ export default function PublishModal({
         discountMode: saleType === "PROMOCION" ? discountMode : null,
         finalPrice: saleType === "PROMOCION" ? finalPrice : null,
         minOfferPrice: saleType === "OFERTA" ? minOfferPrice : null,
-      });
+      }, { revalidate: false });
       if (!updateResult.ok) throw new Error(updateResult.error || "No se pudo guardar el producto");
       const mergeStagedIds = productCondition === "Nuevo" && Number(stock || 1) > 1
         ? selectedMergeIds
@@ -1700,6 +1704,7 @@ export default function PublishModal({
         battery_health: salud ? Number(salud) : null,
         color: color || null,
         product_condition: productCondition,
+        presentation: productCondition === "Nuevo" ? (presentation || null) : null,
         includes: includesPayload,
         includes_extra: includesExtraPayload,
         keyboard_layout: keyboardLayout,
@@ -1933,7 +1938,7 @@ export default function PublishModal({
                 <label className="block text-sm text-gray-700">Estado</label>
                 <select value={productCondition} onChange={(e) => setProductCondition(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
                   <option value="">Seleccionar</option>
-                  <option value="Nuevo">Sellado (Nuevo)</option>
+                  <option value="Nuevo">Nuevo</option>
                   <option value="Usado">Usado</option>
                   <option value="Open Box">Open Box</option>
                   <option value="Arreglado">Arreglado</option>
@@ -1952,13 +1957,24 @@ export default function PublishModal({
               )}
               {productCondition === "Nuevo" && (
                 <div>
+                  <label htmlFor="publish-presentation" className="block text-sm text-gray-700">Presentación</label>
+                  <select id="publish-presentation" value={presentation} onChange={(e) => setPresentation(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                    <option value="">No especificado</option>
+                    <option value="sellado">Sellado</option>
+                    <option value="abierto">Abierto</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">Solo se muestra «Sellado» en la tienda si lo eliges aquí.</p>
+                </div>
+              )}
+              {productCondition === "Nuevo" && (
+                <div>
                   <label className="block text-sm text-gray-700">Stock</label>
                   <input type="number" min={1} value={stock} onChange={(e) => setStock(Math.max(1, Number(e.target.value || 1)))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" />
                 </div>
               )}
               {productCondition === "Nuevo" && sealedPresets.length > 0 && (
                 <div className="col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-                  <label className="block text-sm font-medium text-gray-800">Reutilizar datos de un producto sellado</label>
+                  <label className="block text-sm font-medium text-gray-800">Reutilizar datos de un producto nuevo</label>
                   <select value={sealedPresetId} onChange={(e) => applySealedPreset(e.target.value)} className="mt-1 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-gray-900">
                     <option value="">Seleccionar producto anterior</option>
                     {sealedPresets.map((preset: any) => (
@@ -2544,7 +2560,7 @@ export default function PublishModal({
               {!isWatch && (
                 <div className="col-span-2 rounded-xl border border-gray-200 bg-white/80 p-3">
                   <label className="block text-sm font-medium text-gray-800">¿Qué incluye?</label>
-                  <p className="mt-0.5 text-xs text-gray-500">{productCondition === "Nuevo" ? "Producto sellado: solo se guardan los accesorios básicos." : "Marca cada accesorio. Puedes combinar Caja, Cubo y Cable libremente."}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">{productCondition === "Nuevo" ? "Producto nuevo: solo se guardan los accesorios básicos." : "Marca cada accesorio. Puedes combinar Caja, Cubo y Cable libremente."}</p>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {(["Caja", "Cubo", "Cable"] as AccessoryName[]).map((accessory) => {
                       const included = includesAccessory(includesValue, accessory);

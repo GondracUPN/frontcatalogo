@@ -1,11 +1,17 @@
 "use client";
-import Image from "next/image";
 import Link from "next/link";
 import React from "react";
-import PriceWithIgv from "./PriceWithIgv";
-import { catalogFacts, compactSpecs, detailCountLabel } from "@/lib/catalog-display";
+import dynamic from "next/dynamic";
+import CatalogProductCard, { CATALOG_GRID_CLASS } from "./CatalogProductCard";
+import { catalogFacts, compactSpecs, detailCountLabel, formatRam } from "@/lib/catalog-display";
+import { catalogPrice, withIgv } from "@/lib/catalog-price";
+import { matchScore, matchesTerms, searchTerms, searchableText } from "@/lib/catalog-search";
+import { trackCatalogEvent } from "@/lib/analytics";
+import { whatsappUrl } from "@/lib/store-config";
 
 type Row = any;
+
+const CompareDialog = dynamic(() => import("./CompareDialog"), { ssr: false, loading: () => <div role="status" className="fixed bottom-24 right-4 z-50 rounded-full bg-white px-5 py-3 text-sm shadow-lg">Abriendo comparador…</div> });
 
 function parseNotes(row: Row) {
   try {
@@ -30,65 +36,14 @@ function parseNotes(row: Row) {
 }
 
 function priceMeta(row: Row) {
-  if (row?.product?.status === "sold") return { price: 0, compareAt: null, condition: "Vendido", saleType: "SOLD" };
-  try {
-    const n = row?.staged?.notes && typeof row.staged.notes === "string" ? JSON.parse(row.staged.notes) : row?.staged?.notes || {};
-    const saleType = String(row?.product?.sale_type || row?.staged?.sale_type || n?.saleType || "").toUpperCase();
-    const salePrice = Number(row.product?.price ?? row.staged?.price ?? 0);
-    const discount = Number(row?.product?.discount ?? row?.staged?.discount ?? n?.discount ?? n?.descuentoPorc ?? 0);
-    const finalPrice = row?.product?.final_price ?? row?.staged?.final_price ?? n?.finalPrice ?? null;
-    const condition = String(
-      row?.product?.product_condition ||
-        row?.staged?.product_condition ||
-        n?.productCondition ||
-        n?.estado ||
-        ""
-    );
-    let price = salePrice;
-    let compareAt: number | null = null;
-    let promoLabel = "";
-    if (saleType === "PROMOCION") {
-      const mode = String(n?.discountMode || n?.discountType || "percent").toLowerCase();
-      const computed = finalPrice !== null
-        ? Number(finalPrice)
-        : +(mode === "amount" ? Math.max(0, salePrice - discount) : salePrice * (1 - discount / 100)).toFixed(2);
-      if (isFinite(computed) && computed > 0) price = computed;
-      compareAt = salePrice || null;
-      const savings = compareAt && compareAt > price ? compareAt - price : 0;
-      promoLabel = mode === "amount" && discount > 0
-        ? `Ahorra S/ ${discount.toFixed(2)}`
-        : discount > 0
-          ? `${discount}% OFF`
-          : savings > 0
-            ? `Ahorra S/ ${savings.toFixed(2)}`
-            : "";
-      return { price: price || 0, compareAt, condition, saleType, promoLabel };
-    }
-    if (!saleType && typeof n?.precioLista !== "undefined") {
-      const p = Number(n?.precioLista || 0);
-      const d = Number(n?.descuentoPorc || 0);
-      const f = +(p * (1 - d / 100)).toFixed(2);
-      compareAt = p || null;
-      if (isFinite(f) && f > 0) price = f;
-    }
-    return { price: price || 0, compareAt, condition, saleType, promoLabel };
-  } catch {
-    return {
-      price: Number(row.product?.price ?? row.staged?.price ?? 0) || 0,
-      compareAt: null,
-      condition: "",
-      saleType: String(row?.product?.sale_type || row?.staged?.sale_type || "").toUpperCase(),
-      promoLabel: "",
-    };
-  }
+  const { price, compareAt, saleType, promoLabel } = catalogPrice(row);
+  const notes = parseNotes(row).notes as any;
+  const condition = String(row?.product?.product_condition || row?.staged?.product_condition || notes?.productCondition || notes?.estado || "");
+  return { price, compareAt, condition, saleType, promoLabel };
 }
 
 function dedupe<T>(arr: T[]) {
   return Array.from(new Set(arr.filter(Boolean)));
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function normalizeStorage(value: unknown) {
@@ -139,6 +94,12 @@ function normalizeWatchSeries(meta: any) {
   return value ? `Serie ${value}` : "";
 }
 
+function iphoneNumberOf(row: Row) {
+  const notes = parseNotes(row).notes as any;
+  const value = row?.product?.iphone_number ?? row?.staged?.iphone_number ?? notes?.iphoneNumber ?? "";
+  return String(value || "").trim() || String(row?.product?.title || row?.staged?.title || "").match(/\biPhone\s+(\d{1,2})\b/i)?.[1] || "";
+}
+
 function numericRank(value: string) {
   const n = Number(String(value).match(/\d+(?:\.\d+)?/)?.[0] || Number.POSITIVE_INFINITY);
   return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
@@ -179,82 +140,205 @@ function promoRank(item: any) {
   return saleType === "PROMOCION" || hasSavings ? 1 : 0;
 }
 
-function toneForCondition(condition: string) {
-  const value = condition.toLowerCase();
-  if (value.includes("nuevo")) return "bg-[rgba(230,245,236,0.92)] text-[#1f6c43]";
-  if (value.includes("open")) return "bg-[rgba(255,242,214,0.96)] text-[#8a5b11]";
-  if (value.includes("usad")) return "bg-[rgba(231,239,255,0.96)] text-[#305fbe]";
-  return "bg-white/88 text-[color:var(--foreground-soft)]";
-}
-
 function isNewCondition(condition: unknown) {
   return String(condition || "").toLowerCase().includes("nuevo");
 }
 
-function FilterSection({
-  title,
+type FacetKey = "category" | "model" | "tipo" | "proc" | "size" | "ram" | "ssd" | "connectivity" | "series" | "condition" | "color";
+
+type Facet = {
+  key: FacetKey;
+  title: string;
+  /** Parámetro de la URL. */
+  param: string;
+  valueOf: (m: any) => string;
+  label?: (value: string) => string;
+  sort?: (values: string[]) => string[];
+};
+
+const titleOf = (m: any) => String(m.row?.product?.title || m.row?.staged?.title || m.title || "");
+const colorOf = (m: any) => String(m.row?.product?.color || m.row?.staged?.color || m.notes?.color || "").trim();
+
+// Filtros de cada categoría, en el orden en que se muestran. Los primeros
+// (`OPEN_FACETS`) aparecen abiertos; el resto queda en acordeones.
+function facetsFor(category: string): Facet[] {
+  const isIphone = category === "iphone";
+  const isIpad = category === "ipad";
+  const isMacbook = category === "macbook";
+  const isWatch = category === "watch";
+  const gama = (m: any) => {
+    const title = titleOf(m);
+    const raw = isIphone ? normalizeIphoneModel(m.tipo, title)
+      : isIpad ? String(m.tipo || title.match(/\biPad\s+(Mini|Air|Pro)\b/i)?.[1] || "")
+      : isMacbook ? String(m.tipo || title.match(/\b(Air|Pro|Neo)\b/i)?.[1] || "")
+      : String(m.tipo || "").trim();
+    return raw.replace(/\bmac\s*book\s*/i, "").trim();
+  };
+  const facet = {
+    category: { key: "category", title: "Categoría", param: "category", valueOf: (m: any) => String(m.row.category || "").trim(), label: (v: string) => (v === "watch" ? "Apple Watch" : v === "otros" ? "Otros" : v === "iphone" ? "iPhone" : v === "ipad" ? "iPad" : v === "macbook" ? "MacBook" : v) },
+    model: { key: "model", title: "Modelo", param: "model", valueOf: (m: any) => iphoneNumberOf(m.row), label: (v: string) => `iPhone ${v}`, sort: (vs: string[]) => [...vs].sort((a, b) => numericRank(a) - numericRank(b)) },
+    tipo: { key: "tipo", title: isIphone ? "Versión" : isIpad ? "Modelo" : "Gama", param: "gama", valueOf: gama, sort: (vs: string[]) => sortGama(vs, category) },
+    proc: { key: "proc", title: "Procesador", param: "chip", valueOf: (m: any) => String(m.proc || titleOf(m).match(/\bM[0-9][a-z0-9 ]*?(?:Pro|Max|Ultra)?\b/i)?.[0] || "").trim(), sort: (vs: string[]) => [...vs].sort((a, b) => a.localeCompare(b, "es", { numeric: true })) },
+    size: { key: "size", title: isWatch ? "Tamaño" : "Pantalla", param: "size", valueOf: (m: any) => String(m.size || titleOf(m).match(/\b(1[0-9](?:\.[0-9])?|4[0-9])\b/)?.[1] || "").replace(/\s*mm$/i, "").replace(/"$/, "").trim(), label: (v: string) => (isWatch ? `${v} mm` : `${v}"`), sort: (vs: string[]) => [...vs].sort((a, b) => numericRank(a) - numericRank(b)) },
+    ram: { key: "ram", title: "RAM", param: "ram", valueOf: (m: any) => formatRam(m.ram), sort: (vs: string[]) => [...vs].sort((a, b) => numericRank(a) - numericRank(b)) },
+    ssd: { key: "ssd", title: isMacbook ? "SSD" : "Capacidad", param: "storage", valueOf: (m: any) => normalizeStorage(m.storage || titleOf(m).match(/\b(\d+\s*(?:GB|TB))\b/i)?.[1] || ""), label: (v: string) => v.replace(/(\d)(GB|TB)/, "$1 $2"), sort: (vs: string[]) => [...vs].sort((a, b) => storageRank(a) - storageRank(b)) },
+    connectivity: { key: "connectivity", title: "Conectividad", param: "connectivity", valueOf: (m: any) => normalizeConnectivity(m.connectivity || titleOf(m)) },
+    series: { key: "series", title: "Serie", param: "series", valueOf: (m: any) => normalizeWatchSeries(m), sort: sortSeries },
+    condition: { key: "condition", title: "Condición", param: "condition", valueOf: (m: any) => String(m.condition || "").trim(), sort: (vs: string[]) => [...vs].sort((a, b) => CONDITION_ORDER.indexOf(a) - CONDITION_ORDER.indexOf(b)) },
+    color: { key: "color", title: "Color", param: "color", valueOf: colorOf, sort: (vs: string[]) => [...vs].sort((a, b) => a.localeCompare(b, "es")) },
+  } satisfies Record<FacetKey, Facet>;
+  if (isMacbook) return [facet.tipo, facet.proc, facet.size, facet.ram, facet.ssd, facet.condition, facet.color];
+  if (isIphone) return [facet.model, facet.ssd, facet.condition, facet.color, facet.tipo];
+  if (isIpad) return [facet.tipo, facet.size, facet.ssd, facet.connectivity, facet.condition, facet.proc, facet.color];
+  if (isWatch) return [facet.series, facet.size, facet.connectivity, facet.condition, facet.color];
+  if (category === "otros") return [facet.condition, facet.color];
+  // Búsqueda y ofertas: varias categorías mezcladas.
+  return [facet.category, facet.condition];
+}
+
+const CONDITION_ORDER = ["Nuevo", "Open Box", "Usado", "Arreglado"];
+const OPEN_FACETS = 4;
+
+type Selection = Record<FacetKey, string[]>;
+const EMPTY_SELECTION: Selection = { category: [], model: [], tipo: [], proc: [], size: [], ram: [], ssd: [], connectivity: [], series: [], condition: [], color: [] };
+
+function FilterGroup({
+  facet,
   options,
   selected,
   onToggle,
-  renderLabel,
+  defaultOpen,
 }: {
-  title: string;
-  options: string[];
+  facet: Facet;
+  options: Array<{ value: string; count: number }>;
   selected: string[];
   onToggle: (value: string) => void;
-  renderLabel?: (value: string) => string;
+  defaultOpen: boolean;
 }) {
-  if (!options.length) return null;
+  // Un filtro con una sola opción no ayuda a elegir; se muestra solo si ya está aplicado.
+  if (!options.length || (options.length < 2 && !selected.length)) return null;
+  const titleId = `filter-${facet.key}`;
   return (
-    <div className="rounded-[22px] border border-black/6 bg-white/70 p-3 backdrop-blur-xl lg:rounded-[26px] lg:p-4">
-      <div className="text-sm font-semibold text-[color:var(--foreground)]">{title}</div>
-      <div className="mt-2 max-h-44 space-y-1.5 overflow-auto lg:mt-3 lg:max-h-64 lg:space-y-2">
-        {options.map((option) => {
-          const active = selected.includes(option);
+    <details open={defaultOpen || selected.length > 0} className="group border-b border-[color:var(--border)] py-1 last:border-b-0">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-lg text-[15px] font-semibold text-[color:var(--foreground)] outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] [&::-webkit-details-marker]:hidden">
+        <span id={titleId}>
+          {facet.title}
+          {selected.length > 0 && <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[color:var(--accent)] px-1.5 text-[11px] font-bold text-white">{selected.length}</span>}
+        </span>
+        <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-[color:var(--foreground-soft)] transition-transform group-open:rotate-180"><path d="M5 7.5l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </summary>
+      <div role="group" aria-labelledby={titleId} className="flex flex-wrap gap-2 pb-4 pt-1">
+        {options.map(({ value, count }) => {
+          const active = selected.includes(value);
+          const impossible = count === 0 && !active;
           return (
-            <label
-              key={option}
-              className={`flex cursor-pointer items-center justify-between rounded-[16px] border px-3 py-2.5 text-sm lg:rounded-[18px] lg:py-3 ${
+            <button
+              key={value}
+              type="button"
+              aria-pressed={active}
+              disabled={impossible}
+              onClick={() => onToggle(value)}
+              className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3.5 text-sm transition-colors ${
                 active
-                  ? "border-[rgba(26,115,232,0.35)] bg-[rgba(26,115,232,0.08)] text-[color:var(--foreground)]"
-                  : "border-black/6 bg-white/75 text-[color:var(--foreground-soft)]"
+                  ? "border-[color:var(--accent)] bg-[color:var(--brand-tint)] font-semibold text-[color:var(--accent-strong)]"
+                  : impossible
+                    ? "cursor-not-allowed border-dashed border-[color:var(--border)] text-[color:var(--foreground-soft)]/60"
+                    : "border-[color:var(--border-strong)] bg-white text-[color:var(--foreground)] hover:border-[color:var(--accent)]"
               }`}
             >
-              <span>{renderLabel ? renderLabel(option) : option}</span>
-              <input type="checkbox" checked={active} onChange={() => onToggle(option)} className="h-4 w-4 accent-[color:var(--accent)]" />
-            </label>
+              <span>{facet.label ? facet.label(value) : value}</span>
+              <span className={`text-xs tabular-nums ${active ? "text-[color:var(--accent-strong)]" : "text-[color:var(--foreground-soft)]"}`}>{count}</span>
+            </button>
           );
         })}
       </div>
-    </div>
+    </details>
   );
 }
 
-export default function CategoryBrowser({ initialItems, category }: { initialItems: Row[]; category?: string }) {
-  const normalizedCategory = String(category || initialItems?.[0]?.category || "").toLowerCase();
+const SORT_OPTIONS = [
+  ["none", "Recomendados"],
+  ["price_asc", "Menor precio"],
+  ["price_desc", "Mayor precio"],
+  ["recent", "Más recientes"],
+  ["discount", "Mayor descuento"],
+] as const;
+type SortKey = (typeof SORT_OPTIONS)[number][0];
+
+const BATTERY_STEPS = ["80", "90", "95"];
+
+/** Precio sin IGV escrito por el cliente: admite «3,500.50» o «3500,5». */
+function parseAmount(value: string) {
+  const raw = String(value || "").trim().replace(/\s|S\/?/gi, "");
+  if (!raw) return null;
+  const normalized = /,\d{1,2}$/.test(raw) && !raw.includes(".") ? raw.replace(",", ".") : raw.replace(/,/g, "");
+  const n = Number(normalized);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+const money = (value: number) => value.toLocaleString("es-PE", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+function discountRatio(m: any) {
+  const compareAt = Number(m.compareAt || 0);
+  const price = Number(m.price || 0);
+  return compareAt > price && price > 0 ? (compareAt - price) / compareAt : 0;
+}
+
+export default function CategoryBrowser({ initialItems, category, initialQuery = "", autoFocusSearch = false }: { initialItems: Row[]; category?: string; initialQuery?: string; autoFocusSearch?: boolean }) {
+  const normalizedCategory = String(category || "").toLowerCase();
+  const isIphone = normalizedCategory === "iphone";
   const isMacbook = normalizedCategory === "macbook";
   const isIpad = normalizedCategory === "ipad";
-  const isIphone = normalizedCategory === "iphone";
   const isWatch = normalizedCategory === "watch";
-  const [tipo, setTipo] = React.useState<string[]>([]);
-  const [proc, setProc] = React.useState<string[]>([]);
-  const [sizes, setSizes] = React.useState<string[]>([]);
-  const [rams, setRams] = React.useState<string[]>([]);
-  const [ssds, setSsds] = React.useState<string[]>([]);
-  const [connectivity, setConnectivity] = React.useState<string[]>([]);
-  const [series, setSeries] = React.useState<string[]>([]);
-  const [sort, setSort] = React.useState<"price_asc" | "price_desc" | "none">("none");
+  const facets = React.useMemo(() => facetsFor(normalizedCategory), [normalizedCategory]);
+  const [selection, setSelection] = React.useState<Selection>(EMPTY_SELECTION);
+  const [batteryMinimum, setBatteryMinimum] = React.useState<string>("");
+  const [sort, setSort] = React.useState<SortKey>("none");
   const [availability, setAvailability] = React.useState<"all" | "warehouse" | "preorder">("all");
   const [filtersOpen, setFiltersOpen] = React.useState(false);
-  const [search, setSearch] = React.useState("");
-  const deferredSearch = React.useDeferredValue(search.trim().toLocaleLowerCase("es"));
+  const [urlReady, setUrlReady] = React.useState(false);
+  const [search, setSearch] = React.useState(initialQuery);
+  // Precio SIN IGV: texto tal como lo escribe el cliente; vacío = sin límite.
+  const [minPrice, setMinPrice] = React.useState("");
+  const [maxPrice, setMaxPrice] = React.useState("");
+  const [compareSlugs, setCompareSlugs] = React.useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = React.useState(false);
+  const closeCompare = React.useCallback(() => setCompareOpen(false), []);
+  React.useEffect(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem("macsomenos:compare") || "[]");
+      if (Array.isArray(stored)) setCompareSlugs(stored.filter((slug): slug is string => typeof slug === "string").slice(0, 3));
+    } catch { /* An unavailable store must not block the catalog. */ }
+  }, []);
+  const toggleCompare = (slug: string) => {
+    trackCatalogEvent("compare_product", { product_slug: slug, selected: !compareSlugs.includes(slug) });
+    setCompareSlugs((current) => {
+      const next = current.includes(slug) ? current.filter((value) => value !== slug) : current.length < 3 ? [...current, slug] : current;
+      try { window.localStorage.setItem("macsomenos:compare", JSON.stringify(next)); } catch { /* Private browsing can disable storage. */ }
+      return next;
+    });
+  };
+  const clearCompare = () => {
+    setCompareSlugs([]);
+    setCompareOpen(false);
+    try { window.localStorage.removeItem("macsomenos:compare"); } catch { /* Storage may be disabled. */ }
+  };
+  // El foco automático solo en escritorio: en un teléfono abriría el teclado y taparía los resultados.
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (autoFocusSearch && !initialQuery && window.matchMedia("(pointer: fine)").matches) searchRef.current?.focus();
+  }, [autoFocusSearch, initialQuery]);
+  const deferredSearch = React.useDeferredValue(searchTerms(search).join(" "));
+  React.useEffect(() => { if (normalizedCategory) trackCatalogEvent("view_category", { category: normalizedCategory }); }, [normalizedCategory]);
   const filtersButtonRef = React.useRef<HTMLButtonElement>(null);
+  const filtersCloseRef = React.useRef<HTMLButtonElement>(null);
 
   React.useEffect(() => {
     if (!filtersOpen) return;
     const returnFocusTo = filtersButtonRef.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    filtersCloseRef.current?.focus();
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setFiltersOpen(false); };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -267,299 +351,358 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
   const meta = React.useMemo(
     () =>
       initialItems
-        .filter((row) => row?.product?.status !== "sold")
-        .map((row) => ({ row, ...priceMeta(row), ...parseNotes(row), ...catalogFacts(row) })),
+        // El backend ya excluye lo no vendible; aquí se repite por seguridad: nada
+        // vendido, reservado o sin stock aparece en el catálogo público.
+        .filter((row) => row?.product?.status !== "sold" && row?.staged?.status !== "sold" && row?.availability !== "sold" && row?.availability !== "reserved" && Number(row?.product?.stock ?? row?.staged?.stock ?? 1) > 0)
+        .map((row) => ({ row, ...priceMeta(row), ...parseNotes(row), ...catalogFacts(row), searchText: searchableText(row) })),
     [initialItems]
   );
 
-  const prices = React.useMemo(() => meta.map((m) => m.price).filter((n) => isFinite(n) && n >= 0), [meta]);
-  const minGlobal = React.useMemo(() => (prices.length ? Math.floor(Math.min(...prices)) : 0), [prices]);
-  const maxGlobal = React.useMemo(() => (prices.length ? Math.ceil(Math.max(...prices)) : 0), [prices]);
+  // Límites exactos del precio vigente SIN IGV (promociones incluidas), sin redondear.
+  const prices = React.useMemo(() => meta.map((m) => Number(m.price)).filter((n) => Number.isFinite(n) && n >= 0), [meta]);
+  const minGlobal = prices.length ? Math.min(...prices) : 0;
+  const maxGlobal = prices.length ? Math.max(...prices) : 0;
+  const minBound = parseAmount(minPrice);
+  const maxBound = parseAmount(maxPrice);
+  const lowV = minBound !== null && maxBound !== null ? Math.min(minBound, maxBound) : minBound;
+  const highV = minBound !== null && maxBound !== null ? Math.max(minBound, maxBound) : maxBound;
 
-  const [minPrice, setMinPrice] = React.useState<string>("");
-  const [maxPrice, setMaxPrice] = React.useState<string>("");
   React.useEffect(() => {
-    if (minPrice === "" && isFinite(minGlobal)) setMinPrice(String(minGlobal));
-    if (maxPrice === "" && isFinite(maxGlobal)) setMaxPrice(String(maxGlobal));
-  }, [minGlobal, maxGlobal, minPrice, maxPrice]);
-
-  const options = React.useMemo(() => {
-    const titleOf = (m: any) => String(m.row?.product?.title || m.row?.staged?.title || m.title || "");
-    return {
-      tipos: sortGama(dedupe(
-        meta
-          .map((m) => {
-            const title = titleOf(m);
-            if (isIphone) return normalizeIphoneModel(m.tipo, title);
-            if (isIpad) return (m.tipo || title.match(/\biPad\s+(Mini|Air|Pro)\b/i)?.[1] || "").toString();
-            if (isMacbook) return (m.tipo || title.match(/\b(Air|Pro|Neo)\b/i)?.[1] || "").toString();
-            return String(m.tipo || "").trim();
-          })
-          .map((s) => s.replace(/\bmac\s*book\s*/i, ""))
-          .filter(Boolean)
-      ), normalizedCategory),
-      procs: dedupe(meta.map((m) => String(m.proc || titleOf(m).match(/\bM[0-9a-z]+\b/i)?.[0] || ""))),
-      sizes: dedupe(meta.map((m) => String(m.size || titleOf(m).match(/\b(1[0-9](?:\.[0-9])?|4[0-9])\b/)?.[1] || "").replace(/\s*mm$/i, ""))).sort((a, b) => numericRank(a) - numericRank(b)),
-      rams: dedupe(meta.map((m) => String(m.ram))).map((s) => s.replace(/\s*GB/i, "GB")).filter(Boolean),
-      ssds: dedupe(meta.map((m) => normalizeStorage(m.storage || titleOf(m).match(/\b(\d+\s*(?:GB|TB))\b/i)?.[1] || ""))).filter(Boolean).sort((a, b) => storageRank(a) - storageRank(b)),
-      connectivity: dedupe(meta.map((m) => normalizeConnectivity(m.connectivity || titleOf(m)))),
-      series: sortSeries(dedupe(meta.map((m) => normalizeWatchSeries(m)))),
+    const restore = () => {
+      const params = new URLSearchParams(window.location.search);
+      const values = (key: string) => params.getAll(key).filter(Boolean);
+      setSearch(params.get("q") ?? initialQuery);
+      const next = { ...EMPTY_SELECTION };
+      for (const facet of facetsFor(normalizedCategory)) next[facet.key] = values(facet.param);
+      setSelection(next);
+      setBatteryMinimum(params.get("battery") || "");
+      const nextSort = params.get("sort");
+      setSort(SORT_OPTIONS.some(([value]) => value === nextSort) ? nextSort as SortKey : "none");
+      const nextAvailability = params.get("availability");
+      setAvailability(nextAvailability === "warehouse" || nextAvailability === "preorder" ? nextAvailability : "all");
+      setMinPrice(params.get("min") || "");
+      setMaxPrice(params.get("max") || "");
+      setUrlReady(true);
     };
-  }, [isIpad, isIphone, isMacbook, meta, normalizedCategory]);
-
-  const rawMinV = Number(minPrice || minGlobal || 0);
-  const rawMaxV = Number(maxPrice || maxGlobal || 0);
-  const minV = Math.min(rawMinV, rawMaxV);
-  const maxV = Math.max(rawMinV, rawMaxV);
-  const availabilityCounts = React.useMemo(() => {
-    const preorder = meta.filter((item) => String(item.saleType || "").toUpperCase() === "PREVENTA").length;
-    return {
-      all: meta.length,
-      warehouse: meta.length - preorder,
-      preorder,
+    restore();
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  // Only restore on navigation; filter changes are written below.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalizedCategory]);
+  const lastSearchRef = React.useRef(search);
+  React.useEffect(() => {
+    if (!urlReady) return;
+    const write = () => {
+      const params = new URLSearchParams();
+      if (search.trim()) params.set("q", search.trim());
+      if (sort !== "none") params.set("sort", sort);
+      if (availability !== "all") params.set("availability", availability);
+      if (lowV !== null) params.set("min", String(lowV));
+      if (highV !== null) params.set("max", String(highV));
+      if (batteryMinimum) params.set("battery", batteryMinimum);
+      for (const facet of facets) selection[facet.key].forEach((value) => params.append(facet.param, value));
+      const next = `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}`;
+      if (`${window.location.pathname}${window.location.search}` !== next) window.history.replaceState(window.history.state, "", next);
     };
-  }, [meta]);
+    // Solo el texto de búsqueda espera a que el cliente deje de escribir. Los
+    // demás filtros se escriben al instante: si abre una ficha enseguida, al
+    // volver encuentra exactamente los filtros que tenía.
+    const typing = lastSearchRef.current !== search;
+    lastSearchRef.current = search;
+    if (!typing) { write(); return; }
+    const timer = window.setTimeout(write, 250);
+    return () => window.clearTimeout(timer);
+  }, [urlReady, search, sort, availability, lowV, highV, batteryMinimum, selection, facets]);
+
+  const isPreorder = (m: any) => String(m.saleType || "").toUpperCase() === "PREVENTA";
+  const inStock = (m: any) => Number(m.row.product?.stock ?? m.row.staged?.stock ?? 0) > 0;
+  const batteryApplies = (isIphone || isMacbook || isIpad || isWatch) && meta.some((item) => Number(item.batteryHealth) > 0);
+
+  // Todo lo que no es una faceta: búsqueda, disponibilidad, precio y batería.
+  const baseMeta = React.useMemo(() => {
+    let arr = meta;
+    if (lowV !== null) arr = arr.filter((m) => Number(m.price) >= lowV);
+    if (highV !== null) arr = arr.filter((m) => Number(m.price) <= highV);
+    if (deferredSearch) {
+      const terms = deferredSearch.split(" ").filter(Boolean);
+      arr = arr.filter((m) => matchesTerms(m.searchText, terms));
+    }
+    if (availability === "warehouse") arr = arr.filter((m) => !isPreorder(m) && inStock(m));
+    if (availability === "preorder") arr = arr.filter((m) => isPreorder(m) && inStock(m));
+    if (batteryMinimum) arr = arr.filter((m) => Number(m.batteryHealth) >= Number(batteryMinimum));
+    return arr;
+  // isPreorder/inStock are pure helpers.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, lowV, highV, deferredSearch, availability, batteryMinimum]);
+
+  const matchesFacets = React.useCallback((m: any, skip?: FacetKey) => facets.every((facet) => {
+    if (facet.key === skip) return true;
+    const chosen = selection[facet.key];
+    return !chosen.length || chosen.includes(facet.valueOf(m));
+  }), [facets, selection]);
+
+  // Opciones con su número de resultados aplicando los DEMÁS filtros: una
+  // opción que no puede dar resultados se muestra deshabilitada.
+  const facetOptions = React.useMemo(() => {
+    const out = {} as Record<FacetKey, Array<{ value: string; count: number }>>;
+    for (const facet of facets) {
+      const all = dedupe(meta.map((m) => facet.valueOf(m)).filter(Boolean));
+      const sorted = facet.sort ? facet.sort(all) : all;
+      const pool = baseMeta.filter((m) => matchesFacets(m, facet.key));
+      out[facet.key] = sorted.map((value) => ({ value, count: pool.filter((m) => facet.valueOf(m) === value).length }));
+    }
+    return out;
+  }, [facets, meta, baseMeta, matchesFacets]);
 
   const filteredMeta = React.useMemo(() => {
-    let arr = meta.filter((m) => m.price >= minV && m.price <= maxV);
-    if (deferredSearch) {
-      arr = arr.filter((m) => [m.title, m.category, m.processor, m.ram, m.storage, m.sku]
-        .join(" ").toLocaleLowerCase("es").includes(deferredSearch));
-    }
-    if (availability === "warehouse") {
-      arr = arr.filter((m) => String(m.saleType || "").toUpperCase() !== "PREVENTA");
-    }
-    if (availability === "preorder") {
-      arr = arr.filter((m) => String(m.saleType || "").toUpperCase() === "PREVENTA");
-    }
-    if (tipo.length) {
-      arr = arr.filter((m) => {
-        const title = String(m.row?.product?.title || m.row?.staged?.title || m.title || "");
-        const value = isIphone ? normalizeIphoneModel(m.tipo, title) : String(m.tipo || title);
-        return tipo.some((t) => new RegExp(escapeRegExp(t), "i").test(value));
-      });
-    }
-    if (proc.length) arr = arr.filter((m) => proc.some((p) => new RegExp(escapeRegExp(p), "i").test(m.proc || m.row?.product?.title || "")));
-    if (sizes.length) arr = arr.filter((m) => sizes.includes(String(m.size)));
-    if (rams.length) arr = arr.filter((m) => rams.includes(String(m.ram)));
-    if (ssds.length) arr = arr.filter((m) => ssds.includes(normalizeStorage(m.storage)));
-    if (connectivity.length) arr = arr.filter((m) => connectivity.includes(normalizeConnectivity(m.connectivity || m.title)));
-    if (series.length) arr = arr.filter((m) => series.includes(normalizeWatchSeries(m)));
-    if (sort === "price_asc") arr = [...arr].sort((a, b) => a.price - b.price);
-    if (sort === "price_desc") arr = [...arr].sort((a, b) => b.price - a.price);
+    let arr = baseMeta.filter((m) => matchesFacets(m));
+    const bySlug = (a: any, b: any) => String(a.row.slug).localeCompare(String(b.row.slug));
+    if (sort === "price_asc") arr = [...arr].sort((a, b) => a.price - b.price || bySlug(a, b));
+    if (sort === "price_desc") arr = [...arr].sort((a, b) => b.price - a.price || bySlug(a, b));
+    if (sort === "recent") arr = [...arr].sort((a, b) => new Date(b.row.createdAt || 0).getTime() - new Date(a.row.createdAt || 0).getTime() || bySlug(a, b));
+    if (sort === "discount") arr = [...arr].sort((a, b) => discountRatio(b) - discountRatio(a) || a.price - b.price);
     if (sort === "none") arr = [...arr].sort((a, b) => promoRank(b) - promoRank(a));
     return arr;
-  }, [availability, connectivity, deferredSearch, isIphone, meta, minV, maxV, tipo, proc, sizes, rams, ssds, series, sort]);
+  }, [baseMeta, matchesFacets, sort]);
 
-  const activeFilters = [
-    ...(availability === "warehouse" ? ["En almacén"] : availability === "preorder" ? ["En camino"] : []),
-    ...tipo,
-    ...proc,
-    ...sizes.map((s) => `${s}${isWatch ? "mm" : "\""}`),
-    ...rams,
-    ...ssds,
-    ...connectivity,
-    ...series,
+  const hasDiscounts = React.useMemo(() => meta.some((m) => discountRatio(m) > 0), [meta]);
+  const sortOptions = SORT_OPTIONS.filter(([value]) => value !== "discount" || hasDiscounts);
+
+  const availabilityCounts = React.useMemo(() => ({
+    all: meta.length,
+    warehouse: meta.filter((m) => !isPreorder(m) && inStock(m)).length,
+    preorder: meta.filter((m) => isPreorder(m) && inStock(m)).length,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [meta]);
+
+  // Sin resultados: equipos que cumplen parte de la búsqueda, para no dejar
+  // al cliente frente a una pantalla vacía.
+  const closeMatches = React.useMemo(() => {
+    if (filteredMeta.length || !deferredSearch) return [];
+    const terms = deferredSearch.split(" ").filter(Boolean);
+    // Si la búsqueda nombra una categoría («iphone 15»), solo se sugieren
+    // equipos de esa categoría: un MacBook de 15" no es un iPhone 15.
+    const namedCategory = ["macbook", "iphone", "ipad", "watch"].find((key) => terms.includes(key));
+    return meta
+      .filter((m) => !namedCategory || String(m.row?.category || "").toLowerCase() === namedCategory)
+      .map((m) => ({ m, score: matchScore(m.searchText, terms) }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score || a.m.price - b.m.price)
+      .slice(0, 4)
+      .map((entry) => entry.m);
+  }, [deferredSearch, filteredMeta.length, meta]);
+
+  // Búsqueda: texto (sin datos personales) y cuántos resultados obtuvo, para
+  // detectar lo que los clientes buscan y no encuentran.
+  const searchResults = filteredMeta.length;
+  React.useEffect(() => {
+    if (!urlReady || !deferredSearch) return;
+    const timer = window.setTimeout(() => trackCatalogEvent("search_product", { category: normalizedCategory, query: deferredSearch.slice(0, 80), results: searchResults }), 900);
+    return () => window.clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlReady, deferredSearch, normalizedCategory]);
+
+  const toggleFacet = (key: FacetKey, value: string) => {
+    setSelection((current) => ({ ...current, [key]: current[key].includes(value) ? current[key].filter((v) => v !== value) : [...current[key], value] }));
+  };
+  const clearPrice = () => { setMinPrice(""); setMaxPrice(""); };
+  const activeFilterChips: Array<{ key: string; label: string; remove: () => void }> = [
+    ...(availability !== "all" ? [{ key: "availability", label: availability === "warehouse" ? "En almacén" : "Preventa", remove: () => setAvailability("all") }] : []),
+    ...(lowV !== null || highV !== null ? [{
+      key: "price",
+      label: lowV !== null && highV !== null ? `Precio: S/ ${money(lowV)} – S/ ${money(highV)}` : lowV !== null ? `Precio desde S/ ${money(lowV)}` : `Precio hasta S/ ${money(highV ?? 0)}`,
+      remove: clearPrice,
+    }] : []),
+    ...facets.flatMap((facet) => selection[facet.key].map((value) => ({
+      key: `${facet.key}-${value}`,
+      label: facet.label ? facet.label(value) : value,
+      remove: () => toggleFacet(facet.key, value),
+    }))),
+    ...(batteryMinimum ? [{ key: "battery", label: `Batería desde ${batteryMinimum}%`, remove: () => setBatteryMinimum("") }] : []),
   ];
-  const toggle = (list: string[], setList: (value: string[]) => void, value: string) => {
-    setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
-  };
+  const activeFilters = activeFilterChips.map((chip) => chip.label);
+  const filterSignature = JSON.stringify([availability, selection, batteryMinimum, lowV, highV, sort]);
+  const previousFilterSignature = React.useRef("");
+  React.useEffect(() => {
+    if (!urlReady) return;
+    if (previousFilterSignature.current && previousFilterSignature.current !== filterSignature) {
+      trackCatalogEvent("apply_filter", { category: normalizedCategory, filter_count: activeFilters.length, filters: activeFilters.slice(0, 20) });
+    }
+    previousFilterSignature.current = filterSignature;
+  // The signature captures all filter state; the count is derived from it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlReady, filterSignature, normalizedCategory]);
 
-  const bins = React.useMemo(() => {
-    const amount = 16;
-    const min = minGlobal;
-    const max = Math.max(maxGlobal, min + 1);
-    const step = (max - min) / amount;
-    const arr = new Array(amount).fill(0);
-    prices.forEach((p) => {
-      const idx = Math.min(amount - 1, Math.max(0, Math.floor((p - min) / step)));
-      arr[idx] += 1;
-    });
-    const maxCount = Math.max(1, ...arr);
-    return arr.map((c) => Math.round(62 * (c / maxCount)));
-  }, [prices, minGlobal, maxGlobal]);
-
-  const toPercent = (v: number) => {
-    const min = minGlobal;
-    const max = Math.max(maxGlobal, min + 1);
-    return ((v - min) / (max - min)) * 100;
-  };
-
-  const fromPercent = (pct: number) => {
-    const min = minGlobal;
-    const max = Math.max(maxGlobal, min + 1);
-    return Math.round(min + (pct / 100) * (max - min));
-  };
-
+  // Deslizador: posición proporcional entre los límites exactos. Los extremos
+  // equivalen a «sin límite», así el filtro nunca recorta por redondeo.
+  const span = Math.max(maxGlobal - minGlobal, 0.01);
+  const toPercent = (v: number) => Math.max(0, Math.min(100, ((v - minGlobal) / span) * 100));
+  const fromPercent = (pct: number) => Math.round(minGlobal + (pct / 100) * span);
+  const priceMinPercent = lowV === null ? 0 : toPercent(lowV);
+  const priceMaxPercent = highV === null ? 100 : toPercent(highV);
   const setMinFromPercent = (pct: number) => {
-    setMinPrice(String(Math.min(fromPercent(pct), maxV)));
+    const limit = highV === null ? 100 : priceMaxPercent;
+    const next = Math.min(pct, limit);
+    setMinPrice(next <= 0 ? "" : String(fromPercent(next)));
   };
-
   const setMaxFromPercent = (pct: number) => {
-    setMaxPrice(String(Math.max(fromPercent(pct), minV)));
+    const next = Math.max(pct, priceMinPercent);
+    setMaxPrice(next >= 100 ? "" : String(fromPercent(next)));
   };
 
   const resetFilters = () => {
-    setTipo([]);
-    setProc([]);
-    setSizes([]);
-    setRams([]);
-    setSsds([]);
-    setConnectivity([]);
-    setSeries([]);
+    setSelection(EMPTY_SELECTION);
+    setBatteryMinimum("");
     setAvailability("all");
     setSort("none");
-    setMinPrice(String(minGlobal));
-    setMaxPrice(String(maxGlobal));
+    clearPrice();
   };
 
-  const priceMinPercent = Math.max(0, Math.min(100, toPercent(minV)));
-  const priceMaxPercent = Math.max(0, Math.min(100, toPercent(maxV)));
+  // Filtro rápido en móvil: la primera faceta de la categoría (gama, modelo o serie).
+  const quickFacet = normalizedCategory && normalizedCategory !== "otros" ? facets[0] : null;
+  const quickOptions = quickFacet ? facetOptions[quickFacet.key].filter((option) => option.count > 0 || selection[quickFacet.key].includes(option.value)) : [];
+  const resultsLabel = `${filteredMeta.length} ${filteredMeta.length === 1 ? "equipo" : "equipos"}`;
 
   return (
-    <div className="mt-8 grid gap-6 lg:grid-cols-[300px_1fr]">
-      {filtersOpen && <button type="button" aria-label="Cerrar filtros" onClick={() => setFiltersOpen(false)} className="fixed inset-0 z-[59] bg-[#f7f7f5] lg:hidden" />}
-      <aside role={filtersOpen ? "dialog" : undefined} aria-modal={filtersOpen ? "true" : undefined} aria-label="Filtros del catálogo" className={`${filtersOpen ? "fixed inset-0 z-[60] block overflow-y-auto bg-[#f7f7f5] p-3 pt-20 sm:left-auto sm:w-[390px] sm:border-l sm:border-black/10" : "hidden"} lg:static lg:order-1 lg:block lg:max-h-none lg:w-auto lg:overflow-visible lg:bg-transparent lg:p-0`}>
-        <div className="space-y-4">
-          <div className="surface-card soft-outline p-4 lg:p-5">
-            <div className="sticky -top-4 z-10 -mx-4 -mt-4 flex items-start justify-between gap-3 rounded-t-[28px] bg-white/95 px-4 pb-3 pt-4 shadow-sm lg:static lg:mx-0 lg:mt-0 lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
-                  Filtros
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(false)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white/80 text-lg leading-none text-[color:var(--foreground)] lg:hidden"
-                aria-label="Cerrar filtros"
-              >
-                ×
+    <div className={`mt-5 grid gap-6 sm:mt-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-8 ${compareSlugs.length ? "pb-40 sm:pb-32" : ""}`}>
+      {filtersOpen && <button type="button" aria-label="Cerrar filtros" onClick={() => setFiltersOpen(false)} className="ms-scrim fixed inset-0 z-[59] bg-[rgba(14,20,32,0.45)] lg:hidden" />}
+      <aside
+        id="catalog-filters"
+        role={filtersOpen ? "dialog" : undefined}
+        aria-modal={filtersOpen ? "true" : undefined}
+        aria-labelledby="catalog-filters-title"
+        className={`${filtersOpen ? "ms-sheet fixed inset-x-0 bottom-0 z-[60] flex max-h-[90svh] flex-col overflow-hidden rounded-t-[24px] bg-white shadow-[0_-12px_40px_rgba(15,23,42,0.18)] sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[420px] sm:rounded-none" : "hidden"} lg:static lg:order-1 lg:block lg:max-h-none lg:w-auto lg:overflow-visible lg:rounded-none lg:bg-transparent lg:shadow-none`}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-5 py-3 lg:border-b-0 lg:px-0 lg:pb-2 lg:pt-0">
+          <h2 id="catalog-filters-title" className="text-lg font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">Filtros</h2>
+          <div className="flex items-center gap-1">
+            {activeFilterChips.length > 0 && (
+              <button type="button" onClick={resetFilters} className="min-h-11 rounded-full px-3 text-sm font-semibold text-[color:var(--accent-strong)] hover:bg-[color:var(--brand-tint)]">
+                Limpiar filtros
               </button>
-            </div>
+            )}
+            <button
+              ref={filtersCloseRef}
+              type="button"
+              onClick={() => setFiltersOpen(false)}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-2xl leading-none text-[color:var(--foreground)] hover:bg-black/5 lg:hidden"
+              aria-label="Cerrar filtros"
+            >
+              ×
+            </button>
+          </div>
+        </div>
 
-            <div className="mt-4 rounded-[22px] border border-black/6 bg-white/70 p-3 lg:mt-5 lg:rounded-[24px] lg:p-4">
-              <div className="text-sm font-semibold text-[color:var(--foreground)]">Precio</div>
-              <div className="mt-3 flex h-14 items-end gap-1 lg:mt-4 lg:h-20">
-                {bins.map((h, i) => (
-                  <div key={i} className="flex-1 rounded-t-full bg-[linear-gradient(180deg,rgba(26,115,232,0.72),rgba(26,115,232,0.18))]" style={{ height: `${Math.max(6, Math.round(h * 0.72))}px` }} />
-                ))}
-              </div>
-
-              <div className="mt-4 relative h-9">
-                <div className="absolute inset-x-2 top-1/2 h-1 -translate-y-1/2 rounded-full bg-slate-200" />
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 lg:overflow-visible lg:px-0">
+          {/* Precio: el cliente ve «Precio»; internamente se compara el precio vigente sin IGV. */}
+          {prices.length > 1 && maxGlobal > minGlobal && (
+            <fieldset className="border-b border-[color:var(--border)] pb-5 pt-2">
+              <legend className="flex min-h-12 items-center text-[15px] font-semibold text-[color:var(--foreground)]">Precio</legend>
+              <div className="relative h-10">
+                <div className="absolute inset-x-2.5 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-slate-200" />
                 <div
-                  className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[color:var(--accent)]"
-                  style={{ left: `calc(${priceMinPercent}% + 0.5rem)`, right: `calc(${100 - priceMaxPercent}% + 0.5rem)` }}
+                  className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-[color:var(--accent)]"
+                  style={{ left: `calc(0.625rem + (100% - 1.25rem) * ${priceMinPercent / 100})`, right: `calc(0.625rem + (100% - 1.25rem) * ${(100 - priceMaxPercent) / 100})` }}
                 />
                 <input
                   type="range"
                   min={0}
                   max={100}
+                  step={0.5}
                   value={priceMinPercent}
                   onChange={(e) => setMinFromPercent(Number(e.target.value))}
-                  className="price-range absolute inset-x-2 top-1/2 z-[2] w-[calc(100%-1rem)] -translate-y-1/2 appearance-none bg-transparent"
-                  aria-label="Precio minimo"
+                  className="price-range absolute inset-x-0 top-1/2 z-[2] w-full -translate-y-1/2 appearance-none bg-transparent"
+                  aria-label="Precio mínimo"
+                  aria-valuetext={lowV === null ? "Sin mínimo" : `S/ ${money(lowV)}`}
                 />
                 <input
                   type="range"
                   min={0}
                   max={100}
+                  step={0.5}
                   value={priceMaxPercent}
                   onChange={(e) => setMaxFromPercent(Number(e.target.value))}
-                  className="price-range absolute inset-x-2 top-1/2 z-[3] w-[calc(100%-1rem)] -translate-y-1/2 appearance-none bg-transparent"
-                  aria-label="Precio maximo"
+                  className="price-range absolute inset-x-0 top-1/2 z-[3] w-full -translate-y-1/2 appearance-none bg-transparent"
+                  aria-label="Precio máximo"
+                  aria-valuetext={highV === null ? "Sin máximo" : `S/ ${money(highV)}`}
                 />
               </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2 lg:mt-4 lg:gap-3">
-                <div className="rounded-[16px] border border-black/6 bg-white/85 p-2.5 lg:rounded-[18px] lg:p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
-                    Min
-                  </div>
-                  <input inputMode="numeric" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="mt-2 w-full border-0 bg-transparent p-0 text-sm text-[color:var(--foreground)] shadow-none focus:shadow-none" />
-                </div>
-                <div className="rounded-[16px] border border-black/6 bg-white/85 p-2.5 lg:rounded-[18px] lg:p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
-                    Max
-                  </div>
-                  <input inputMode="numeric" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="mt-2 w-full border-0 bg-transparent p-0 text-sm text-[color:var(--foreground)] shadow-none focus:shadow-none" />
-                </div>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-semibold text-[color:var(--foreground-soft)]">Desde (S/)</span>
+                  <input inputMode="decimal" value={minPrice} placeholder={money(minGlobal)} onChange={(e) => setMinPrice(e.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-[color:var(--border-strong)] bg-white px-3 text-[15px] text-[color:var(--foreground)]" />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-[color:var(--foreground-soft)]">Hasta (S/)</span>
+                  <input inputMode="decimal" value={maxPrice} placeholder={money(maxGlobal)} onChange={(e) => setMaxPrice(e.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-[color:var(--border-strong)] bg-white px-3 text-[15px] text-[color:var(--foreground)]" />
+                </label>
               </div>
+            </fieldset>
+          )}
 
-              <button
-                onClick={() => {
-                  setFiltersOpen(false);
-                  window?.document?.getElementById("cat-grid")?.scrollIntoView({ behavior: "smooth" });
-                }}
-                className="btn-primary mt-3 hidden w-full rounded-full bg-[color:var(--foreground)] py-2.5 text-sm font-semibold text-white hover:bg-black lg:mt-4 lg:block lg:py-3"
-              >
-                Ver {filteredMeta.length} productos
-              </button>
-            </div>
+          {facets.map((facet, index) => (
+            <FilterGroup
+              key={facet.key}
+              facet={facet}
+              options={facetOptions[facet.key]}
+              selected={selection[facet.key]}
+              onToggle={(value) => toggleFacet(facet.key, value)}
+              defaultOpen={index < OPEN_FACETS}
+            />
+          ))}
 
-            <div className="mt-3 space-y-3 lg:mt-4 lg:space-y-4">
-              {(isMacbook || isIpad || isIphone) && (
-                <FilterSection title="Gama" options={options.tipos} selected={tipo} onToggle={(value) => toggle(tipo, setTipo, value)} />
-              )}
-              {(isMacbook || isIpad) && (
-                <FilterSection title="Procesador" options={options.procs} selected={proc} onToggle={(value) => toggle(proc, setProc, value)} />
-              )}
-              {(isMacbook || isIpad || isWatch) && (
-                <FilterSection
-                  title={isWatch ? "Tamaño" : "Pantalla"}
-                  options={options.sizes}
-                  selected={sizes}
-                  onToggle={(value) => toggle(sizes, setSizes, value)}
-                  renderLabel={(value) => (isWatch ? `${value} mm` : `${value}"`)}
-                />
-              )}
-              {isMacbook && <FilterSection title="RAM" options={options.rams} selected={rams} onToggle={(value) => toggle(rams, setRams, value)} />}
-              {(isMacbook || isIpad || isIphone) && (
-                <FilterSection title="Almacenamiento" options={options.ssds} selected={ssds} onToggle={(value) => toggle(ssds, setSsds, value)} />
-              )}
-              {(isIpad || isWatch) && (
-                <FilterSection title="Conectividad" options={options.connectivity} selected={connectivity} onToggle={(value) => toggle(connectivity, setConnectivity, value)} />
-              )}
-              {isWatch && <FilterSection title="Serie" options={options.series} selected={series} onToggle={(value) => toggle(series, setSeries, value)} />}
-            </div>
+          {batteryApplies && (
+            <details open={Boolean(batteryMinimum)} className="group border-b border-[color:var(--border)] py-1 last:border-b-0">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-lg text-[15px] font-semibold text-[color:var(--foreground)] outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] [&::-webkit-details-marker]:hidden">
+                <span id="filter-battery">Batería mínima</span>
+                <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-[color:var(--foreground-soft)] transition-transform group-open:rotate-180"><path d="M5 7.5l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </summary>
+              <div role="group" aria-labelledby="filter-battery" className="flex flex-wrap gap-2 pb-4 pt-1">
+                {["", ...BATTERY_STEPS].map((step) => {
+                  const active = batteryMinimum === step;
+                  return (
+                    <button key={step || "any"} type="button" aria-pressed={active} onClick={() => setBatteryMinimum(step)} className={`min-h-11 rounded-xl border px-3.5 text-sm ${active ? "border-[color:var(--accent)] bg-[color:var(--brand-tint)] font-semibold text-[color:var(--accent-strong)]" : "border-[color:var(--border-strong)] bg-white text-[color:var(--foreground)] hover:border-[color:var(--accent)]"}`}>
+                      {step ? `${step}% o más` : "Cualquiera"}
+                    </button>
+                  );
+                })}
+              </div>
+            </details>
+          )}
+        </div>
 
-            <button onClick={resetFilters} className="btn-secondary mt-4 w-full rounded-full border border-black/10 bg-white/70 py-3 text-sm font-medium text-[color:var(--foreground)]">
-              Limpiar filtros
-            </button>
-            <div className="sticky bottom-0 -mx-4 mt-4 border-t border-black/10 bg-[#f7f7f5] p-4 lg:hidden">
-              <button onClick={() => { setFiltersOpen(false); document.getElementById("cat-grid")?.scrollIntoView({ behavior: "smooth" }); }} className="btn-primary min-h-11 w-full rounded-full bg-[color:var(--foreground)] px-5 py-3 text-sm font-semibold text-white">
-                Ver {filteredMeta.length} productos
-              </button>
-            </div>
-          </div>
+        <div className="border-t border-[color:var(--border)] bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden">
+          <button type="button" onClick={() => { setFiltersOpen(false); document.getElementById("cat-grid")?.scrollIntoView({ behavior: "smooth" }); }} className="btn-primary min-h-12 w-full rounded-full bg-[color:var(--foreground)] px-5 text-[15px] font-semibold text-white">
+            {filteredMeta.length ? `Ver ${resultsLabel}` : "Sin resultados con estos filtros"}
+          </button>
         </div>
       </aside>
 
       <section className="order-1 lg:order-2">
-        <div className="surface-card soft-outline p-4 sm:p-5">
+        <div className="catalog-flat surface-card soft-outline p-3 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)]">
+              <div className="hidden text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--foreground-soft)] sm:block">
                 Catálogo
               </div>
-              <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)]">
-                {filteredMeta.length} productos listos para comparar.
+              <div className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[color:var(--foreground)] sm:mt-2 sm:text-2xl sm:tracking-[-0.04em]">
+                <span aria-live="polite">{filteredMeta.length} {filteredMeta.length === 1 ? "equipo encontrado" : "equipos encontrados"}</span>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative w-full">
                 <label htmlFor="catalog-search" className="sr-only">Buscar en el catálogo</label>
-                <input id="catalog-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar MacBook, iPhone, M4…" className="min-h-11 w-full rounded-full border border-black/10 bg-white px-5 pr-12 text-sm" />
+                <input ref={searchRef} id="catalog-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ej.: MacBook Air M4, Air 16/512, iPhone 15 128GB" className="min-h-11 w-full rounded-full border border-black/10 bg-white px-5 pr-12 text-sm" />
                 {search && <button type="button" onClick={() => setSearch("")} aria-label="Limpiar búsqueda" className="absolute right-1 top-1 inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-black/5">×</button>}
               </div>
-              <div className="flex w-full items-center rounded-full border border-black/10 bg-white/75 p-1 sm:w-auto">
+              {availabilityCounts.preorder > 0 && <div className="flex w-full items-center rounded-full border border-black/10 bg-white/75 p-1 sm:w-auto">
                 {[
                   { key: "all" as const, label: "Todos", count: availabilityCounts.all },
                   { key: "warehouse" as const, label: "En almacén", count: availabilityCounts.warehouse },
                   { key: "preorder" as const, label: "Preventa", count: availabilityCounts.preorder },
-                ].filter((option) => option.key !== "preorder" || option.count > 0).map((option) => {
+                ].map((option) => {
                   const active = availability === option.key;
                   return (
                     <button
@@ -580,111 +723,148 @@ export default function CategoryBrowser({ initialItems, category }: { initialIte
                     </button>
                   );
                 })}
-              </div>
+              </div>}
 
-              <button
-                ref={filtersButtonRef}
-                type="button"
-                className="btn-secondary inline-flex rounded-full border border-black/10 bg-white/75 px-4 py-2 text-sm text-[color:var(--foreground)] lg:hidden"
-                onClick={() => setFiltersOpen((v) => !v)}
-              >
-                {filtersOpen ? "Ocultar filtros" : `Mostrar filtros${activeFilters.length ? ` · ${activeFilters.length} filtros aplicados` : ""}`}
-              </button>
-
-              <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/75 px-3 py-2 text-sm text-[color:var(--foreground)]">
+              <label className="hidden min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm text-[color:var(--foreground)] lg:inline-flex">
                 <span className="text-[color:var(--foreground-soft)]">Ordenar</span>
-                <select value={sort} onChange={(e) => setSort(e.target.value as any)} className="border-0 bg-transparent p-0 text-sm font-medium shadow-none focus:shadow-none">
-                  <option value="none">Mejores</option>
-                  <option value="price_desc">Mayor precio</option>
-                  <option value="price_asc">Menor precio</option>
+                <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="border-0 bg-transparent p-0 text-sm font-semibold shadow-none focus:shadow-none">
+                  {sortOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
-              </div>
+              </label>
             </div>
           </div>
 
-          {activeFilters.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {activeFilters.map((filter) => (
-                <span key={filter} className="pill-chip !px-3 !py-2 !text-xs !font-medium !tracking-[0.06em]">
-                  {filter}
-                </span>
+          {/* Móvil y tablet: filtros y orden siempre a mano al recorrer el catálogo. */}
+          <div className="sticky top-[72px] z-20 -mx-3 mt-3 space-y-2 bg-[color:var(--background)] px-3 py-2 sm:-mx-5 sm:bg-white sm:px-5 lg:hidden">
+            <div className="flex items-center gap-2">
+              <button
+                ref={filtersButtonRef}
+                type="button"
+                aria-expanded={filtersOpen}
+                aria-controls="catalog-filters"
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-semibold text-[color:var(--foreground)] sm:flex-none"
+                onClick={() => setFiltersOpen((v) => !v)}
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-2"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+                Filtros
+                {activeFilters.length > 0 && <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[color:var(--accent)] px-1 text-[11px] font-bold text-white" aria-label={`${activeFilters.length} aplicados`}>{activeFilters.length}</span>}
+              </button>
+              <label className="inline-flex min-h-11 flex-1 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm text-[color:var(--foreground)] sm:flex-none">
+                <span className="text-[color:var(--foreground-soft)]">Ordenar</span>
+                <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-semibold shadow-none focus:shadow-none">
+                  {sortOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+            </div>
+            {quickFacet && quickOptions.length > 1 && (
+              <div role="group" aria-label={`Filtro rápido: ${quickFacet.title}`} className="ms-shelf -mx-3 flex gap-2 overflow-x-auto px-3 sm:-mx-5 sm:px-5">
+                {quickOptions.map(({ value }) => {
+                  const active = selection[quickFacet.key].includes(value);
+                  return (
+                    <button key={value} type="button" aria-pressed={active} onClick={() => toggleFacet(quickFacet.key, value)} className={`min-h-10 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors ${active ? "bg-[color:var(--foreground)] text-white" : "border border-black/10 bg-white text-[color:var(--foreground)]"}`}>
+                      {quickFacet.label ? quickFacet.label(value) : value}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {activeFilterChips.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center gap-2" aria-label="Filtros aplicados">
+              {activeFilterChips.map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={chip.remove}
+                  aria-label={`Quitar filtro ${chip.label}`}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-900 hover:border-blue-400"
+                >
+                  {chip.label}
+                  <span aria-hidden="true" className="text-base leading-none">×</span>
+                </button>
               ))}
+              {activeFilterChips.length > 1 && (
+                <button type="button" onClick={resetFilters} className="min-h-10 rounded-full px-3 text-sm font-semibold text-[color:var(--foreground-soft)] underline underline-offset-4 hover:text-[color:var(--foreground)]">
+                  Limpiar filtros
+                </button>
+              )}
             </div>
           )}
 
-          <div id="cat-grid" className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div id="cat-grid" className={`mt-6 ${CATALOG_GRID_CLASS}`}>
             {filteredMeta.length ? (
-              filteredMeta.map((item) => {
+              filteredMeta.map((item, index) => {
                 const row = item.row;
-                const img = (row.images && row.images[0]) || row.staged?.images?.[0] || "/placeholder.svg";
-                const title: string = row.product?.title || row.staged?.title || row.slug;
+                const slug = String(row.slug);
                 const stock = Number(row?.product?.stock ?? row?.staged?.stock ?? 0);
-                const stockLabel = isNewCondition(item.condition) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "";
-                const specLines = compactSpecs(item);
-                const aestheticLabel = detailCountLabel(item.detailImages.length, Boolean(item.conditionDescription));
+                const selected = compareSlugs.includes(slug);
                 return (
-                  <Link
+                  <CatalogProductCard
                     key={row.id}
-                    href={`/product/${row.slug}`}
-                    className="catalog-card group rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.94))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
-                  >
-                    <div className="relative overflow-hidden rounded-[24px] bg-[linear-gradient(145deg,#f5f7fa,#ebf0f6)]">
-                      <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
-                        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${toneForCondition(item.condition || "Disponible")}`}>
-                          {item.condition || "Disponible"}
-                        </span>
-                        {item.saleType && item.saleType !== "VENTA_SIMPLE" && (item.saleType !== "PROMOCION" || item.promoLabel) && (
-                          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold text-white ${
-                            item.saleType === "PROMOCION"
-                              ? "bg-rose-600 shadow-[0_8px_18px_rgba(225,29,72,0.28)]"
-                              : "bg-black/85"
-                          }`}>
-                            {item.saleType === "PROMOCION"
-                              ? item.promoLabel
-                              : item.saleType === "OFERTA"
-                                ? "Negociable"
-                                : item.saleType === "PREVENTA"
-                                  ? "preventa"
-                                  : item.saleType.toLowerCase()}
-                          </span>
-                        )}
-                        {stockLabel && (
-                          <span className="rounded-full bg-[rgba(230,245,236,0.92)] px-3 py-1 text-[11px] font-semibold text-[#1f6c43]">
-                            {stockLabel}
-                          </span>
-                        )}
-                      </div>
-                      <div className="relative aspect-[4/3] p-5">
-                        <Image
-                          src={img}
-                          alt={title}
-                          fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                          className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.03]"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-4">
-                      <div className="text-lg font-semibold leading-6 tracking-[-0.03em] text-[color:var(--foreground)] line-clamp-2">
-                        {title}
-                      </div>
-                      {specLines.length > 0 && <div className="mt-2 space-y-1 text-xs font-medium leading-5 text-[color:var(--foreground-soft)]">{specLines.map((line) => <div key={line}>{line}</div>)}</div>}
-                      {aestheticLabel && <div className="mt-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-900">{aestheticLabel}</div>}
-                      <PriceWithIgv price={Number(item.price)} compareAt={item.compareAt} wrapperClassName="mt-3" />
-                    </div>
-                  </Link>
+                    priority={index < 3}
+                    data={{
+                      slug,
+                      title: row.product?.title || row.staged?.title || slug,
+                      image: (row.images && row.images[0]) || row.staged?.images?.[0] || "/placeholder.svg",
+                      color: String(row.product?.color || row.staged?.color || item.notes?.color || "").trim(),
+                      specLines: compactSpecs(item),
+                      aestheticLabel: detailCountLabel(item.detailImages.length, Boolean(item.conditionDescription)),
+                      availabilityLabel: stock <= 0 ? "Agotado" : String(item.saleType).toUpperCase() === "PREVENTA" ? "En camino" : "Disponible",
+                      condition: item.condition,
+                      saleType: item.saleType,
+                      promoLabel: item.promoLabel,
+                      stockLabel: isNewCondition(item.condition) && Number.isFinite(stock) && stock >= 2 ? `Stock: ${stock} unidades` : "",
+                      price: Number(item.price),
+                      compareAt: item.compareAt,
+                    }}
+                    compare={{ selected, disabled: !selected && compareSlugs.length >= 3, onToggle: () => toggleCompare(slug) }}
+                  />
                 );
               })
             ) : (
-              <div className="col-span-full rounded-[28px] border border-dashed border-black/12 bg-white/60 px-6 py-14 text-center text-sm text-[color:var(--foreground-soft)]">
-                <div>No encontramos productos con esa búsqueda.</div>
-                <button type="button" onClick={() => { setSearch(""); resetFilters(); }} className="mt-4 min-h-11 rounded-full border border-black/10 bg-white px-5 py-2 font-semibold text-[color:var(--foreground)]">Limpiar búsqueda y filtros</button>
+              <div className="col-span-full rounded-[28px] border border-dashed border-black/12 bg-white/60 px-5 py-10 text-center text-sm text-[color:var(--foreground-soft)] sm:px-6">
+                <div className="text-base font-semibold text-[color:var(--foreground)]">No encontramos equipos con esa búsqueda y estos filtros.</div>
+                <p className="mx-auto mt-2 max-w-md leading-6">Prueba con menos palabras, quita algún filtro o escríbenos por WhatsApp y te ayudamos a encontrar una alternativa.</p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <button type="button" onClick={() => { setSearch(""); resetFilters(); }} className="min-h-11 rounded-full border border-black/10 bg-white px-5 py-2 font-semibold text-[color:var(--foreground)]">Limpiar búsqueda y filtros</button>
+                  <a href={whatsappUrl(`Hola, busco este equipo: ${search.trim() || "un equipo Apple"}`)} target="_blank" rel="noopener noreferrer" onClick={() => trackCatalogEvent("click_whatsapp", { source: "no_results" })} className="inline-flex min-h-11 items-center rounded-full bg-[color:var(--foreground)] px-5 py-2 font-semibold text-white">Preguntar por WhatsApp</a>
+                </div>
+                {closeMatches.length > 0 && (
+                  <div className="mt-8 text-left">
+                    <div className="text-sm font-semibold text-[color:var(--foreground)]">Equipos parecidos que sí tenemos</div>
+                    <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {closeMatches.map((m) => (
+                        <li key={m.row.id}>
+                          <Link href={`/product/${m.row.slug}`} className="flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-black/8 bg-white px-4 py-3 hover:border-blue-300">
+                            <span className="min-w-0">
+                              <span className="block truncate font-semibold text-[color:var(--foreground)]">{m.title}</span>
+                              <span className="block truncate text-xs">{[compactSpecs(m)[0], m.condition].filter(Boolean).join(" · ")}</span>
+                            </span>
+                            <span className="shrink-0 text-right font-semibold text-emerald-700">S/ {withIgv(m.price).toLocaleString("es-PE", { maximumFractionDigits: 0 })}<span className="block text-[10px] font-medium text-[color:var(--foreground-soft)]">con IGV</span></span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </section>
+      {compareSlugs.length > 0 && <div className="fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-4xl rounded-2xl border border-blue-200 bg-white p-3 shadow-[0_8px_32px_rgba(15,23,42,0.2)] sm:inset-x-4 sm:p-4" aria-label="Equipos elegidos para comparar">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="min-w-0"><p className="text-sm font-bold text-slate-900">Comparar equipos · {compareSlugs.length} de 3</p><p className="text-xs text-slate-600">{compareSlugs.length === 1 ? "Elige al menos uno más." : "Ya puedes ver las diferencias."}</p></div>
+          <div className="flex gap-2"><button type="button" onClick={clearCompare} className="min-h-11 rounded-full border border-slate-300 px-4 text-sm font-semibold text-slate-700">Limpiar</button><button type="button" disabled={compareSlugs.length < 2} onClick={() => setCompareOpen(true)} className="min-h-11 flex-1 rounded-full bg-blue-600 px-5 text-sm font-bold text-white disabled:bg-slate-200 disabled:text-slate-500 sm:flex-none">Comparar {compareSlugs.length >= 2 ? `estos ${compareSlugs.length}` : "equipos"}</button></div>
+        </div>
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-1">{compareSlugs.map((slug) => {
+          const row = initialItems.find((item) => String(item.slug) === slug);
+          const title = row?.product?.title || row?.staged?.title || slug;
+          return <span key={slug} className="inline-flex max-w-56 shrink-0 items-center gap-1 rounded-full bg-slate-100 pl-3 pr-1 text-xs text-slate-800"><span className="truncate">{title}</span><button type="button" onClick={() => toggleCompare(slug)} aria-label={`Quitar ${title} de la comparación`} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg hover:bg-slate-200">×</button></span>;
+        })}</div>
+      </div>}
+      {compareOpen && compareSlugs.length >= 2 && <CompareDialog slugs={compareSlugs} onClose={closeCompare} onRemove={(slug) => { toggleCompare(slug); if (compareSlugs.length <= 2) setCompareOpen(false); }} />}
     </div>
   );
 }

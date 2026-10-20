@@ -28,6 +28,9 @@ type ContactRequest = {
 };
 
 type PossibleClient = ContactRequest & {
+  sale_id?: string | null;
+  client_photo_url?: string | null;
+  product_image_url?: string | null;
   status?: "pending" | "purchased" | string;
   customer_kind?: string | null;
   sale_place_type?: string | null;
@@ -203,6 +206,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
   const [customerKind, setCustomerKind] = React.useState<"tranquilo" | "regateador">("tranquilo");
   const [salePlaceType, setSalePlaceType] = React.useState<"" | "almacen" | "otro">("");
   const [saleLocation, setSaleLocation] = React.useState("");
+  const [purchasePhotoUrl, setPurchasePhotoUrl] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [copiedPhone, setCopiedPhone] = React.useState(false);
   const [copiedText, setCopiedText] = React.useState(false);
@@ -282,6 +286,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
     setCustomerKind("tranquilo");
     setSalePlaceType("");
     setSaleLocation("");
+    setPurchasePhotoUrl(client.client_photo_url || null);
   };
 
   const openEdit = (client: PossibleClient) => {
@@ -317,12 +322,17 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
 
   const savePurchase = async () => {
     if (!purchaseClient) return;
+    if (!purchasePhotoUrl) {
+      alert("Sube la foto del cliente antes de guardar la compra");
+      return;
+    }
     setBusy(true);
     try {
       await markPossibleClientPurchased(purchaseClient.id, {
         customerKind,
         salePlaceType,
         saleLocation: salePlaceType === "otro" ? saleLocation : "",
+        clientPhotoUrl: purchasePhotoUrl || undefined,
       });
       setPurchaseClient(null);
       await refreshClients();
@@ -493,13 +503,13 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
                 <tbody>
                   {clients.map((client) => (
                     <tr key={client.id} className="border-t">
-                      <td className="p-2">{client.customer_name || "-"}</td>
+                      <td className="p-2"><div className="flex items-center gap-2">{client.client_photo_url && <img src={client.client_photo_url} alt="" className="h-10 w-10 rounded-full object-cover" />}{client.customer_name || "-"}</div></td>
                       <td className="p-2">{String(client.customer_phone || "").replace(/\D+/g, "") || "-"}</td>
                       <td className="p-2">
                         {client.location_value || "-"}
                         {client.location_scope ? <span className="text-gray-500"> ({client.location_scope})</span> : null}
                       </td>
-                      <td className="p-2">{productSummary(client) || "-"}</td>
+                      <td className="p-2"><div className="flex items-center gap-2">{client.product_image_url && <img src={client.product_image_url} alt="" className="h-10 w-10 rounded object-cover" />}{productSummary(client) || "-"}</div></td>
                       <td className="p-2">
                         {client.status === "purchased" ? (
                           <span className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
@@ -665,7 +675,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
                 </div>
               )}
 
-            <SaleClientPhoto disabled={busy} />
+            <SaleClientPhoto key={purchaseClient.id} disabled={busy} onUploaded={setPurchasePhotoUrl} />
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => setPurchaseClient(null)} className="rounded border px-3 py-2">Cancelar</button>
                 <button

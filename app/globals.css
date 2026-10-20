@@ -1,21 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3f2ee;
-  --background-elevated: #fbfaf7;
-  --foreground: #141414;
-  --foreground-soft: #5f6570;
-  --accent: #1a73e8;
-  --accent-strong: #0f4fb6;
-  --accent-soft: #dce9ff;
+  /* Lienzo claro tipo Apple: el blanco del papel se separa del fondo por tono, sin líneas ni sombras. */
+  --background: #f5f5f7;
+  --background-elevated: #ffffff;
+  --foreground: #111827;
+  --foreground-soft: #4b5563;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: #dbeafe;
   --border: rgba(17, 24, 39, 0.1);
   --border-strong: rgba(17, 24, 39, 0.18);
-  --surface: rgba(255, 255, 255, 0.78);
+  --surface: #ffffff;
   --surface-strong: #ffffff;
-  --surface-muted: rgba(248, 245, 238, 0.88);
-  --shadow-soft: 0 18px 50px rgba(25, 35, 52, 0.08);
-  --shadow-strong: 0 24px 80px rgba(15, 23, 42, 0.14);
-  --radius-card: 28px;
+  --surface-muted: #e8e8ed;
+  /* Azul de la marca en tinte suave: fondos de la hoja y bloques propios. */
+  --brand-tint: #eaf1ff;
+  --night: #111827;
+  --paper-blue: #dbe4ff;
+  --shadow-soft: none;
+  --shadow-strong: none;
+  --radius-card: 24px;
 }
 
 @theme inline {
@@ -34,6 +39,8 @@
 
 html {
   scroll-behavior: smooth;
+  /* La cabecera fija no debe tapar lo que recibe el foco o un ancla. */
+  scroll-padding-top: 88px;
 }
 
 @keyframes route-progress {
@@ -53,10 +60,6 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), sans-serif;
   min-height: 100vh;
-  background-image:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.94), transparent 28%),
-    radial-gradient(circle at top right, rgba(225, 234, 255, 0.8), transparent 24%),
-    linear-gradient(180deg, #fbfaf7 0%, #f3f2ee 26%, #eef1f5 100%);
 }
 
 body::before {
@@ -67,7 +70,7 @@ body::before {
   background:
     linear-gradient(120deg, rgba(255, 255, 255, 0.22), transparent 45%),
     radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.36), transparent 26%);
-  opacity: 0.7;
+  opacity: 0;
   z-index: -1;
 }
 
@@ -145,6 +148,7 @@ textarea:focus {
   box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.1);
 }
 
+summary:focus-visible,
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
@@ -156,22 +160,56 @@ textarea:focus-visible {
 
 .surface-card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(22px);
+  backdrop-filter: none;
 }
 
 .surface-card-strong {
   background: var(--surface-strong);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  border: 1px solid transparent;
   border-radius: calc(var(--radius-card) + 4px);
   box-shadow: var(--shadow-strong);
 }
 
 .catalog-card {
   content-visibility: auto;
-  contain-intrinsic-size: 360px;
+  contain-intrinsic-size: 0px 360px;
+  min-width: 0;
+}
+
+/* Tarjeta del catálogo (CatalogProductCard). Sin content-visibility: con
+   grid-rows-subgrid, una tarjeta fuera de pantalla con tamaño intrínseco
+   ficticio desalinearía su fila y movería la página al hacer scroll. */
+.catalog-product-card {
+  min-width: 0;
+}
+
+/* Esqueletos de carga: mismo gris que el marco de las fotos, con un brillo
+   suave en lugar de un parpadeo blanco. */
+.skeleton-block {
+  background: linear-gradient(90deg, #edf1f6 0%, #f6f8fb 45%, #edf1f6 90%);
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -120% 0; }
+}
+
+/* Entrada discreta del contenido al terminar una navegación (solo opacidad:
+   no mueve nada ni provoca saltos de diseño). */
+.route-enter {
+  /* Sin animation-fill-mode: un relleno mantendría un contexto de apilamiento
+     y dejaría los paneles fijos (visor, filtros, comparador) bajo la cabecera. */
+  animation: route-enter 180ms ease-out;
+}
+
+@keyframes route-enter {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
 }
 
 .soft-outline {
@@ -193,10 +231,7 @@ textarea:focus-visible {
   gap: 0.5rem;
   border-radius: 999px;
   padding: 0.625rem 0.95rem;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(17, 24, 39, 0.08);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(18px);
+  background: var(--surface-muted);
 }
 
 .btn-primary,
@@ -213,7 +248,7 @@ textarea:focus-visible {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.24) 50%, transparent 80%);
+  background: rgba(255, 255, 255, 0.14);
   transform: translateX(-130%);
   transition: transform 420ms ease;
   z-index: -1;
@@ -222,7 +257,7 @@ textarea:focus-visible {
 .btn-primary:hover::before,
 .btn-secondary:hover::before,
 .btn-ghost:hover::before {
-  transform: translateX(130%);
+  transform: translateX(0);
 }
 
 .btn-primary:hover,
@@ -262,6 +297,12 @@ textarea:focus-visible {
 
 .price-range {
   pointer-events: none;
+  /* Sin el estilo global de los campos de texto: solo se ven el riel y los tiradores. */
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  min-height: 0 !important;
 }
 
 .price-range::-webkit-slider-runnable-track {
@@ -279,6 +320,16 @@ textarea:focus-visible {
   border: 3px solid #ffffff;
   background: var(--accent);
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.2);
+}
+
+.price-range:focus-visible::-webkit-slider-thumb {
+  outline: 3px solid var(--accent-soft);
+  outline-offset: 1px;
+}
+
+.price-range:focus-visible::-moz-range-thumb {
+  outline: 3px solid var(--accent-soft);
+  outline-offset: 1px;
 }
 
 .price-range::-moz-range-track {
@@ -377,4 +428,177 @@ textarea:focus-visible {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/* ---- Temáticas: animaciones decorativas (solo transform/opacity) ---- */
+@keyframes ms-fall {
+  0% { transform: translate3d(0, -12vh, 0) rotate(0deg); }
+  100% { transform: translate3d(var(--ms-drift, 0px), 112vh, 0) rotate(var(--ms-spin, 360deg)); }
+}
+@keyframes ms-rise {
+  0% { transform: translate3d(0, 12vh, 0); opacity: 0; }
+  15% { opacity: .8; }
+  100% { transform: translate3d(var(--ms-drift, 0px), -112vh, 0); opacity: 0; }
+}
+@keyframes ms-twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+@keyframes ms-swing {
+  0%, 100% { transform: rotate(-5deg); }
+  50% { transform: rotate(5deg); }
+}
+@keyframes ms-spider {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(14px); }
+}
+@keyframes ms-spin-slow { to { transform: rotate(360deg); } }
+@keyframes ms-glow {
+  0%, 100% { opacity: .55; transform: scale(1); }
+  50% { opacity: .85; transform: scale(1.06); }
+}
+.ms-twinkle { animation: ms-twinkle 2.4s ease-in-out infinite; }
+.ms-swing { animation: ms-swing 4.5s ease-in-out infinite; }
+.ms-spider { animation: ms-spider 5s ease-in-out infinite; }
+.ms-spin-slow { animation: ms-spin-slow 60s linear infinite; }
+.ms-glow { animation: ms-glow 6s ease-in-out infinite; }
+@keyframes ms-kenburns { from { transform: scale(1.02); } to { transform: scale(1.1); } }
+.ms-kenburns { animation: ms-kenburns 24s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) {
+  .ms-twinkle, .ms-swing, .ms-spider, .ms-spin-slow, .ms-glow, .ms-kenburns { animation: none; }
+}
+
+/* El catálogo tiene su propio botón para limpiar la búsqueda. */
+#catalog-search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+
+/* ---------- Portada estilo tienda Apple ---------- */
+.ms-display {
+  font-size: clamp(2.6rem, 6.4vw, 5.75rem);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  font-weight: 700;
+  text-wrap: balance;
+}
+/* Titular de la vitrina: presente pero sin ocupar la pantalla. */
+.ms-hero-title {
+  font-size: clamp(2.25rem, 4.6vw, 3.9rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+  text-wrap: balance;
+}
+/* Etiqueta de precio de vitrina: tarjeta blanca con una esquina recta, como la hoja del logo. */
+.ms-tag {
+  border-radius: 16px 16px 16px 6px;
+}
+.ms-h2 {
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+/* Tarjetas de la tienda con el sello de Macsomenos: 24px de radio, un tinte
+   azul de la marca en la sombra y un borde azul al pasar el ratón. */
+.ms-store-card {
+  border: 1px solid transparent;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04), 0 10px 28px rgba(37, 99, 235, 0.07);
+  transition: box-shadow 300ms ease, transform 300ms ease, border-color 300ms ease;
+}
+.ms-store-card:hover {
+  border-color: rgba(37, 99, 235, 0.28);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.05), 0 16px 36px rgba(37, 99, 235, 0.14);
+  transform: translateY(-3px);
+}
+/* Esquinas de hoja, como la hoja del logo: dos puntas y dos curvas. */
+.ms-leaf {
+  border-radius: 56px 10px 56px 10px;
+}
+.ms-leaf-sm {
+  border-radius: 28px 6px 28px 6px;
+}
+/* Estante horizontal sin barra de desplazamiento visible. */
+.ms-shelf {
+  scrollbar-width: none;
+  scroll-padding-inline: 16px;
+}
+.ms-shelf::-webkit-scrollbar {
+  display: none;
+}
+
+/* Entrada de cada parte de una sección: sube y aparece una sola vez. */
+.ms-reveal [data-reveal] {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1), transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--reveal-order, 0) * 80ms);
+}
+.ms-reveal.is-visible [data-reveal] {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ms-reveal [data-reveal] { opacity: 1; transform: none; transition: none; }
+  .ms-store-card, .ms-store-card:hover { transform: none; transition: none; }
+}
+
+/* Respuestas de preguntas frecuentes: se abren con una transición corta. */
+@media (prefers-reduced-motion: no-preference) {
+  .ms-faq {
+    interpolate-size: allow-keywords;
+  }
+  .ms-faq::details-content {
+    block-size: 0;
+    overflow: hidden;
+    transition: block-size 220ms ease, content-visibility 220ms allow-discrete;
+  }
+  .ms-faq[open]::details-content {
+    block-size: auto;
+  }
+}
+
+/* Catálogo en móvil: sin tarjetas dentro de tarjetas; las fichas van sobre el fondo. */
+@media (max-width: 639px) {
+  .catalog-flat {
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .catalog-flat::after {
+    display: none;
+  }
+}
+
+/* Panel de filtros: entra desde abajo en móvil y desde la derecha en tablet. */
+@media (prefers-reduced-motion: no-preference) {
+  .ms-sheet {
+    animation: ms-sheet-up 240ms cubic-bezier(.2, .8, .2, 1);
+  }
+  .ms-scrim {
+    animation: ms-fade 200ms ease;
+  }
+  @media (min-width: 640px) {
+    .ms-sheet {
+      animation-name: ms-sheet-left;
+    }
+  }
+}
+@keyframes ms-sheet-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes ms-sheet-left {
+  from { transform: translateX(32px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes ms-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

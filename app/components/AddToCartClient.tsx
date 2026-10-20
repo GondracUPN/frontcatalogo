@@ -3,6 +3,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { addToCart, getCartId, getOfferStatus, submitOffer } from "@/app/cart/cartClient";
+import { trackCatalogEvent } from "@/lib/analytics";
 
 type Props = {
   productId: string;
@@ -81,6 +82,7 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
     try {
       const offerValue = isOferta && offer ? Number(offer) : undefined;
       await addToCart(productId, 1, offerValue);
+      trackCatalogEvent("add_to_cart", { product_id: productId });
       setAdded(true);
     } catch (e: any) {
       setError(e?.message || "No se pudo agregar");
@@ -95,6 +97,7 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
     setError("");
     try {
       await addToCart(productId, 1, max);
+      trackCatalogEvent("add_to_cart", { product_id: productId });
       setAdded(true);
     } catch (e: any) {
       setError(e?.message || "No se pudo agregar");
@@ -160,14 +163,14 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
             onClick={handleBuyOffer}
             className="btn-primary inline-flex w-full justify-center rounded-full bg-[color:var(--foreground)] px-8 py-3 text-base font-medium text-white shadow-lg shadow-black/10 hover:bg-black disabled:opacity-50"
           >
-            {disabled && disabledLabel ? disabledLabel : "Compra ya"}
+            {disabled && disabledLabel ? disabledLabel : "Agregar al carrito al precio publicado"}
           </button>
           <button
             disabled={disabled || saving}
             onClick={openOfferModal}
             className="btn-secondary inline-flex w-full justify-center rounded-full border border-black/10 bg-white/82 px-8 py-3 text-base font-medium text-[color:var(--foreground)] hover:bg-white disabled:opacity-50"
           >
-            {disabled && disabledLabel ? "No disponible" : "Hacer oferta"}
+            {disabled && disabledLabel ? "No disponible" : "Proponer otro precio"}
           </button>
         </div>
       ) : (
@@ -176,15 +179,22 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
           onClick={handleAdd}
           className="btn-primary inline-flex w-full justify-center rounded-full bg-[color:var(--accent)] px-8 py-3 text-base font-medium text-white shadow-lg shadow-blue-500/20 hover:bg-[color:var(--accent-strong)] disabled:opacity-50"
         >
-          {disabled && disabledLabel ? disabledLabel : saving ? "Agregando..." : isPreventa ? "Separalo" : "Agregar al carrito"}
+          {disabled && disabledLabel ? disabledLabel : saving ? "Agregando..." : isPreventa ? "Agregar al carrito para separarlo" : "Agregar al carrito"}
         </button>
+      )}
+
+      {!disabled && !added && (
+        <p className="text-sm leading-6 text-[color:var(--foreground-soft)]">
+          Agregar al carrito no realiza ningún pago. Desde el carrito envías tu solicitud y te confirmamos la disponibilidad por WhatsApp.
+        </p>
       )}
 
       {added && (
         <div role="status" aria-live="polite" className="rounded-[20px] border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
-          <div className="font-semibold">Producto agregado al carrito</div>
+          <div className="font-semibold">Equipo agregado al carrito</div>
+          <p className="mt-1 text-sm">Aún no está reservado. Cuando termines, envía tu solicitud desde el carrito.</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={() => router.push("/cart")} className="inline-flex min-h-11 items-center rounded-full bg-[color:var(--foreground)] px-5 py-2 text-sm font-semibold text-white">Ver carrito</button>
+            <button type="button" onClick={() => router.push("/cart")} className="inline-flex min-h-11 items-center rounded-full bg-[color:var(--foreground)] px-5 py-2 text-sm font-semibold text-white">Ver carrito y enviar solicitud</button>
             <button type="button" onClick={() => setAdded(false)} className="inline-flex min-h-11 items-center rounded-full border border-emerald-300 bg-white px-5 py-2 text-sm font-semibold">Seguir viendo</button>
           </div>
         </div>
