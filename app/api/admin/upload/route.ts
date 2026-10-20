@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { isCloudinaryConfigured, uploadImageToCloudinary } from "@/lib/cloudinary";
-import { ALLOWED_IMAGE_MIME, EXT_BY_MIME, applyWatermark, privateOriginalsDir, watermarkBuffer } from "../_image-protection";
+import { ALLOWED_IMAGE_MIME, EXT_BY_MIME, applyWatermark, watermarkBuffer } from "../_image-protection";
 import { requireStaff } from "../_admin-auth";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, message: "Tipo de imagen no permitido" }, { status: 415 });
     }
 
+    if (!file.size || file.size > 64 * 1024 * 1024) return NextResponse.json({ ok: false, message: "Máximo 64 MB" }, { status: 413 });
     const arrayBuffer = await file.arrayBuffer();
     const buf = Buffer.from(arrayBuffer);
     const ext = EXT_BY_MIME[file.type] || path.extname(file.name) || ".bin";
@@ -43,12 +44,7 @@ export async function POST(req: NextRequest) {
     }
 
     const uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), "public", "uploads");
-    const originalsDir = privateOriginalsDir("uploads");
     await fs.mkdir(uploadDir, { recursive: true });
-    await fs.mkdir(originalsDir, { recursive: true });
-
-    const originalDest = path.join(originalsDir, name);
-    await fs.writeFile(originalDest, buf);
 
     const wmName = `wm-${name}`;
     const wmDest = path.join(uploadDir, wmName);

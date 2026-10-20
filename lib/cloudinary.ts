@@ -108,23 +108,33 @@ export async function deleteCloudinaryImageByUrl(url: string) {
   const publicId = publicIdFromCloudinaryUrl(url);
   if (!publicId) return false;
   configureCloudinary();
-  await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
+  const result = await cloudinary.uploader.destroy(publicId, { resource_type: "image", invalidate: true });
+  if (!["ok", "not found"].includes(result.result)) throw new Error("Cloudinary no confirmó el borrado");
   return true;
 }
 
-function publicIdFromCloudinaryUrl(url: string) {
+export function publicIdFromCloudinaryUrl(url: string) {
   try {
     const parsed = new URL(url);
-    if (!parsed.hostname.endsWith("cloudinary.com")) return "";
+    if (parsed.hostname !== "res.cloudinary.com") return "";
     const marker = "/image/upload/";
     const index = parsed.pathname.indexOf(marker);
     if (index < 0) return "";
     const afterUpload = parsed.pathname.slice(index + marker.length);
     const parts = afterUpload.split("/").filter(Boolean);
-    const withoutVersion = parts[0]?.match(/^v\d+$/) ? parts.slice(1) : parts;
-    const joined = withoutVersion.join("/");
+    const version = parts.findIndex(part => /^v\d+$/.test(part));
+    const start = version >= 0 ? version + 1 : parts.findIndex(part => part === "macsomenos");
+    if (start < 0) return "";
+    const withoutVersion = parts.slice(start);
+    const joined = decodeURIComponent(withoutVersion.join("/"));
     return joined.replace(/\.[a-z0-9]+$/i, "");
   } catch {
     return "";
   }
+}
+
+export function plannedProductImageUrl(publicId: string) {
+  configureCloudinary();
+  const cloud = cloudinary.config().cloud_name;
+  return `https://res.cloudinary.com/${cloud}/image/upload/macsomenos/productos/${publicId}.png`;
 }

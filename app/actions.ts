@@ -672,6 +672,22 @@ export async function listSales() {
   return apiFetch<{ items: any[] }>(`/admin/sales`, { headers: { Authorization: `Bearer ${token}` } });
 }
 
+export async function manageSoldPhotos(productId: string, action: "cleanup" | "hold", patch: { hold?: boolean; reason?: string } = {}) {
+  const token = (await cookies()).get("token")?.value;
+  if (!token) throw new Error("Debes iniciar sesión");
+  const result = await apiFetch<{ ok: boolean; removed?: number; skipped?: string }>(`/admin/public/${encodeURIComponent(productId)}/photos/${action}`, {
+    method: "POST", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(patch),
+  });
+  revalidateTag("catalog-products");revalidateTag("catalog-staged");
+  return result;
+}
+
+export async function planSoldPhotos(productId: string) {
+  const token = (await cookies()).get("token")?.value;
+  if (!token) throw new Error("Debes iniciar sesión");
+  return apiFetch<{ secondaryCount: number }>(`/admin/public/${encodeURIComponent(productId)}/photos/plan`, { headers: { Authorization: `Bearer ${token}` } });
+}
+
 export async function updateSale(
   saleId: string,
   patch: {

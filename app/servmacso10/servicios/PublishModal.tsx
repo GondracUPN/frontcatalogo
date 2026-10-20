@@ -1,5 +1,6 @@
 ﻿"use client";
 import React from "react";
+import { useProductPhotoEditor } from "./useProductPhotoEditor";
 import { formatStorageCompact, formatStorageDisplay } from "@/lib/storage";
 import { buildAppleWatchTitle } from "@/lib/watch";
 import { createManualPreventaDraft, deleteStaged, updateStaged, publishStaged, replacePreventaWithInventory } from "../../actions";
@@ -815,7 +816,7 @@ export default function PublishModal({
     return +Math.max(0, computed).toFixed(2);
   }, [salePrice, discount, discountMode, saleType]);
   const [saving, setSaving] = React.useState(false);
-  const [uploadingPhotos, setUploadingPhotos] = React.useState(false);
+  const [uploadingPhotos] = React.useState(false);
   const [uploadingDetailPhotos, setUploadingDetailPhotos] = React.useState(false);
   const [submitError, setSubmitError] = React.useState("");
   const [copiedText, setCopiedText] = React.useState(false);
@@ -1281,22 +1282,10 @@ export default function PublishModal({
 
   const canPublish = errors.length === 0 && !saving && !uploadingPhotos && !uploadingDetailPhotos;
 
-  const addFiles = async (files: FileList | null) => {
-    if (!files || !files.length) return;
-    setUploadingPhotos(true);
-    setSubmitError("");
-    try {
-      const urls: string[] = [];
-      for (const f of Array.from(files)) {
-        const url = await uploadFile(f);
-        urls.push(url);
-      }
-      setImages((arr) => [...arr, ...urls]);
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "No se pudieron subir las fotos");
-    } finally {
-      setUploadingPhotos(false);
-    }
+  const photoEditor = useProductPhotoEditor(item, images, setImages, uploadFile);
+  const addFiles = (files: FileList | null) => {
+    try { photoEditor.addFiles(files); }
+    catch (error) { setSubmitError(error instanceof Error ? error.message : "No se pudieron abrir las fotos"); }
   };
 
   const addDetailFiles = async (files: FileList | null) => {
@@ -1505,6 +1494,7 @@ export default function PublishModal({
     setSubmitError("");
     let createdManualDraftId = "";
     try {
+      const images = await photoEditor.resolveImages();
       const iphoneStorageGbParsed = parseIphoneStorageGb(iphoneStorage);
       const iphoneStorageValue = formatStorageDisplay(iphoneStorage);
       const iphoneStorageGb = Number.isFinite(iphoneStorageGbParsed) ? iphoneStorageGbParsed : null;
@@ -1723,6 +1713,7 @@ export default function PublishModal({
 
   const mainPhotosPanel = (
     <div>
+      {photoEditor.modal}
       <label className="block text-sm mb-1 text-gray-700">Fotos</label>
       {images.length > 0 && (
         <div className="mb-3 overflow-hidden rounded-xl border-2 border-emerald-500 bg-emerald-50">
@@ -1769,6 +1760,7 @@ export default function PublishModal({
               </div>
             </div>
             <div className="grid grid-cols-2 gap-1 p-1">
+              <button type="button" aria-label={`Editar imagen ${i + 1}`} title="Editar imagen" className="col-span-2 rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800" onClick={() => photoEditor.edit(u)}>✎ Editar imagen</button>
               <button
                 type="button"
                 disabled={i === 0}

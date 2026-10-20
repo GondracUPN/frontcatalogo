@@ -9,10 +9,15 @@
     "lint": "eslint",
     "test:admin-security": "node scripts/test-admin-security.js",
     "check:themes": "node --no-warnings scripts/check-theme-contrast.ts",
-    "protect-images": "node scripts/protect-existing-images.js"
+    "protect-images": "node scripts/protect-existing-images.js",
+    "prepare:photo-editor": "node scripts/prepare-photo-editor.js",
+    "postinstall": "npm run prepare:photo-editor",
+    "prebuild": "npm run prepare:photo-editor",
+    "test:photos": "node scripts/test-photo-routes.js && node scripts/test-photo-editor.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.9.5",
+    "@techstark/opencv-js": "4.12.0-release.1",
     "cloudinary": "^2.10.0",
     "next": "15.5.9",
     "react": "19.1.0",
@@ -21,10 +26,12 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "1.57.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "0.25.12",
     "eslint": "^9",
     "eslint-config-next": "15.5.9",
     "tailwindcss": "^4",

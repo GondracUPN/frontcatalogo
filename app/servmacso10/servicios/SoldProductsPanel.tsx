@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { listSales, retrySaleSync, unsellProduct, updateSale } from "../../actions";
+import { listSales, retrySaleSync, unsellProduct, updateSale, manageSoldPhotos, planSoldPhotos } from "../../actions";
 import { dateInputInPeru, formatPeruDate } from "../../utils/peruTime";
 import SaleClientPhotoEditor from "./SaleClientPhotoEditor";
 
@@ -24,6 +24,12 @@ type Sale = {
   sync_remote_status?: string | null;
   sync_error?: string | null;
   sync_event_id?: string | null;
+  photo_count?: number;
+  photos_product_id?: string;
+  photos_cleanup_at?: string | null;
+  photos_hold?: boolean;
+  photos_hold_reason?: string | null;
+  presentation?: string | null;
 };
 
 function formatDate(value: unknown) {
@@ -50,7 +56,7 @@ function salePlace(sale: Sale) {
   return "-";
 }
 
-export default function SoldProductsPanel({ initialSales }: { initialSales: Sale[] }) {
+export default function SoldProductsPanel({ initialSales, isAdmin = false }: { initialSales: Sale[]; isAdmin?: boolean }) {
   const [sales, setSales] = React.useState<Sale[]>(initialSales || []);
   const [loading, setLoading] = React.useState((initialSales || []).length === 0);
   const [open, setOpen] = React.useState(false);
@@ -170,6 +176,33 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
 
   const recentSales = sales.slice(0, 10);
 
+  const photoAction = async (sale: Sale, action: "cleanup" | "hold") => {
+    if (busyId) return;
+    let reason = "";
+    if (action === "hold" && !sale.photos_hold) {
+      const value = prompt("Motivo de la reclamación:");
+      if (!value?.trim()) return;
+      reason = value.trim();
+    }
+    setBusyId(sale.id);
+    try {
+      if (action === "cleanup") {
+        const plan = await planSoldPhotos(sale.photos_product_id || sale.product_id);
+        if (!confirm(`¿Borrar ${plan.secondaryCount} fotos secundarias? La portada se conserva siempre.`)) return;
+      }
+      await manageSoldPhotos(sale.photos_product_id || sale.product_id, action, { hold: !sale.photos_hold, reason });
+      await refresh();
+    } catch (e) { alert(e instanceof Error ? e.message : "No se pudieron actualizar las fotos"); }
+    finally { setBusyId(null); }
+  };
+  const photoControls = (sale: Sale) => <div className="basis-full text-xs">
+    <p>{sale.presentation === "sellado" ? "Sellado: se conservan" : sale.photos_hold ? `Retenido: ${sale.photos_hold_reason || "Reclamación"}` : `Fotos: ${sale.photo_count || 0}${sale.photos_cleanup_at ? ` · se limpian el ${formatDate(sale.photos_cleanup_at)}` : " · sin fecha fiable"}`}</p>
+    {isAdmin && <div className="mt-1 flex flex-wrap gap-2">
+      <button type="button" disabled={busyId === sale.id} className="rounded border px-2 py-1" onClick={() => photoAction(sale,"hold")}>{sale.photos_hold ? "Quitar retención" : "Conservar fotos (reclamación)"}</button>
+      <button type="button" disabled={busyId === sale.id || sale.presentation === "sellado" || sale.photos_hold || Number(sale.photo_count || 0)<2} className="rounded border border-red-200 px-2 py-1 text-red-700 disabled:opacity-40" onClick={() => photoAction(sale,"cleanup")}>Borrar fotos secundarias</button>
+    </div>}
+  </div>;
+
   return (
     <div className="bg-white rounded-2xl border p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -204,6 +237,7 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                   )}
                 </td>
                 <td className="p-2 flex flex-wrap gap-2">
+                  {photoControls(sale)}
                   <button
                     onClick={() => openEditor(sale)}
                     className="rounded bg-indigo-600 px-3 py-1 text-white shadow-sm transition active:translate-y-px active:scale-[0.97] active:bg-indigo-800"
@@ -278,6 +312,7 @@ export default function SoldProductsPanel({ initialSales }: { initialSales: Sale
                       )}
                     </td>
                     <td className="p-2 flex flex-wrap gap-2">
+                      {photoControls(sale)}
                       <button
                         onClick={() => openEditor(sale)}
                         className="rounded bg-indigo-600 px-3 py-1 text-white shadow-sm transition active:translate-y-px active:scale-[0.97] active:bg-indigo-800"

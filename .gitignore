@@ -22,3 +22,6 @@ tsconfig.tsbuildinfo
 
 # Servidor de pruebas e2e (NEXT_DIST_DIR)
 .next-e2e/
+
+/public/photo-editor-vendor/
+/.next-verify/

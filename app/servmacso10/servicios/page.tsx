@@ -53,7 +53,7 @@ export default async function ServiciosPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <SoldProductsPanel initialSales={[]} />
+        <SoldProductsPanel initialSales={[]} isAdmin={isAdmin} />
         <ContactAlertsPanel initialItems={[]} />
       </div>
 
