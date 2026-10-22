@@ -1,0 +1,1484 @@
+{
+ "url": "http://localhost:3100/product/macbook-air-m4-15-6",
+ "at": "2026-10-15T20:35:56.137Z",
+ "allow": [],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 5,
+   "filled": [
+    0.84,
+    0.89,
+    0.89,
+    0.9,
+    0.7
+   ],
+   "motion": {
+    "elements": 46,
+    "css": 45,
+    "transitions": 0,
+    "scripted": 1,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 4222,
+     "screens": 4.7,
+     "words": 594,
+     "img": 15,
+     "video": 0,
+     "canvas": 0,
+     "svg": 34,
+     "sections": 4,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 4,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj",
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj",
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj",
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj"
+     ],
+     "blendText": 0,
+     "sideScrollers": 1,
+     "brokenImages": [],
+     "emoji": [
+      "✓",
+      "✕"
+     ]
+    },
+    "hero": {
+     "text": "MacBook Air M4 15",
+     "words": 4,
+     "chars": 17,
+     "lines": 1,
+     "size": 36,
+     "vw": 2.5,
+     "font": "Geist",
+     "weight": 600,
+     "tracking": -0.06,
+     "leading": 1.11,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "right",
+     "widthRatio": 0.43,
+     "top": 269,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "MacBook Air M4 15",
+     "words": 4,
+     "lines": 1,
+     "size": 36,
+     "font": "Geist"
+    },
+    "headings": [
+     {
+      "text": "MacBook Air M4 15",
+      "words": 4,
+      "chars": 17,
+      "lines": 1,
+      "size": 36,
+      "vw": 2.5,
+      "font": "Geist",
+      "weight": 600,
+      "tracking": -0.06,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "right",
+      "widthRatio": 0.43,
+      "top": 269,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "S/ 5,427.99",
+      "words": 2,
+      "chars": 11,
+      "lines": 1,
+      "size": 36,
+      "vw": 2.5,
+      "font": "Geist",
+      "weight": 700,
+      "tracking": -0.04,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "right",
+      "widthRatio": 0.39,
+      "top": 549,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "Más Apple, menos gasto.",
+      "words": 4,
+      "chars": 23,
+      "lines": 2,
+      "size": 56,
+      "vw": 3.9,
+      "font": "Geist",
+      "weight": 700,
+      "tracking": -0.04,
+      "leading": 1.02,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.43,
+      "top": 3862,
+      "tag": "p",
+      "kind": "statement"
+     }
+    ],
+    "headingSummary": {
+     "count": 3,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 1,
+     "centered": 0,
+     "medianWords": 4,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Geist",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      9,
+      10,
+      11,
+      12,
+      14,
+      15,
+      16,
+      17,
+      18,
+      20,
+      24,
+      36,
+      56
+     ],
+     "sizeCount": 13,
+     "notLoaded": [],
+     "body": {
+      "font": "Geist",
+      "size": 14,
+      "leading": 1.71,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 10.4
+     },
+     "measureChars": 111,
+     "max": {
+      "size": 56,
+      "vw": 3.9,
+      "font": "Geist",
+      "text": "Más Apple, menos gasto."
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 10,
+     "microLabelShare": 0.029,
+     "microSamples": [
+      "Disponible",
+      "Usado",
+      "Precio del equipo",
+      "Sin IGV",
+      "Especificaciones",
+      "Opciones"
+     ],
+     "upperShare": 0.06,
+     "centerShare": 0.03,
+     "smallText": 22
+    },
+    "eyebrows": [
+     {
+      "text": "Disponible",
+      "above": "MacBook Air M4 15",
+      "upper": true,
+      "tracked": true,
+      "mono": false,
+      "pill": true,
+      "size": 12,
+      "top": 217
+     },
+     {
+      "text": "Total con IGV",
+      "above": "S/ 5,427.99",
+      "upper": true,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 11,
+      "top": 532
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f5f7",
+     "bodyBgHsl": {
+      "h": 240,
+      "s": 0.11,
+      "l": 0.96
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#ffffff",
+       "top": 176,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#314158",
+       "share": 0.43
+      },
+      {
+       "color": "#4b5563",
+       "share": 0.23
+      },
+      {
+       "color": "#111827",
+       "share": 0.15
+      },
+      {
+       "color": "#e7000b",
+       "share": 0.03
+      },
+      {
+       "color": "#007a55",
+       "share": 0.02
+      }
+     ],
+     "button": {
+      "bg": "#ffffff",
+      "hsl": {
+       "h": 0,
+       "s": 0,
+       "l": 1
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": [
+      {
+       "text": "S/ 4,246.82",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,191.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 4,955.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,309.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,309.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,427.99",
+       "ratio": 3.7,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#ffffff"
+      }
+     ]
+    },
+    "buttons": {
+     "count": 5,
+     "inHero": 5,
+     "radius": "pill",
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Agregar al carrito",
+      "Preguntar por WhatsApp",
+      "Configurar",
+      "Rechazar",
+      "Aceptar"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 5,
+     "shadowOverlay": 2,
+     "shadowSamples": [
+      "button.absolute.left-2 → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0",
+      "button.absolute.right-2 → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0",
+      "button.shrink-0.snap-start → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0",
+      "div.min-w-0.rounded-[22px] → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0"
+     ],
+     "gradients": 3,
+     "scrims": 2,
+     "gradientSamples": [
+      "div.relative.overflow-hidden → linear-gradient(90deg, rgb(28, 25, 23), color(srgb 0.25302 0.132549 0.0807059), rgb(28, 25, 23))",
+      "div.rounded-[26px].border → linear-gradient(145deg, rgba(255, 251, 235, 0.98), rgba(254, 243, 199, 0.92))",
+      "section.rounded-[24px].border → linear-gradient(145deg, rgb(248, 251, 255), rgb(238, 245, 255))"
+     ],
+     "gradientText": 0,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 16,
+     "dashed": 0,
+     "blurred": 3,
+     "roundedBoxes": 20,
+     "boxRadius": 13,
+     "squareMedia": 0,
+     "roundedMedia": 4,
+     "mediaRadius": 28,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 952
+      },
+      {
+       "count": 6,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 996
+      }
+     ]
+    },
+    "heroMedia": [
+     {
+      "type": "img",
+      "ratio": 0.18
+     },
+     {
+      "type": "img",
+      "ratio": 0.18
+     }
+    ],
+    "nav": {
+     "links": 11,
+     "fixed": true,
+     "height": 72,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "geist",
+     "geist fallback"
+    ]
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 6,
+   "filled": [
+    0.83,
+    0.93,
+    0.93,
+    0.92,
+    0.72,
+    0.71
+   ],
+   "motion": {
+    "elements": 51,
+    "css": 50,
+    "transitions": 0,
+    "scripted": 1,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 5349,
+     "screens": 5.2,
+     "words": 593,
+     "img": 15,
+     "video": 0,
+     "canvas": 0,
+     "svg": 28,
+     "sections": 4,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 4,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj",
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj",
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj",
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj"
+     ],
+     "blendText": 0,
+     "sideScrollers": 1,
+     "brokenImages": [],
+     "emoji": [
+      "✓",
+      "✕"
+     ]
+    },
+    "hero": {
+     "text": "MacBook Air M4 15",
+     "words": 4,
+     "chars": 17,
+     "lines": 1,
+     "size": 36,
+     "vw": 4.7,
+     "font": "Geist",
+     "weight": 600,
+     "tracking": -0.06,
+     "leading": 1.11,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "center",
+     "widthRatio": 0.87,
+     "top": 910,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "MacBook Air M4 15",
+     "words": 4,
+     "lines": 1,
+     "size": 36,
+     "font": "Geist"
+    },
+    "headings": [
+     {
+      "text": "MacBook Air M4 15",
+      "words": 4,
+      "chars": 17,
+      "lines": 1,
+      "size": 36,
+      "vw": 4.7,
+      "font": "Geist",
+      "weight": 600,
+      "tracking": -0.06,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.87,
+      "top": 910,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "S/ 5,427.99",
+      "words": 2,
+      "chars": 11,
+      "lines": 1,
+      "size": 36,
+      "vw": 4.7,
+      "font": "Geist",
+      "weight": 700,
+      "tracking": -0.04,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.81,
+      "top": 1189,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "Más Apple, menos gasto.",
+      "words": 4,
+      "chars": 23,
+      "lines": 2,
+      "size": 32.3,
+      "vw": 4.2,
+      "font": "Geist",
+      "weight": 700,
+      "tracking": -0.04,
+      "leading": 1.02,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.47,
+      "top": 4814,
+      "tag": "p",
+      "kind": "statement"
+     }
+    ],
+    "headingSummary": {
+     "count": 3,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 1,
+     "centered": 0,
+     "medianWords": 4,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Geist",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      9,
+      10,
+      11,
+      12,
+      14,
+      15,
+      16,
+      17,
+      18,
+      20,
+      24,
+      32,
+      36
+     ],
+     "sizeCount": 13,
+     "notLoaded": [],
+     "body": {
+      "font": "Geist",
+      "size": 14,
+      "leading": 1.71,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 10.4
+     },
+     "measureChars": 63,
+     "max": {
+      "size": 36,
+      "vw": 4.7,
+      "font": "Geist",
+      "text": "MacBook Air M4 15"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 10,
+     "microLabelShare": 0.029,
+     "microSamples": [
+      "Disponible",
+      "Usado",
+      "Precio del equipo",
+      "Sin IGV",
+      "Especificaciones",
+      "Opciones"
+     ],
+     "upperShare": 0.06,
+     "centerShare": 0.03,
+     "smallText": 23
+    },
+    "eyebrows": [
+     {
+      "text": "Disponible",
+      "above": "MacBook Air M4 15",
+      "upper": true,
+      "tracked": true,
+      "mono": false,
+      "pill": true,
+      "size": 12,
+      "top": 858
+     },
+     {
+      "text": "Total con IGV",
+      "above": "S/ 5,427.99",
+      "upper": true,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 11,
+      "top": 1173
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f5f7",
+     "bodyBgHsl": {
+      "h": 240,
+      "s": 0.11,
+      "l": 0.96
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#ffffff",
+       "top": 176,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#314158",
+       "share": 0.43
+      },
+      {
+       "color": "#4b5563",
+       "share": 0.23
+      },
+      {
+       "color": "#111827",
+       "share": 0.15
+      },
+      {
+       "color": "#e7000b",
+       "share": 0.03
+      },
+      {
+       "color": "#007a55",
+       "share": 0.02
+      }
+     ],
+     "button": {
+      "bg": "#ffffff",
+      "hsl": {
+       "h": 0,
+       "s": 0,
+       "l": 1
+      },
+      "fg": "#111827"
+     },
+     "lowContrast": [
+      {
+       "text": "S/ 4,246.82",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,191.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 4,955.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,309.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,309.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,427.99",
+       "ratio": 3.7,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#ffffff"
+      }
+     ]
+    },
+    "buttons": {
+     "count": 7,
+     "inHero": 5,
+     "radius": "pill",
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Buscar",
+      "Solicitar este equipo",
+      "Configurar",
+      "Rechazar",
+      "Aceptar"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 5,
+     "shadowOverlay": 2,
+     "shadowSamples": [
+      "button.absolute.left-2 → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0",
+      "button.absolute.right-2 → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0",
+      "button.shrink-0.snap-start → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0",
+      "div.min-w-0.rounded-[22px] → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0"
+     ],
+     "gradients": 3,
+     "scrims": 2,
+     "gradientSamples": [
+      "div.relative.overflow-hidden → linear-gradient(90deg, rgb(28, 25, 23), color(srgb 0.25302 0.132549 0.0807059), rgb(28, 25, 23))",
+      "div.rounded-[26px].border → linear-gradient(145deg, rgba(255, 251, 235, 0.98), rgba(254, 243, 199, 0.92))",
+      "section.rounded-[24px].border → linear-gradient(145deg, rgb(248, 251, 255), rgb(238, 245, 255))"
+     ],
+     "gradientText": 0,
+     "hairlines": 1,
+     "hairlineSamples": [
+      "div.fixed.inset-x-0 768px"
+     ],
+     "outlinedBoxes": 17,
+     "dashed": 0,
+     "blurred": 4,
+     "roundedBoxes": 21,
+     "boxRadius": 13,
+     "squareMedia": 0,
+     "roundedMedia": 4,
+     "mediaRadius": 28,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 1592
+      },
+      {
+       "count": 6,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 1636
+      }
+     ]
+    },
+    "heroMedia": [
+     {
+      "type": "img",
+      "ratio": 0.43
+     }
+    ],
+    "nav": {
+     "links": 3,
+     "fixed": true,
+     "height": 72,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "geist",
+     "geist fallback"
+    ]
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 7,
+   "filled": [
+    0.91,
+    0.99,
+    0.98,
+    0.98,
+    0.96,
+    0.77,
+    0.86
+   ],
+   "motion": {
+    "elements": 43,
+    "css": 42,
+    "transitions": 0,
+    "scripted": 1,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 5464,
+     "screens": 6.5,
+     "words": 590,
+     "img": 15,
+     "video": 0,
+     "canvas": 0,
+     "svg": 20,
+     "sections": 4,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 4,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj",
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj",
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj",
+      "image?url=https%3A%2F%2Fres.cloudinary.com%2Fdrj"
+     ],
+     "blendText": 0,
+     "sideScrollers": 1,
+     "brokenImages": [],
+     "emoji": [
+      "✓",
+      "✕"
+     ]
+    },
+    "hero": {
+     "text": "MacBook Air M4 15",
+     "words": 4,
+     "chars": 17,
+     "lines": 1,
+     "size": 24,
+     "vw": 6.2,
+     "font": "Geist",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.33,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "center",
+     "widthRatio": 0.89,
+     "top": 616,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "MacBook Air M4 15",
+     "words": 4,
+     "lines": 1,
+     "size": 24,
+     "font": "Geist"
+    },
+    "headings": [
+     {
+      "text": "MacBook Air M4 15",
+      "words": 4,
+      "chars": 17,
+      "lines": 1,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Geist",
+      "weight": 600,
+      "tracking": 0,
+      "leading": 1.33,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.89,
+      "top": 616,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "S/ 5,427.99",
+      "words": 2,
+      "chars": 11,
+      "lines": 1,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Geist",
+      "weight": 700,
+      "tracking": -0.04,
+      "leading": 1.2,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.81,
+      "top": 924,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "Más Apple, menos gasto.",
+      "words": 4,
+      "chars": 23,
+      "lines": 2,
+      "size": 32,
+      "vw": 8.2,
+      "font": "Geist",
+      "weight": 700,
+      "tracking": -0.04,
+      "leading": 1.02,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.83,
+      "top": 4894,
+      "tag": "p",
+      "kind": "statement"
+     }
+    ],
+    "headingSummary": {
+     "count": 3,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 1,
+     "centered": 0,
+     "medianWords": 4,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Geist",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      9,
+      10,
+      11,
+      12,
+      14,
+      15,
+      16,
+      17,
+      18,
+      20,
+      24,
+      30,
+      32
+     ],
+     "sizeCount": 13,
+     "notLoaded": [],
+     "body": {
+      "font": "Geist",
+      "size": 14,
+      "leading": 1.71,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 10.4
+     },
+     "measureChars": 57,
+     "max": {
+      "size": 32,
+      "vw": 8.2,
+      "font": "Geist",
+      "text": "Más Apple, menos gasto."
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 10,
+     "microLabelShare": 0.03,
+     "microSamples": [
+      "Disponible",
+      "Usado",
+      "Precio del equipo",
+      "Sin IGV",
+      "Especificaciones",
+      "Opciones"
+     ],
+     "upperShare": 0.06,
+     "centerShare": 0.03,
+     "smallText": 23
+    },
+    "eyebrows": [
+     {
+      "text": "Disponible",
+      "above": "MacBook Air M4 15",
+      "upper": true,
+      "tracked": true,
+      "mono": false,
+      "pill": true,
+      "size": 12,
+      "top": 568
+     },
+     {
+      "text": "Total con IGV",
+      "above": "S/ 5,427.99",
+      "upper": true,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 11,
+      "top": 907
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f5f7",
+     "bodyBgHsl": {
+      "h": 240,
+      "s": 0.11,
+      "l": 0.96
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#ffffff",
+       "top": 184,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#314158",
+       "share": 0.43
+      },
+      {
+       "color": "#4b5563",
+       "share": 0.23
+      },
+      {
+       "color": "#111827",
+       "share": 0.14
+      },
+      {
+       "color": "#e7000b",
+       "share": 0.03
+      },
+      {
+       "color": "#007a55",
+       "share": 0.02
+      }
+     ],
+     "button": {
+      "bg": "#ffffff",
+      "hsl": {
+       "h": 0,
+       "s": 0,
+       "l": 1
+      },
+      "fg": "#111827"
+     },
+     "lowContrast": [
+      {
+       "text": "S/ 4,246.82",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,191.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 4,955.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,309.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,309.99",
+       "ratio": 3.5,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#f8fafc"
+      },
+      {
+       "text": "S/ 5,427.99",
+       "ratio": 3.7,
+       "need": 4.5,
+       "size": 14,
+       "fg": "#009966",
+       "bg": "#ffffff"
+      }
+     ]
+    },
+    "buttons": {
+     "count": 7,
+     "inHero": 5,
+     "radius": "pill",
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Buscar",
+      "Solicitar este equipo",
+      "Configurar",
+      "Rechazar",
+      "Aceptar"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 6,
+     "shadowOverlay": 2,
+     "shadowSamples": [
+      "section.surface-card-strong.soft-outline → rgba(15, 23, 42, 0.08) 0px 10px 28px 0px",
+      "div.surface-card-strong.soft-outline → rgba(15, 23, 42, 0.08) 0px 10px 28px 0px",
+      "button.shrink-0.snap-start → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0",
+      "div.min-w-0.rounded-[22px] → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0"
+     ],
+     "gradients": 3,
+     "scrims": 2,
+     "gradientSamples": [
+      "div.relative.overflow-hidden → linear-gradient(90deg, rgb(28, 25, 23), color(srgb 0.25302 0.132549 0.0807059), rgb(28, 25, 23))",
+      "div.rounded-[26px].border → linear-gradient(145deg, rgba(255, 251, 235, 0.98), rgba(254, 243, 199, 0.92))",
+      "section.rounded-[24px].border → linear-gradient(145deg, rgb(248, 251, 255), rgb(238, 245, 255))"
+     ],
+     "gradientText": 0,
+     "hairlines": 1,
+     "hairlineSamples": [
+      "div.fixed.inset-x-0 390px"
+     ],
+     "outlinedBoxes": 18,
+     "dashed": 0,
+     "blurred": 2,
+     "roundedBoxes": 22,
+     "boxRadius": 13,
+     "squareMedia": 0,
+     "roundedMedia": 4,
+     "mediaRadius": 28,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 6,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 1399
+      }
+     ]
+    },
+    "heroMedia": [
+     {
+      "type": "img",
+      "ratio": 0.27
+     }
+    ],
+    "nav": {
+     "links": 3,
+     "fixed": true,
+     "height": 72,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "geist",
+     "geist fallback"
+    ]
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "FAIL",
+   "id": "eyebrow",
+   "width": 1440,
+   "message": "2 eyebrow/kicker label(s) above headings: \"Disponible\" (pill) above \"MacBook Air M4 15\"; \"Total con IGV\" above \"S/ 5,427.99\"",
+   "fix": "Delete them. If the label carried real information, fold it into the headline or the supporting sentence.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "micro-label",
+   "width": 1440,
+   "message": "10 tiny uppercase letter-spaced labels (e.g. \"Disponible\", \"Usado\", \"Precio del equipo\", \"Sin IGV\").",
+   "fix": "Use sentence-case text at a readable size, or delete the label.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "emoji",
+   "width": 1440,
+   "message": "Emoji in the page: ✓ ✕",
+   "fix": "Remove. Use words or real imagery.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "gradient",
+   "width": 1440,
+   "message": "3 gradient fill(s): div.relative.overflow-hidden → linear-gradient(90deg, rgb(28, 25, 23), color(srgb 0.25302 0.132549 0.0807059), rgb(28, 25, 23)) | div.rounded-[26px].border → linear-gradient(145deg, rgba(255, 251, 235, 0.98), rgba(254, 243, 199, 0.92)) | section.rounded-[24px].border → linear-gradient(145deg, rgb(248, 251, 255), rgb(238, 245, 255))",
+   "fix": "Use a flat colour or a real image. The only gradient allowed by default is a neutral scrim over a photo for legibility.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "shadow",
+   "width": 1440,
+   "message": "5 box-shadow(s) on elements at rest: button.absolute.left-2 → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0 | button.absolute.right-2 → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0 | button.shrink-0.snap-start → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0",
+   "fix": "Remove. Separate surfaces with a tone step or space. Shadows are for things that really float (menus, dialogs, sticky bars).",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "outlined-box",
+   "width": 1440,
+   "message": "16 boxes drawn with a 1px outline.",
+   "fix": "Define a surface by its fill (one tone step from the page) or leave the content unboxed.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "glass",
+   "width": 1440,
+   "message": "3 backdrop-blur surfaces.",
+   "fix": "One blurred sticky bar at most; glass cards are a tell.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "card-rows",
+   "width": 1440,
+   "message": "2 rows of identical boxed cards.",
+   "fix": "Vary the composition; not every section is a card grid.",
+   "alsoAt": [
+    768
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "contrast",
+   "width": 1440,
+   "message": "Low-contrast text: \"S/ 4,246.82\" 3.5:1 needs 4.5:1; \"S/ 5,191.99\" 3.5:1 needs 4.5:1; \"S/ 4,955.99\" 3.5:1 needs 4.5:1; \"S/ 5,309.99\" 3.5:1 needs 4.5:1",
+   "fix": "Darken or lighten the text colour.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "size-count",
+   "width": 1440,
+   "message": "13 different font sizes (9, 10, 11, 12, 14, 15, 16, 17, 18, 20, 24, 36, 56).",
+   "fix": "A page needs about five: display, heading, lead, body, small.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "body-size",
+   "width": 1440,
+   "message": "Body text is 14px (the size most of the running text is set in).",
+   "fix": "Body copy 16–20px. Map small sizes from blueprints onto your body step.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "no-footage",
+   "width": 1440,
+   "message": "No video anywhere on the page.",
+   "fix": "Look for one honest clip with scripts/assets.mjs --video (the place, the material, the process) and use it as a muted loop with a poster frame. Defend its absence only if no clip fits the subject."
+  },
+  {
+   "level": "WARN",
+   "id": "side-scroll",
+   "width": 1440,
+   "message": "1 row(s) scroll sideways with content past their edge.",
+   "fix": "Jurors and most visitors read a row cut at the edge as clipped, not as scrollable. Wrap it onto more lines, or end it inside the grid.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "measure",
+   "width": 1440,
+   "message": "Longest paragraph runs about 111 characters per line.",
+   "fix": "Cap paragraphs at 45–75 characters (max-width: 60ch)."
+  },
+  {
+   "level": "FAIL",
+   "id": "small-text",
+   "width": 1440,
+   "message": "22 text blocks under 13px.",
+   "fix": "Nothing meant to be read goes below 13px.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "focal-point",
+   "width": 1440,
+   "message": "The first screen has no dominant element: the largest type is 36px (2.5vw) and no single picture holds a third of the viewport.",
+   "fix": "Make one thing lead: the headline at display size, or one large picture. A grid of many small pictures is not one thing; in blind tests jurors marked a first screen without a headline down every time. On the strongest studied sites the largest type has a median of 8.4vw."
+  },
+  {
+   "level": "WARN",
+   "id": "hairline",
+   "width": 768,
+   "message": "1 thin rule(s)/divider line(s): div.fixed.inset-x-0 768px",
+   "fix": "Delete. Separate with space, a tone change, or scale. Lines are only for real tables and form fields.",
+   "alsoAt": [
+    390
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "covered-text",
+   "width": 768,
+   "message": "Large text lies under another element at some scroll position: \"MacBook Air M4 15\" (screen 1, 100% hidden)",
+   "fix": "Nothing may sit on top of a headline or statement. Move the picture, shorten the pinned run, or raise the text above it (z-index) and give it a ground.",
+   "alsoAt": [
+    390
+   ]
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "E:\\ventas\\macsomenos\\PaginaCatalogo\\frontend\\.taste-skill\\inspect-product\\desktop-fold.jpg",
+   "pages": [
+    "E:\\ventas\\macsomenos\\PaginaCatalogo\\frontend\\.taste-skill\\inspect-product\\desktop-page-01.jpg",
+    "E:\\ventas\\macsomenos\\PaginaCatalogo\\frontend\\.taste-skill\\inspect-product\\desktop-page-02.jpg"
+   ]
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "E:\\ventas\\macsomenos\\PaginaCatalogo\\frontend\\.taste-skill\\inspect-product\\tablet-fold.jpg",
+   "pages": [
+    "E:\\ventas\\macsomenos\\PaginaCatalogo\\frontend\\.taste-skill\\inspect-product\\tablet-page-01.jpg"
+   ]
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "E:\\ventas\\macsomenos\\PaginaCatalogo\\frontend\\.taste-skill\\inspect-product\\mobile-fold.jpg",
+   "pages": [
+    "E:\\ventas\\macsomenos\\PaginaCatalogo\\frontend\\.taste-skill\\inspect-product\\mobile-page-01.jpg"
+   ]
+  }
+ ]
+}
