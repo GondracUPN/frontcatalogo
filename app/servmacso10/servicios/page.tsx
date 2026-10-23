@@ -41,7 +41,7 @@ export default async function ServiciosPage({ searchParams }: { searchParams: Pr
           </div>
           {isAdmin && <AdminToolbar />}
           <PreventaManualButton independent={!isAdmin && !me.canViewServiceInventory} />
-          <PromotionsButton />
+          <PromotionsButton isAdmin={isAdmin} />
           <a href="/servmacso10/solicitudes" className="bg-[#0071e3] hover:bg-[#0a84ff] text-white rounded px-4 py-2">Solicitudes</a>
           {<a href="/servmacso10/analisis" className="bg-[#0071e3] hover:bg-[#0a84ff] text-white rounded px-4 py-2">{isAdmin ? "Análisis" : "Mis ventas"}</a>}
           {isAdmin && <a href="/servmacso10/contenidos" className="bg-gray-900 hover:bg-black text-white rounded px-4 py-2">Configurar contenidos</a>}

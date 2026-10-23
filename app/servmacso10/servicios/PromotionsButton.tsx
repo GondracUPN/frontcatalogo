@@ -27,6 +27,8 @@ function saleTypeOf(row: Row) {
 }
 
 const money = (n: number) => `S/ ${Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Solo presentación en promociones del administrador; nunca se usa para guardar.
+const cleanMoney = (n: number) => `S/ ${Math.trunc(Number(n || 0))}`;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // Mismo cálculo que el servidor (que es quien decide el precio guardado).
@@ -42,7 +44,8 @@ function current(row: Row) {
   return { base, discount, mode, final };
 }
 
-export default function PromotionsButton() {
+export default function PromotionsButton({ isAdmin = false }: { isAdmin?: boolean }) {
+  const formatMoney = isAdmin ? cleanMoney : money;
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -116,6 +119,7 @@ export default function PromotionsButton() {
                         <PromotionRow
                           key={row.id}
                           row={row}
+                          isAdmin={isAdmin}
                           editing={editing === row.id}
                           onEdit={() => setEditing(editing === row.id ? null : row.id)}
                           onSaved={(data, message) => {
@@ -135,7 +139,7 @@ export default function PromotionsButton() {
                         <option value="">Elige un producto publicado…</option>
                         {candidates.map((row) => (
                           <option key={row.id} value={row.id}>
-                            {(row.product?.title || row.staged?.title || "Producto")} · {row.product?.sku} · {money(Number(row.product?.price || 0))}
+                            {(row.product?.title || row.staged?.title || "Producto")} · {row.product?.sku} · {formatMoney(Number(row.product?.price || 0))}
                           </option>
                         ))}
                       </select>
@@ -146,6 +150,7 @@ export default function PromotionsButton() {
                         <ul className="mt-2">
                           <PromotionRow
                             row={row}
+                            isAdmin={isAdmin}
                             editing
                             isNew
                             onEdit={() => setAdding("")}
@@ -173,15 +178,18 @@ function PromotionRow({
   row,
   editing,
   isNew = false,
+  isAdmin = false,
   onEdit,
   onSaved,
 }: {
   row: Row;
   editing: boolean;
   isNew?: boolean;
+  isAdmin?: boolean;
   onEdit: () => void;
   onSaved: (data: { saleType: string; discount: number | null; mode: string | null; finalPrice: number | null }, message: string) => void;
 }) {
+  const formatMoney = isAdmin ? cleanMoney : money;
   const title = row.product?.title || row.staged?.title || "Producto sin título";
   const sku = row.product?.sku || row.staged?.sku;
   const image = row.images?.[0] || row.staged?.images?.[0];
@@ -229,7 +237,7 @@ function PromotionRow({
       setError(result.error);
       return;
     }
-    onSaved(result.data, remove ? `«${title}» volvió a su precio normal.` : `«${title}» ahora cuesta ${money(result.data.finalPrice || 0)} sin IGV (${money(result.data.finalPriceWithIgv || 0)} con IGV).`);
+    onSaved(result.data, remove ? `«${title}» volvió a su precio normal.` : `«${title}» ahora cuesta ${formatMoney(result.data.finalPrice || 0)} sin IGV (${formatMoney(result.data.finalPriceWithIgv || 0)} con IGV).`);
   };
 
   return (
@@ -244,15 +252,15 @@ function PromotionRow({
           <p className="text-xs text-gray-500">{sku}</p>
           {!isNew && (
             <div className="mt-1 flex flex-wrap items-baseline gap-x-2 text-sm">
-              <span className="text-gray-400 line-through">{money(base)}</span>
-              <span className="font-semibold text-red-600">{money(now.final)}</span>
+              <span className="text-gray-400 line-through">{formatMoney(base)}</span>
+              <span className="font-semibold text-red-600">{formatMoney(now.final)}</span>
               <span className="rounded-full bg-red-50 px-1.5 text-xs font-bold text-red-700">
-                {now.mode === "amount" ? `-${money(now.discount)}` : `-${now.discount}%`}
+                {now.mode === "amount" ? `-${formatMoney(now.discount)}` : `-${isAdmin ? Math.round(now.discount) : now.discount}%`}
               </span>
-              <span className="text-xs font-semibold text-emerald-700">{money(now.final * 1.18)} con IGV</span>
+              <span className="text-xs font-semibold text-emerald-700">{formatMoney(now.final * 1.18)} con IGV</span>
             </div>
           )}
-          {isNew && <p className="mt-1 text-sm text-gray-700">Precio base: <strong>{money(base)}</strong> sin IGV</p>}
+          {isNew && <p className="mt-1 text-sm text-gray-700">Precio base: <strong>{formatMoney(base)}</strong> sin IGV</p>}
         </div>
         {!isNew && (
           <button type="button" onClick={onEdit} className="min-h-10 shrink-0 rounded-lg border border-gray-300 px-3 text-sm font-medium hover:bg-gray-50">
@@ -287,8 +295,8 @@ function PromotionRow({
           <div className="rounded-lg bg-white p-2 text-sm">
             {preview && !invalid ? (
               <>
-                <div>El cliente verá: <span className="text-gray-400 line-through">{money(base * 1.18)}</span> → <strong className="text-emerald-700">{money(preview * 1.18)} con IGV</strong></div>
-                <div className="text-xs text-gray-500">Sin IGV: {money(preview)} · ahorra {money(base - preview)}</div>
+                <div>El cliente verá: <span className="text-gray-400 line-through">{formatMoney(base * 1.18)}</span> → <strong className="text-emerald-700">{formatMoney(preview * 1.18)} con IGV</strong></div>
+                <div className="text-xs text-gray-500">Sin IGV: {formatMoney(preview)} · ahorra {formatMoney(base - preview)}</div>
               </>
             ) : <span className="text-gray-500">Escribe un descuento o el precio final.</span>}
           </div>
