@@ -211,10 +211,18 @@ function joinSpanish(values: string[]) {
   return `${clean.slice(0, -1).join(", ")} y ${clean.at(-1)}`;
 }
 
+// Productos de un solo color de fábrica (AirPods blancos, Pencil, cargadores): el color no aporta en el título.
+function hasSingleFactoryColor(facts: ProductFacts) {
+  const name = `${facts.type} ${facts.category} ${facts.title}`;
+  if (isAirPods(facts)) return !/airpods?\s*max/i.test(name);
+  return /pencil|earpods|cargador|adaptador|cubo|\bcable\b/i.test(name);
+}
+
 function sealedTitleParts(facts: ProductFacts) {
   if (!isSealed(facts)) return [];
   const sealedWord = isMacBook(facts) ? "Sellada" : "Sellado";
-  return [sealedWord, warrantyTitlePart(facts)];
+  const color = hasSingleFactoryColor(facts) ? "" : facts.color;
+  return [sealedWord, color, warrantyTitlePart(facts)];
 }
 
 function warrantyTitlePart(facts: ProductFacts) {
@@ -324,7 +332,7 @@ export function generateMarketplaceTitle(product: MarketplaceProduct) {
     parts = ["Remato iPad", facts.range, facts.processor || facts.generation, facts.screen ? `${facts.screen}”` : "", facts.storage, facts.connectivity];
   } else if (isIphone(facts)) {
     const model = [facts.iphoneNumber, facts.iphoneModel].filter(Boolean).join(" ");
-    parts = ["Remato iPhone", model, facts.storage, facts.color];
+    parts = ["Remato iPhone", model, facts.storage, isSealed(facts) ? "" : facts.color];
   } else if (isWatch(facts)) {
     const watchTitle = buildAppleWatchTitle({
       type: facts.watchType,
