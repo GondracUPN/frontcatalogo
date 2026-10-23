@@ -1,6 +1,7 @@
 ﻿"use client";
 import React from "react";
 import { useProductPhotoEditor } from "./useProductPhotoEditor";
+import { mapInOrder, uploadProductImage } from "./uploadProductImage";
 import { formatStorageCompact, formatStorageDisplay } from "@/lib/storage";
 import { buildAppleWatchTitle } from "@/lib/watch";
 import { updateStaged, publishStaged } from "../../actions";
@@ -236,20 +237,7 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
-async function uploadFile(file: File): Promise<string> {
-  const fd = new FormData();
-  fd.set("file", file);
-  const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
-  const contentType = res.headers.get("content-type") || "";
-  const json = contentType.includes("application/json") ? await res.json() : null;
-  if (!res.ok || !json?.ok) {
-    const fallback = res.status === 413
-      ? "La imagen es demasiado pesada para producción. Prueba con una foto comprimida."
-      : `No se pudo subir la imagen (${res.status || "sin respuesta"})`;
-    throw new Error(json?.message || fallback);
-  }
-  return json.url as string;
-}
+const uploadFile = uploadProductImage;
 
 export default function StagedPublishModal({ item, onClose, onSaved }: { item: any; onClose: () => void; onSaved: (u: any) => void }) {
   const notes = React.useMemo(() => {
@@ -575,11 +563,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     setUploadingDetailPhotos(true);
     setSubmitError("");
     try {
-      const urls: string[] = [];
-      for (const f of Array.from(files)) {
-        const url = await uploadFile(f);
-        urls.push(url);
-      }
+      const urls = await mapInOrder(Array.from(files), uploadFile);
       setDetailImages((arr) => uniqueStrings([...arr, ...urls]));
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "No se pudieron subir las fotos de detalles");

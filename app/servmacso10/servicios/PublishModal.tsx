@@ -1,6 +1,7 @@
 ﻿"use client";
 import React from "react";
 import { useProductPhotoEditor } from "./useProductPhotoEditor";
+import { mapInOrder, uploadProductImage } from "./uploadProductImage";
 import { formatStorageCompact, formatStorageDisplay } from "@/lib/storage";
 import { buildAppleWatchTitle } from "@/lib/watch";
 import { createManualPreventaDraft, deleteStaged, updateStaged, publishStaged, replacePreventaWithInventory } from "../../actions";
@@ -321,10 +322,6 @@ function categoryLabel(cat: string) {
   }
 }
 
-function publicCatalogCategory(category: string) {
-  return ["macbook", "ipad", "iphone", "watch"].includes(category) ? category : "otros";
-}
-
 function buildTitle(tipo: string, gama: string, proc: string, tam: string, iphoneModel?: string, ipadConnectivity?: string, ipadGeneration?: string) {
   const isIphone = String(tipo || "").toLowerCase().includes("iphone");
   const isIpad = String(tipo || "").toLowerCase().includes("ipad");
@@ -605,20 +602,7 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
-async function uploadFile(file: File): Promise<string> {
-  const fd = new FormData();
-  fd.set("file", file);
-  const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
-  const contentType = res.headers.get("content-type") || "";
-  const json = contentType.includes("application/json") ? await res.json() : null;
-  if (!res.ok || !json?.ok) {
-    const fallback = res.status === 413
-      ? "La imagen es demasiado pesada para producción. Prueba con una foto comprimida."
-      : `No se pudo subir la imagen (${res.status || "sin respuesta"})`;
-    throw new Error(json?.message || fallback);
-  }
-  return json.url as string;
-}
+const uploadFile = uploadProductImage;
 
 export default function PublishModal({
   item,
@@ -647,8 +631,11 @@ export default function PublishModal({
 
   const [category, setCategory] = React.useState<string>(() => {
     const hasCategory = item && Object.prototype.hasOwnProperty.call(item, "category");
-    if (hasCategory) return String(item?.category || "");
-    return inferCategoryFromTitle(item?.title);
+    const stored = hasCategory ? String(item?.category || "") : inferCategoryFromTitle(item?.title);
+    // Productos antiguos se guardaron como "otros" aunque fueran Mac mini, iMac, etc.
+    const fromSpecs = specs?.tipo ? normalizeCategory(specs.tipo) : "";
+    if (stored === "otros" && fromSpecs && fromSpecs !== "otros") return fromSpecs;
+    return stored;
   });
   const [catTouched, setCatTouched] = React.useState(false);
 
@@ -1094,6 +1081,11 @@ export default function PublishModal({
   const iphoneStorageOptions = React.useMemo(() => withCurrentOption(iphoneStorageBase, iphoneStorage), [iphoneStorageBase, iphoneStorage]);
   const desktopConfigs = category === "macmini" ? MAC_MINI_CONFIGS : category === "imac" ? IMAC_CONFIGS : {};
   const desktopConfig = desktopConfigs[desktopVariant];
+  // Mac mini / iMac: primero el procesador, luego los núcleos CPU/GPU de ese chip.
+  const desktopChips = Array.from(new Set(Object.values(desktopConfigs).map((config) => config.chip)));
+  const desktopChipVariants = Object.entries(desktopConfigs).filter(([, config]) => config.chip === proc);
+  const desktopRamOptions = desktopConfig?.rams || Array.from(new Set(desktopChipVariants.flatMap(([, config]) => config.rams)));
+  const desktopStorageOptions = desktopConfig?.storage || Array.from(new Set(desktopChipVariants.flatMap(([, config]) => config.storage)));
   const airpodsConfig = AIRPODS_CONFIGS[airpodsVariant];
 
   React.useEffect(() => {
@@ -1169,7 +1161,7 @@ export default function PublishModal({
     if (productCondition !== "Nuevo" && !includesValue) errors.push("Selecciona que incluye");
   }
   if (isMacMini || isImac) {
-    if (!desktopVariant || !desktopConfig) errors.push("Selecciona una configuración válida de hardware");
+    if (!desktopVariant || !desktopConfig) errors.push("Selecciona los núcleos CPU / GPU del procesador");
     if (!proc?.trim()) errors.push("El procesador es obligatorio");
     if (!ram?.trim()) errors.push("La RAM es obligatoria");
     if (!alm?.trim()) errors.push("El almacenamiento es obligatorio");
@@ -1295,11 +1287,7 @@ export default function PublishModal({
     setUploadingDetailPhotos(true);
     setSubmitError("");
     try {
-      const urls: string[] = [];
-      for (const f of Array.from(files)) {
-        const url = await uploadFile(f);
-        urls.push(url);
-      }
+      const urls = await mapInOrder(Array.from(files), uploadFile);
       setDetailImages((arr) => uniqueStrings([...arr, ...urls]));
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "No se pudieron subir las fotos de detalles");
@@ -1377,8 +1365,8 @@ export default function PublishModal({
       add("Pantalla", tam ? `${tam}"` : "");
       add("Teclado", keyboardLayout);
     } else if (isMacMini || isImac) {
-      add("Configuracion", desktopConfig?.label);
       add("Procesador", proc);
+      add("Nucleos", desktopConfig?.label.split(" · ").slice(1).join(" · "));
       add("RAM", normalizeUnit(ram, "GB"));
       add("Almacenamiento", normalizeUnit(alm, "GB"));
       if (isImac) add("Pantalla", tam ? `${tam}\"` : "");
@@ -1625,7 +1613,8 @@ export default function PublishModal({
         baseTitle = `Preventa ${baseTitle}`;
       }
       const fixedTitle = capitalize(baseTitle.trim());
-      const catalogCategory = publicCatalogCategory(category);
+      // Se guarda el tipo real (macmini, imac, airpods...); el catálogo público ya los agrupa en "otros".
+      const catalogCategory = category;
       let stagedId = String(item?.id || "").trim();
       if (!stagedId) {
         const created = await createManualPreventaDraft({
@@ -2176,33 +2165,48 @@ export default function PublishModal({
 
             {(isMacMini || isImac) && (
               <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="block text-sm text-gray-700">Modelo / configuración de fábrica</label>
+                <div>
+                  <label className="block text-sm text-gray-700">Procesador</label>
                   <select
-                    value={desktopVariant}
+                    value={desktopChips.includes(proc) ? proc : ""}
                     onChange={(e) => {
-                      setDesktopVariant(e.target.value);
-                      setRam("");
-                      setAlm("");
+                      const chip = e.target.value;
+                      const variants = Object.entries(desktopConfigs).filter(([, config]) => config.chip === chip);
+                      setProc(chip);
+                      setDesktopVariant(variants.length === 1 ? variants[0][0] : "");
+                      if (!variants.some(([, config]) => config.rams.includes(ram))) setRam("");
+                      if (!variants.some(([, config]) => config.storage.includes(alm))) setAlm("");
                     }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white"
                   >
                     <option value="">Seleccione</option>
-                    {Object.entries(desktopConfigs).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}
+                    {desktopChips.map((chip) => <option key={chip} value={chip}>{chip}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700">Núcleos CPU / GPU</label>
+                  <select
+                    value={desktopConfig ? desktopVariant : ""}
+                    onChange={(e) => setDesktopVariant(e.target.value)}
+                    disabled={!desktopChipVariants.length}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white disabled:bg-gray-100"
+                  >
+                    <option value="">Seleccione</option>
+                    {desktopChipVariants.map(([key, config]) => <option key={key} value={key}>{config.label.split(" · ").slice(1).join(" · ")}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700">RAM</label>
-                  <select value={ram} onChange={(e) => setRam(e.target.value)} disabled={!desktopConfig} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white disabled:bg-gray-100">
+                  <select value={ram} onChange={(e) => setRam(e.target.value)} disabled={!desktopRamOptions.length} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white disabled:bg-gray-100">
                     <option value="">Seleccione</option>
-                    {(desktopConfig?.rams || []).map((value) => <option key={value} value={value}>{value} GB</option>)}
+                    {desktopRamOptions.map((value) => <option key={value} value={value}>{value} GB</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700">Almacenamiento</label>
-                  <select value={alm} onChange={(e) => setAlm(e.target.value)} disabled={!desktopConfig} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white disabled:bg-gray-100">
+                  <select value={alm} onChange={(e) => setAlm(e.target.value)} disabled={!desktopStorageOptions.length} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white disabled:bg-gray-100">
                     <option value="">Seleccione</option>
-                    {(desktopConfig?.storage || []).map((value) => <option key={value} value={value}>{value}</option>)}
+                    {desktopStorageOptions.map((value) => <option key={value} value={value}>{value}</option>)}
                   </select>
                 </div>
                 {isImac && (

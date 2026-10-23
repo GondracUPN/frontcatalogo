@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import SaleClientPhoto from "./SaleClientPhoto";
+import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
 import dynamic from "next/dynamic";
 import { deleteStaged, listStaged, markStagedProductSold } from "../../actions";
 import { dateInputInPeru } from "../../utils/peruTime";
@@ -25,6 +25,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
     clientPhotoUrl?: string;
   }>(null);
   const [selling, setSelling] = React.useState(false);
+  const clientPhotoUploadRef = React.useRef<ClientPhotoUpload | null>(null);
   const sellingRef = React.useRef(false);
 
   const displaySku = (value: unknown) => String(value || "").trim().replace(/^svc(?=[-_\s]*\d)/i, "MS");
@@ -302,7 +303,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                 <input value={soldModal.saleLocation} onChange={(e) => setSoldModal({ ...soldModal, saleLocation: e.target.value })} className="mb-4 w-full rounded border px-3 py-2" placeholder="Ej: Miraflores, Jockey Plaza..." />
               </>
             )}
-            <SaleClientPhoto disabled={selling} onUploaded={(url) => setSoldModal((current) => current ? { ...current, clientPhotoUrl: url } : null)} />
+            <SaleClientPhoto disabled={selling} onChange={(upload) => { clientPhotoUploadRef.current = upload; }} />
             <div className="flex justify-end gap-2">
               <button disabled={selling} onClick={() => setSoldModal(null)} className="rounded border px-3 py-1 disabled:opacity-50">Cancelar</button>
               <button
@@ -318,8 +319,8 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                     alert("Completa el nombre y telefono del cliente");
                     return;
                   }
-                  if (!soldModal.clientPhotoUrl) {
-                    alert("Sube la foto del cliente antes de registrar la venta");
+                  if (!soldModal.clientPhotoUrl && !clientPhotoUploadRef.current) {
+                    alert("Agrega la foto del cliente antes de registrar la venta");
                     return;
                   }
                   sellingRef.current = true;
@@ -332,7 +333,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                       salePlaceType: soldModal.salePlaceType,
                       saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
                       exchangeRate: soldModal.exchangeRate || undefined,
-                      clientPhotoUrl: soldModal.clientPhotoUrl,
+                      clientPhotoUrl: soldModal.clientPhotoUrl || await clientPhotoUploadRef.current!(),
                     });
                     if (!result.ok) throw new Error(result.error || "No se pudo registrar la venta");
                     const res = await listStaged({ pageSize: "all" });

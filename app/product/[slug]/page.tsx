@@ -9,7 +9,7 @@ import DetailHighlights from "@/app/components/DetailHighlights";
 import { WAREHOUSE_MAP_URL } from "@/lib/help-content";
 import WhatsAppProductLink from "@/app/components/WhatsAppProductLink";
 import MobileProductAction from "@/app/components/MobileProductAction";
-import { getCatalogItem } from "@/app/actions";
+import { getCatalogItem, listCatalog } from "@/app/actions";
 import { Suspense } from "react";
 import ProductAlternatives from "@/app/components/ProductAlternatives";
 import { accessoryBreakdown, categoryLabel, screenSizeLabel, badgeTone, formatRam, isUsedCondition, keyboardLabel, productBadges, publicSku } from "@/lib/catalog-display";
@@ -123,6 +123,10 @@ function uniqueStrings(values: unknown[]) {
 // caché (ISR, 5 minutos) en lugar de renderizarla en cada visita.
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  // El listado para «También te puede interesar» se pide a la vez que la ficha:
+  // la página en caché (ISR) espera a ambos, y en serie sumaban dos viajes a la API.
+  // Es el catálogo completo, una sola entrada de caché compartida por todas las fichas.
+  const catalogPromise = listCatalog().catch(() => null);
   let item: any;
   try {
     ({ item } = await getCatalogItem(slug));
@@ -243,6 +247,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const healthLabel = String(batteryHealth ?? "").trim() ? `${String(batteryHealth).replace(/%$/, "")}%` : "";
   const especs: Array<{ label: string; value: any }> = [];
   if (productCondition) especs.push({ label: "Estado", value: productCondition });
+  // Mac mini / iMac antiguos se guardaron con categoría "otros"; el tipo real quedó en specs.tipo.
+  const desktopKind = category === "macmini" || category === "imac" ? category
+    : category === "otros" && /mac\s*mini/i.test(String(specsAny?.tipo || "")) ? "macmini"
+    : category === "otros" && /\bimac\b/i.test(String(specsAny?.tipo || "")) ? "imac"
+    : "";
   if (category === "macbook") {
     especs.push(
       { label: "Gama", value: gama },
@@ -255,6 +264,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       { label: "Color", value: colorCap },
       // El aviso de la «ñ» va en el propio dato, no como advertencia aparte.
       { label: "Teclado", value: /ingl/i.test(tecladoLabel) ? "Inglés (sin la tecla ñ impresa)" : tecladoLabel },
+    );
+  } else if (desktopKind) {
+    // La variante guardada es "chip-cpu-gpu" (p. ej. m2pro-10-16).
+    const cores = String(notes?.desktopVariant || det?.modeloHardware || "").match(/-(\d+)-(\d+)$/)
+      || String(titleFallback).match(/CPU\s*(\d+)\s*\/\s*GPU\s*(\d+)/i);
+    especs.push(
+      { label: "Procesador", value: proc },
+      { label: "Núcleos", value: cores ? `CPU ${cores[1]} / GPU ${cores[2]}` : "" },
+      { label: "RAM", value: ramVal },
+      { label: "Almacenamiento", value: almVal },
+      { label: "Pantalla", value: desktopKind === "imac" && tamPantalla ? `${String(tamPantalla).replace(/["”]$/, "")}"` : "" },
+      { label: "Color", value: colorCap },
     );
   } else if (category === "ipad") {
     especs.push(
@@ -508,7 +529,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <PurchaseInformation category={category} />
         </div>
 
-        {category && <Suspense fallback={null}><ProductAlternatives item={item} category={category} excludeSlugs={allUnits.map((variant: any) => String(variant.slug))} /></Suspense>}
+        {category && <Suspense fallback={null}><ProductAlternatives item={item} category={category} catalog={catalogPromise} excludeSlugs={allUnits.map((variant: any) => String(variant.slug))} /></Suspense>}
       </div>
       {!notForSale && <MobileProductAction price={price} unavailable={false} isPreventa={isPreventa} />}
     </div>

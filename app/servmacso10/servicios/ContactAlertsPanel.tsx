@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import SaleClientPhoto from "./SaleClientPhoto";
+import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
 import {
   discardPossibleClient,
   listContactRequests,
@@ -207,6 +207,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
   const [salePlaceType, setSalePlaceType] = React.useState<"" | "almacen" | "otro">("");
   const [saleLocation, setSaleLocation] = React.useState("");
   const [purchasePhotoUrl, setPurchasePhotoUrl] = React.useState<string | null>(null);
+  const purchasePhotoUploadRef = React.useRef<ClientPhotoUpload | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [copiedPhone, setCopiedPhone] = React.useState(false);
   const [copiedText, setCopiedText] = React.useState(false);
@@ -322,8 +323,8 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
 
   const savePurchase = async () => {
     if (!purchaseClient) return;
-    if (!purchasePhotoUrl) {
-      alert("Sube la foto del cliente antes de guardar la compra");
+    if (!purchasePhotoUrl && !purchasePhotoUploadRef.current) {
+      alert("Agrega la foto del cliente antes de guardar la compra");
       return;
     }
     setBusy(true);
@@ -332,11 +333,14 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
         customerKind,
         salePlaceType,
         saleLocation: salePlaceType === "otro" ? saleLocation : "",
-        clientPhotoUrl: purchasePhotoUrl || undefined,
+        // Una foto nueva reemplaza a la guardada; se sube recién al guardar.
+        clientPhotoUrl: (purchasePhotoUploadRef.current ? await purchasePhotoUploadRef.current() : purchasePhotoUrl) || undefined,
       });
       setPurchaseClient(null);
       await refreshClients();
       window.dispatchEvent(new Event("possible-clients-updated"));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo guardar la compra");
     } finally {
       setBusy(false);
     }
@@ -675,7 +679,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
                 </div>
               )}
 
-            <SaleClientPhoto key={purchaseClient.id} disabled={busy} onUploaded={setPurchasePhotoUrl} />
+            <SaleClientPhoto key={purchaseClient.id} disabled={busy} onChange={(upload) => { purchasePhotoUploadRef.current = upload; }} />
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => setPurchaseClient(null)} className="rounded border px-3 py-2">Cancelar</button>
                 <button

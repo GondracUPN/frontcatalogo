@@ -1,12 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { listCatalog } from "@/app/actions";
 import { pickAlternatives } from "@/lib/alternatives";
 import { formatSoles, withIgv } from "@/lib/catalog-price";
 
-export default async function ProductAlternatives({ item, category, excludeSlugs }: { item: any; category: string; excludeSlugs: string[] }) {
-  const catalog = await listCatalog({ category }).catch(() => null);
-  const alternatives = pickAlternatives(item, catalog?.items || [], excludeSlugs);
+// `catalog` llega ya en curso desde la ficha (catálogo completo) para no esperar dos veces a la API.
+export default async function ProductAlternatives({ item, category, catalog, excludeSlugs }: { item: any; category: string; catalog: Promise<{ items: any[] } | null>; excludeSlugs: string[] }) {
+  const items = ((await catalog)?.items || []).filter((row) => String(row?.category || "").toLowerCase() === category);
+  const alternatives = pickAlternatives(item, items, excludeSlugs);
   if (!alternatives.length) return null;
   return <section aria-labelledby="alternatives-title" className="mt-10 px-1">
     <h2 id="alternatives-title" className="text-2xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">También te puede interesar</h2>

@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import dynamic from "next/dynamic";
+import { mapInOrder } from "./uploadProductImage";
 
 const PhotoEditor = dynamic(() => import("./PhotoEditor"), { ssr: false });
 
@@ -43,19 +44,17 @@ export function useProductPhotoEditor(
     });
     setImages((prev) => [...prev, ...added]);
   };
-  const resolveImages = async () => {
-    const result: string[] = [];
-    for (const url of images) {
+  // Sube en paralelo (máx. 3) y conserva el orden: la primera es la portada.
+  const resolveImages = () =>
+    mapInOrder(images, async (url) => {
       const file = pending.current.get(url);
       let saved = uploaded.current.get(url);
       if (file && !saved) {
         saved = await upload(file);
         uploaded.current.set(url, saved);
       }
-      result.push(saved || url);
-    }
-    return result;
-  };
+      return saved || url;
+    });
   const modal = editing ? (
     <PhotoEditor
       source={pending.current.get(editing) || editing}

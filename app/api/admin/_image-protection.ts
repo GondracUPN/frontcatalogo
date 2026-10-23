@@ -2,7 +2,9 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 
-export const ALLOWED_IMAGE_MIME = new Set(["image/jpeg", "image/jpg", "image/png", "image/avif", "image/webp"]);
+const MAX_WATERMARK_SIDE = 2400;
+
+export const ALLOWED_IMAGE_MIME =new Set(["image/jpeg", "image/jpg", "image/png", "image/avif", "image/webp"]);
 
 export const EXT_BY_MIME: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -70,10 +72,17 @@ export async function watermarkBuffer(
 ) {
   const scale = options.scale ?? 0.72;
   const opacity = options.opacity ?? 0.5;
-  const source = sharp(input, { failOn: "none" }).rotate();
-  const meta = await source.metadata();
-  const width = meta.width || 1;
-  const height = meta.height || 1;
+  const format = (await sharp(input, { failOn: "none" }).metadata()).format;
+  // Se orienta y se limita a 2400 px (lo máximo que muestra la web) antes de la
+  // marca: procesar fotos de 12 MP a tamaño completo hacía lenta cada subida.
+  const { data: pixels, info } = await sharp(input, { failOn: "none" })
+    .rotate()
+    .resize({ width: MAX_WATERMARK_SIDE, height: MAX_WATERMARK_SIDE, fit: "inside", withoutEnlargement: true })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const source = sharp(pixels, { raw: { width: info.width, height: info.height, channels: info.channels } });
+  const width = info.width || 1;
+  const height = info.height || 1;
   const watermarkWidth = Math.max(1, Math.round(width * scale));
   const watermarkHeight = Math.max(1, Math.round(height * scale));
   const logoPath = await resolveWatermarkLogo(options.logo);
@@ -84,9 +93,8 @@ export async function watermarkBuffer(
     .toBuffer();
   const logo = await withOpacity(logoBase, opacity);
 
-  return source
-    .composite([{ input: logo, gravity: "center", blend: "over" }])
-    .toBuffer();
+  const output = source.composite([{ input: logo, gravity: "center", blend: "over" }]);
+  return (format && format in sharp.format ? output.toFormat(format as keyof sharp.FormatEnum) : output.jpeg()).toBuffer();
 }
 
 export async function applyWatermark(

@@ -58,6 +58,16 @@ function salePlace(sale: Sale) {
   return "-";
 }
 
+// Todos los botones de acción con el mismo tamaño compacto.
+const BTN = "inline-flex h-8 items-center justify-center rounded-lg border bg-white px-2.5 text-xs font-medium transition active:scale-[0.97]";
+
+// Miniatura de tamaño fijo para que todas las filas midan lo mismo.
+function Thumb({ src, alt, round = false, dim = false, title }: { src?: string | null; alt: string; round?: boolean; dim?: boolean; title?: string }) {
+  const shape = round ? "rounded-full" : "rounded-lg";
+  if (!src) return <span aria-hidden="true" className={`h-10 w-10 shrink-0 bg-gray-100 ${shape}`} />;
+  return <img src={src} alt={alt} title={title} className={`h-10 w-10 shrink-0 bg-gray-50 object-cover ${shape} ${dim ? "opacity-40" : ""}`} />;
+}
+
 export default function SoldProductsPanel({ initialSales, isAdmin = false, initialOwner }: { initialSales: Sale[]; isAdmin?: boolean; initialOwner?: string }) {
   const [owner, setOwner] = React.useState(initialOwner || "macsomenos");
   const [sellers, setSellers] = React.useState<SellerRow[]>([]);
@@ -200,12 +210,39 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false, initi
     } catch (e) { alert(e instanceof Error ? e.message : "No se pudieron actualizar las fotos"); }
     finally { setBusyId(null); }
   };
-  const photoControls = (sale: Sale) => <div className="basis-full text-xs">
-    <p>{sale.presentation === "sellado" ? "Sellado: se conservan" : sale.photos_hold ? `Retenido: ${sale.photos_hold_reason || "Reclamación"}` : `Fotos: ${sale.photo_count || 0}${sale.photos_cleanup_at ? ` · se limpian el ${formatDate(sale.photos_cleanup_at)}` : " · sin fecha fiable"}`}</p>
-    {isAdmin && <div className="mt-1 flex flex-wrap gap-2">
-      <button type="button" disabled={busyId === sale.id} className="rounded border px-2 py-1" onClick={() => photoAction(sale,"hold")}>{sale.photos_hold ? "Quitar retención" : "Conservar fotos (reclamación)"}</button>
-      <button type="button" disabled={busyId === sale.id || sale.presentation === "sellado" || sale.photos_hold || Number(sale.photo_count || 0)<2} className="rounded border border-red-200 px-2 py-1 text-red-700 disabled:opacity-40" onClick={() => photoAction(sale,"cleanup")}>Borrar fotos secundarias</button>
+  // Solo en la lista completa: en las ventas recientes aún no hace falta.
+  const photoControls = (sale: Sale) => <div className="w-32 text-xs text-gray-600">
+    <p className="truncate" title={sale.photos_hold_reason || (sale.photos_cleanup_at ? `Las fotos secundarias se limpian el ${formatDate(sale.photos_cleanup_at)}` : undefined)}>{sale.presentation === "sellado" ? "Sellado: se conservan" : sale.photos_hold ? `Retenido: ${sale.photos_hold_reason || "Reclamación"}` : `${sale.photo_count || 0} fotos${sale.photos_cleanup_at ? ` · ${formatDate(sale.photos_cleanup_at)}` : ""}`}</p>
+    {isAdmin && <div className="mt-0.5 flex flex-col items-start">
+      <button type="button" disabled={busyId === sale.id} className="text-indigo-700 underline-offset-2 hover:underline disabled:opacity-40" onClick={() => photoAction(sale,"hold")}>{sale.photos_hold ? "Quitar retención" : "Conservar"}</button>
+      <button type="button" disabled={busyId === sale.id || sale.presentation === "sellado" || sale.photos_hold || Number(sale.photo_count || 0)<2} className="text-red-700 underline-offset-2 hover:underline disabled:opacity-40" onClick={() => photoAction(sale,"cleanup")} title="Borrar fotos secundarias (la portada se conserva)">Borrar secundarias</button>
     </div>}
+  </div>;
+
+  const productCell = (sale: Sale) => <div className="flex w-56 items-center gap-2">
+    <Thumb src={sale.product_image_url} alt="" />
+    <span className="line-clamp-2 leading-tight" title={sale.title || undefined}>{sale.title || "-"}</span>
+  </div>;
+
+  const actions = (sale: Sale) => <div className="flex items-center gap-1.5 whitespace-nowrap">
+    <button type="button" onClick={() => setPhotoSale(sale)} className={`${BTN} gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50`} title={sale.client_photo_url ? (sale.client_photo_public === false ? "Foto del cliente (oculta en la web)" : "Foto del cliente") : "Subir foto del cliente"}>
+      {sale.client_photo_url
+        ? <img src={sale.client_photo_url} alt="" className={`h-5 w-5 rounded-full object-cover ${sale.client_photo_public === false ? "opacity-40" : ""}`} />
+        : <span aria-hidden="true" className="text-sm leading-none">+</span>}
+      Cliente
+    </button>
+    <button type="button" onClick={() => openEditor(sale)} className={`${BTN} border-gray-200 text-gray-800 hover:bg-gray-50`}>Editar</button>
+    <button type="button" onClick={() => restoreSale(sale)} disabled={busyId === sale.id} className={`${BTN} border-red-200 text-red-700 hover:bg-red-50 disabled:cursor-wait disabled:opacity-60`}>{busyId === sale.id ? "..." : "Cancelar"}</button>
+    {canRetrySync(sale) && (
+      <button type="button" onClick={() => retrySync(sale)} className={`${BTN} border-amber-400 text-amber-700 hover:bg-amber-50`}>
+        {sale.sync_remote_status === "rejected" ? "Reenviar" : "Reintentar"}
+      </button>
+    )}
+  </div>;
+
+  const syncCell = (sale: Sale) => <div className="w-36" title={sale.sync_error || undefined}>
+    <div>{syncLabel(sale)}</div>
+    {sale.sync_error && <div className="mt-0.5 truncate text-xs text-red-700">{sale.sync_error}</div>}
   </div>;
 
   return (
@@ -231,38 +268,13 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false, initi
           </thead>
           <tbody>
             {recentSales.map((sale) => (
-              <tr key={sale.id} className="border-t">
-                <td className="p-2 text-gray-900"><div className="flex items-center gap-2">{sale.product_image_url && <img src={sale.product_image_url} alt="" className="h-10 w-10 rounded object-cover" />}{sale.title || "-"}</div></td>
-                <td className="p-2 text-gray-900">{displaySku(sale.sku) || "-"}</td>
-                <td className="p-2 text-gray-900">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
-                <td className="p-2 text-gray-900">{formatDate(sale.sold_at)}</td>
-                <td className="p-2 text-gray-700">
-                  <div>{syncLabel(sale)}</div>
-                  {sale.sync_error && (
-                    <div className="mt-1 max-w-56 text-xs text-red-700">{sale.sync_error}</div>
-                  )}
-                </td>
-                <td className="p-2 flex flex-wrap gap-2">
-                  {photoControls(sale)}
-                  <button
-                    onClick={() => openEditor(sale)}
-                    className="rounded bg-indigo-600 px-3 py-1 text-white shadow-sm transition active:translate-y-px active:scale-[0.97] active:bg-indigo-800"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => restoreSale(sale)}
-                    disabled={busyId === sale.id}
-                    className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 shadow-sm transition hover:bg-red-50 active:translate-y-px active:scale-[0.96] active:bg-red-100 disabled:cursor-wait disabled:opacity-60"
-                  >
-                    {busyId === sale.id ? "..." : "Cancelar"}
-                  </button>
-                  {canRetrySync(sale) && (
-                    <button onClick={() => retrySync(sale)} className="rounded border border-amber-500 px-3 py-1 text-amber-700 transition active:translate-y-px active:scale-[0.97] active:bg-amber-100">
-                      {sale.sync_remote_status === "rejected" ? "Volver a enviar" : "Reintentar envío"}
-                    </button>
-                  )}
-                </td>
+              <tr key={sale.id} className="h-14 border-t align-middle text-gray-900">
+                <td className="p-2">{productCell(sale)}</td>
+                <td className="whitespace-nowrap p-2">{displaySku(sale.sku) || "-"}</td>
+                <td className="whitespace-nowrap p-2">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
+                <td className="whitespace-nowrap p-2">{formatDate(sale.sold_at)}</td>
+                <td className="p-2 text-gray-700">{syncCell(sale)}</td>
+                <td className="p-2">{actions(sale)}</td>
               </tr>
             ))}
             {!recentSales.length && (
@@ -278,7 +290,7 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false, initi
 
       {open && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-6xl p-5 text-gray-900 max-h-[86vh] overflow-auto">
+          <div className="bg-white rounded-2xl w-full max-w-[1400px] p-5 text-gray-900 max-h-[86vh] overflow-auto">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-lg font-semibold">Productos vendidos</h3>
               <button onClick={() => setOpen(false)} aria-label="Cerrar">
@@ -297,58 +309,29 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false, initi
                   <th className="p-2">Tipo</th>
                   <th className="p-2">Lugar</th>
                   <th className="p-2">Servicios</th>
+                  <th className="p-2">Fotos</th>
                   <th className="p-2">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {sales.map((sale) => (
-                  <tr key={sale.id} className="border-t">
-                    <td className="p-2"><div className="flex items-center gap-2">{sale.product_image_url && <img src={sale.product_image_url} alt="" className="h-10 w-10 rounded object-cover" />}{sale.title || "-"}</div></td>
-                    <td className="p-2">{displaySku(sale.sku) || "-"}</td>
-                    <td className="p-2">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
-                    <td className="p-2">{formatDate(sale.sold_at)}</td>
-                    <td className="p-2"><div className="flex items-center gap-2">{sale.client_photo_url && <img src={sale.client_photo_url} alt="" className={`h-10 w-10 rounded-full object-cover ${sale.client_photo_public === false ? "opacity-40" : ""}`} title={sale.client_photo_public === false ? "Oculta en la web" : "Visible en la web"} />}{sale.customer_name || "-"}</div></td>
-                    <td className="p-2">{phone(sale.customer_phone)}</td>
+                  <tr key={sale.id} className="h-14 border-t align-middle">
+                    <td className="p-2">{productCell(sale)}</td>
+                    <td className="whitespace-nowrap p-2">{displaySku(sale.sku) || "-"}</td>
+                    <td className="whitespace-nowrap p-2">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
+                    <td className="whitespace-nowrap p-2">{formatDate(sale.sold_at)}</td>
+                    <td className="p-2"><div className="flex w-36 items-center gap-2"><Thumb src={sale.client_photo_url} alt="" round dim={sale.client_photo_public === false} title={sale.client_photo_public === false ? "Oculta en la web" : "Visible en la web"} /><span className="truncate">{sale.customer_name || "-"}</span></div></td>
+                    <td className="whitespace-nowrap p-2">{phone(sale.customer_phone)}</td>
                     <td className="p-2">{sale.customer_kind || "-"}</td>
                     <td className="p-2">{salePlace(sale)}</td>
-                    <td className="p-2" title={sale.sync_error || ""}>
-                      <div>{syncLabel(sale)}</div>
-                      {sale.sync_error && (
-                        <div className="mt-1 max-w-56 text-xs text-red-700">{sale.sync_error}</div>
-                      )}
-                    </td>
-                    <td className="p-2 flex flex-wrap gap-2">
-                      {photoControls(sale)}
-                      <button
-                        onClick={() => openEditor(sale)}
-                        className="rounded bg-indigo-600 px-3 py-1 text-white shadow-sm transition active:translate-y-px active:scale-[0.97] active:bg-indigo-800"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => setPhotoSale(sale)}
-                        className="rounded border border-indigo-200 px-3 py-1 text-indigo-700 transition hover:bg-indigo-50 active:translate-y-px active:scale-[0.97]"
-                      >
-                        {sale.client_photo_url ? (sale.client_photo_public === false ? "Foto (oculta)" : "Foto") : "Subir foto"}
-                      </button>
-                      <button
-                        onClick={() => restoreSale(sale)}
-                        disabled={busyId === sale.id}
-                        className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 shadow-sm transition hover:bg-red-50 active:translate-y-px active:scale-[0.96] active:bg-red-100 disabled:cursor-wait disabled:opacity-60"
-                      >
-                        {busyId === sale.id ? "..." : "Cancelar"}
-                      </button>
-                      {canRetrySync(sale) && (
-                        <button onClick={() => retrySync(sale)} className="rounded border border-amber-500 px-3 py-1 text-amber-700 transition active:translate-y-px active:scale-[0.97] active:bg-amber-100">
-                          {sale.sync_remote_status === "rejected" ? "Volver a enviar" : "Reintentar envío"}
-                        </button>
-                      )}
-                    </td>
+                    <td className="p-2">{syncCell(sale)}</td>
+                    <td className="p-2">{photoControls(sale)}</td>
+                    <td className="p-2">{actions(sale)}</td>
                   </tr>
                 ))}
                 {!sales.length && (
                   <tr>
-                    <td className="p-2 text-gray-500" colSpan={10}>
+                    <td className="p-2 text-gray-500" colSpan={11}>
                       Sin registros
                     </td>
                   </tr>

@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import SaleClientPhoto from "./SaleClientPhoto";
+import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
 import dynamic from "next/dynamic";
 import { listAdminCatalog, listStaged, markProductSold, unpublishProduct } from "../../actions";
 import { dateInputInPeru, formatPeruDate, hasMeaningfulPeruUpdate } from "../../utils/peruTime";
@@ -186,6 +186,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
     clientPhotoUrl?: string;
   } | null>(null);
   const [selling, setSelling] = React.useState(false);
+  const clientPhotoUploadRef = React.useRef<ClientPhotoUpload | null>(null);
   const sellingRef = React.useRef(false);
 
   const refreshCatalog = React.useCallback(async () => {
@@ -738,7 +739,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                 />
               </>
             )}
-            <SaleClientPhoto disabled={selling} onUploaded={(url) => setSoldModal((current) => current ? { ...current, clientPhotoUrl: url } : null)} />
+            <SaleClientPhoto disabled={selling} onChange={(upload) => { clientPhotoUploadRef.current = upload; }} />
             <div className="flex justify-end gap-2">
               <button disabled={selling} onClick={() => setSoldModal(null)} className="px-3 py-1 rounded border bg-white shadow-sm disabled:opacity-50">
                 Cancelar
@@ -752,8 +753,8 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                       alert("Completa el nombre y número del cliente");
                       return;
                     }
-                    if (!soldModal.clientPhotoUrl) {
-                      alert("Sube la foto del cliente antes de registrar la venta");
+                    if (!soldModal.clientPhotoUrl && !clientPhotoUploadRef.current) {
+                      alert("Agrega la foto del cliente antes de registrar la venta");
                       return;
                     }
                     try {
@@ -768,7 +769,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                         saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
                         stagedId: soldModal.unit?.id || undefined,
                         exchangeRate: soldModal.exchangeRate || undefined,
-                        clientPhotoUrl: soldModal.clientPhotoUrl,
+                        clientPhotoUrl: soldModal.clientPhotoUrl || await clientPhotoUploadRef.current!(),
                       });
                       if (!result.ok) throw new Error(result.error || "No se pudo marcar como vendido");
                       try {

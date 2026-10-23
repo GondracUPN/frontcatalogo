@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import SaleClientPhoto from "./SaleClientPhoto";
+import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
 import { updateSaleClientPhoto } from "../../actions";
 
 type SalePhotoState = {
@@ -23,16 +23,18 @@ export default function SaleClientPhotoEditor({
   onClose: () => void;
   onSaved: (patch: { client_photo_url: string | null; client_photo_public: boolean; product_image_url: string | null }) => void;
 }) {
-  const [newPhoto, setNewPhoto] = React.useState("");
+  const [newPhoto, setNewPhoto] = React.useState<ClientPhotoUpload | null>(null);
   const [isPublic, setIsPublic] = React.useState(sale.client_photo_public !== false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
-  const current = newPhoto || sale.client_photo_url || "";
+  const current = sale.client_photo_url || "";
 
+  // La foto nueva se sube recién aquí; si se cancela no se sube nada.
   const save = async (body: { clientPhotoUrl?: string; public?: boolean; remove?: boolean }) => {
     setSaving(true);
     setError("");
     try {
+      if (newPhoto && !body.remove) body = { ...body, clientPhotoUrl: await newPhoto() };
       const { item } = await updateSaleClientPhoto(sale.id, body);
       onSaved({ client_photo_url: item.client_photo_url, client_photo_public: item.client_photo_public !== false, product_image_url: item.product_image_url });
       onClose();
@@ -66,9 +68,9 @@ export default function SaleClientPhotoEditor({
 
         <div className="mt-5">
           <div className="text-sm font-semibold">{sale.client_photo_url ? "Reemplazar la foto" : "Subir la foto"}</div>
-          <p className="text-xs text-slate-500">Puedes difuminar caras u otros datos antes de subirla.</p>
+          <p className="text-xs text-slate-500">Puedes difuminar caras u otros datos. Se sube al pulsar Guardar.</p>
           <div className="mt-2">
-            <SaleClientPhoto disabled={saving} onUploaded={setNewPhoto} />
+            <SaleClientPhoto disabled={saving} onChange={(upload) => setNewPhoto(() => upload)} />
           </div>
         </div>
 
@@ -94,11 +96,11 @@ export default function SaleClientPhotoEditor({
             <button type="button" onClick={onClose} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold">Cancelar</button>
             <button
               type="button"
-              disabled={saving || !current}
-              onClick={() => save({ ...(newPhoto ? { clientPhotoUrl: newPhoto } : {}), public: isPublic })}
+              disabled={saving || (!current && !newPhoto)}
+              onClick={() => save({ public: isPublic })}
               className="rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
-              {saving ? "Guardando…" : "Guardar"}
+              {saving ? (newPhoto ? "Subiendo y guardando…" : "Guardando…") : "Guardar"}
             </button>
           </div>
         </div>
