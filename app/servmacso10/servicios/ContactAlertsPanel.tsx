@@ -323,10 +323,6 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
 
   const savePurchase = async () => {
     if (!purchaseClient) return;
-    if (!purchasePhotoUrl && !purchasePhotoUploadRef.current) {
-      alert("Agrega la foto del cliente antes de guardar la compra");
-      return;
-    }
     setBusy(true);
     try {
       await markPossibleClientPurchased(purchaseClient.id, {

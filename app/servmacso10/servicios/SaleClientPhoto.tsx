@@ -152,7 +152,7 @@ export default function SaleClientPhoto({ disabled = false, onChange }: { disabl
 
   return (
     <fieldset disabled={disabled} className="my-4 space-y-3 rounded-xl border border-gray-200 p-3 text-sm">
-      <legend className="px-1 font-medium text-gray-700">Foto del cliente</legend>
+      <legend className="px-1 font-medium text-gray-700">Foto del cliente (opcional)</legend>
       <input ref={inputRef} type="file" accept="image/*" className="sr-only" tabIndex={-1} aria-label="Elegir foto del cliente"
         onChange={(event) => { void select(event.target.files?.[0]); event.target.value = ""; }} />
       {!ready && (

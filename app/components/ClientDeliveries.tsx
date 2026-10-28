@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ImageZoomViewer from "./ImageZoomViewer";
 import { categoryLabel } from "@/lib/catalog-display";
 import type { ClientPurchase } from "@/app/actions";
@@ -69,9 +69,95 @@ function useViewer(items: ClientPurchase[]) {
 }
 
 const HOME_LIMIT = 4;
+const AUTO_MS = 4500;
+
+/**
+ * Con más de 4 entregas, la portada las muestra todas en una fila que se
+ * desplaza: 4 visibles en escritorio, flechas para avanzar o retroceder de una
+ * en una y avance automático (en pausa al pasar el mouse, enfocar o tocar).
+ */
+function ClientDeliveriesCarousel({ items }: { items: ClientPurchase[] }) {
+  const trackRef = useRef<HTMLUListElement>(null);
+  const [paused, setPaused] = useState(false);
+  const { open, viewer } = useViewer(items);
+
+  const snapTimer = useRef<number | undefined>(undefined);
+  const step = useCallback((direction: 1 | -1) => {
+    const track = trackRef.current;
+    const card = track?.firstElementChild as HTMLElement | null;
+    if (!track || !card) return;
+    const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
+    const width = card.offsetWidth + gap;
+    const max = track.scrollWidth - track.clientWidth;
+    const current = Math.round(track.scrollLeft / width);
+    const last = Math.ceil((max - 4) / width);
+    // En los extremos vuelve al otro lado: el recorrido es circular.
+    const next = current + direction > last ? 0 : current + direction < 0 ? last : current + direction;
+    // El snap obligatorio pelea con el desplazamiento programado (al volver al
+    // inicio se quedaba al final): se apaga mientras dura el movimiento.
+    track.style.scrollSnapType = "none";
+    void track.offsetWidth; // aplica el cambio de estilo antes de desplazar
+    track.scrollTo({ left: Math.min(next * width, max), behavior: "smooth" });
+    window.clearTimeout(snapTimer.current);
+    snapTimer.current = window.setTimeout(() => { track.style.scrollSnapType = ""; }, 700);
+  }, []);
+
+  useEffect(() => {
+    if (paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") step(1);
+    }, AUTO_MS);
+    return () => window.clearInterval(id);
+  }, [paused, step]);
+
+  const arrow = "inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[color:var(--foreground)] shadow-[0_1px_3px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--brand-tint)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color:var(--accent-soft)]";
+  return (
+    <section aria-labelledby="clients-title" aria-roledescription="carrusel" className="px-4 pt-14 sm:px-6 sm:pt-20">
+      <div className="mx-auto max-w-7xl">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <div>
+            <h2 id="clients-title" className="ms-h2 text-[color:var(--foreground)]">Clientes que ya compraron</h2>
+            <p className="mt-2 max-w-[52ch] text-[17px] leading-relaxed text-[color:var(--foreground-soft)] sm:text-lg">Fotos de entregas reales y el equipo que se llevó cada cliente.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link href="/clientes" className="inline-flex min-h-11 items-center text-[17px] font-semibold text-[color:var(--accent-strong)] hover:underline">Ver todas las entregas →</Link>
+            <button type="button" onClick={() => step(-1)} aria-label="Cliente anterior" className={arrow}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-2"><path d="m15 6-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+            <button type="button" onClick={() => step(1)} aria-label="Cliente siguiente" className={arrow}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-2"><path d="m9 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <ul
+          ref={trackRef}
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onFocusCapture={() => setPaused(true)}
+          onBlurCapture={() => setPaused(false)}
+          onTouchStart={() => setPaused(true)}
+          className="ms-shelf -mx-4 mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:gap-5 lg:px-0"
+        >
+          {items.map((item, index) => (
+            <li key={item.id} aria-label={`${index + 1} de ${items.length}`} className="w-[78vw] max-w-[320px] shrink-0 snap-start sm:w-[300px] lg:w-[calc((100%-3.75rem)/4)] lg:max-w-none">
+              <DeliveryCard item={item} onOpen={() => open(index)} />
+            </li>
+          ))}
+        </ul>
+      </div>
+      {viewer}
+    </section>
+  );
+}
 
 /** Sección de la portada. Sin fotos publicadas no se muestra nada. */
 export function ClientDeliveriesHome({ items }: { items: ClientPurchase[] }) {
+  if (items.length > HOME_LIMIT) return <ClientDeliveriesCarousel items={items} />;
+  return <ClientDeliveriesRow items={items} />;
+}
+
+function ClientDeliveriesRow({ items }: { items: ClientPurchase[] }) {
   const shown = items.slice(0, HOME_LIMIT);
   const { open, viewer } = useViewer(shown);
   if (!shown.length) return null;

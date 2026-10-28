@@ -753,10 +753,6 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                       alert("Completa el nombre y número del cliente");
                       return;
                     }
-                    if (!soldModal.clientPhotoUrl && !clientPhotoUploadRef.current) {
-                      alert("Agrega la foto del cliente antes de registrar la venta");
-                      return;
-                    }
                     try {
                       sellingRef.current = true;
                       setSelling(true);
@@ -769,7 +765,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                         saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
                         stagedId: soldModal.unit?.id || undefined,
                         exchangeRate: soldModal.exchangeRate || undefined,
-                        clientPhotoUrl: soldModal.clientPhotoUrl || await clientPhotoUploadRef.current!(),
+                        clientPhotoUrl: soldModal.clientPhotoUrl || (clientPhotoUploadRef.current ? await clientPhotoUploadRef.current() : undefined),
                       });
                       if (!result.ok) throw new Error(result.error || "No se pudo marcar como vendido");
                       try {

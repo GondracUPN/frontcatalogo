@@ -30,44 +30,25 @@ export function batteryLine(unit: StoreUnit) {
   return [health, cycles].filter(Boolean).join(" · ");
 }
 
-// Tarjeta grande del estante de destacados: texto arriba y el equipo abajo.
-export function StoreFeatureCard({ unit, priority = false }: { unit: StoreUnit; priority?: boolean }) {
-  const battery = batteryLine(unit);
-  return (
-    <Link href={`/product/${unit.slug}`} className="ms-store-card group flex h-[460px] w-[82vw] max-w-[400px] shrink-0 snap-start flex-col overflow-hidden rounded-[24px] bg-white p-7 sm:h-[500px] sm:w-[400px]">
-      <span className="flex flex-wrap gap-1.5">
-        {unit.condition && <span className={`rounded-full px-3 py-1 text-[13px] font-semibold ${conditionTone(unit.condition)}`}>{unit.condition}</span>}
-        {unit.promoLabel && <span className="rounded-full bg-[color:var(--accent)] px-3 py-1 text-[13px] font-semibold text-white">{unit.promoLabel}</span>}
-      </span>
-      <span className="mt-2 text-[26px] font-semibold leading-tight tracking-[-0.02em] text-[color:var(--foreground)]">{unit.title}</span>
-      <span className="mt-2 text-[15px] leading-snug text-[color:var(--foreground-soft)]">{[specLine(unit), battery].filter(Boolean).join(" · ")}</span>
-      <span className="mt-3 text-[17px] font-semibold text-[color:var(--foreground)]">
-        {formatSoles(withIgv(unit.price))} <span className="font-normal text-[color:var(--foreground-soft)]">con IGV</span>
-        {unit.compareAt && unit.compareAt > unit.price ? <span className="ml-2 text-[color:var(--foreground-soft)] line-through">{formatSoles(withIgv(unit.compareAt))}</span> : null}
-      </span>
-      <span className="relative mt-auto block h-[230px] sm:h-[260px]">
-        <Image src={unit.image || "/placeholder.svg"} alt={unit.title} fill priority={priority} sizes="400px" className="object-contain transition duration-500 group-hover:scale-[1.04]" />
-      </span>
-    </Link>
-  );
-}
-
-// Tarjeta de producto de la cuadrícula: foto, nombre, configuración y precio.
+// Tarjeta de producto de la cuadrícula: foto a sangre arriba y, debajo, nombre,
+// configuración y precio. Nombre y configuración reservan dos líneas cada uno
+// para que todas las tarjetas (y ambas secciones de la portada) midan lo mismo.
 export default function StoreProductCard({ unit }: { unit: StoreUnit }) {
   const battery = batteryLine(unit);
   return (
-    <Link href={`/product/${unit.slug}`} className="ms-store-card group flex h-full flex-col rounded-[24px] bg-white p-5 sm:p-6">
-      <span className="ms-leaf-sm relative block aspect-square overflow-hidden bg-[color:var(--brand-tint)]">
-        <Image src={unit.image || "/placeholder.svg"} alt={unit.title} fill sizes="(max-width: 640px) 50vw, 25vw" className="object-contain p-3 transition duration-500 group-hover:scale-[1.04]" loading="lazy" />
+    <Link href={`/product/${unit.slug}`} className="ms-store-card group flex h-full flex-col overflow-hidden rounded-[24px] bg-white">
+      <span className="relative block aspect-[4/5] overflow-hidden bg-[color:var(--brand-tint)]">
+        <Image src={unit.image || "/placeholder.svg"} alt={unit.title} fill sizes="(max-width: 1024px) 50vw, 320px" className="object-cover transition duration-500 group-hover:scale-[1.04]" loading="lazy" />
+        {unit.condition && <span className={`absolute left-3 top-3 rounded-full px-2.5 py-0.5 text-[12px] font-semibold shadow-sm sm:text-[13px] ${conditionTone(unit.condition)}`}>{unit.condition}</span>}
       </span>
-      {unit.condition && <span className={`mt-4 self-start rounded-full px-3 py-1 text-[13px] font-semibold ${conditionTone(unit.condition)}`}>{unit.condition}</span>}
-      <span className="mt-1 text-[17px] font-semibold leading-snug text-[color:var(--foreground)]">{unit.title}</span>
-      <span className="mt-1 text-[15px] leading-snug text-[color:var(--foreground-soft)]">{[specLine(unit), battery].filter(Boolean).join(" · ")}</span>
-      <span className="mt-auto flex flex-wrap items-baseline gap-x-2 pt-4">
-        <span className="text-[17px] font-semibold text-[color:var(--foreground)]">{formatSoles(withIgv(unit.price))}</span>
-        <span className="text-[15px] text-[color:var(--foreground-soft)]">con IGV</span>
+      <span className="flex flex-1 flex-col p-4 sm:p-5">
+        <span className="line-clamp-2 min-h-[2.75em] text-[15px] font-semibold leading-snug text-[color:var(--foreground)] sm:text-[17px]">{unit.title}</span>
+        <span className="mt-1 line-clamp-2 min-h-[2.75em] text-[13px] leading-snug text-[color:var(--foreground-soft)] sm:text-[15px]">{[specLine(unit), battery].filter(Boolean).join(" · ")}</span>
+        <span className="mt-auto block pt-3">
+          <span className="block whitespace-nowrap text-[16px] font-semibold tabular-nums text-[color:var(--foreground)] sm:text-[18px]">{formatSoles(withIgv(unit.price))}</span>
+          <span className="block text-[12px] text-[color:var(--foreground-soft)] sm:text-[13px]">con IGV</span>
+        </span>
       </span>
-      <span className="mt-4 inline-flex min-h-10 self-start items-center rounded-full bg-[color:var(--accent)] px-5 text-[15px] font-semibold text-white">Ver equipo</span>
     </Link>
   );
 }

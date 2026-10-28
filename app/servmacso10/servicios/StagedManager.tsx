@@ -319,10 +319,6 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                     alert("Completa el nombre y telefono del cliente");
                     return;
                   }
-                  if (!soldModal.clientPhotoUrl && !clientPhotoUploadRef.current) {
-                    alert("Agrega la foto del cliente antes de registrar la venta");
-                    return;
-                  }
                   sellingRef.current = true;
                   setSelling(true);
                   try {
@@ -333,7 +329,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                       salePlaceType: soldModal.salePlaceType,
                       saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
                       exchangeRate: soldModal.exchangeRate || undefined,
-                      clientPhotoUrl: soldModal.clientPhotoUrl || await clientPhotoUploadRef.current!(),
+                      clientPhotoUrl: soldModal.clientPhotoUrl || (clientPhotoUploadRef.current ? await clientPhotoUploadRef.current() : undefined),
                     });
                     if (!result.ok) throw new Error(result.error || "No se pudo registrar la venta");
                     const res = await listStaged({ pageSize: "all" });

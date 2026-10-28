@@ -7,9 +7,8 @@ import { FAQ_ITEMS, HOME_FAQ_IDS } from "@/lib/help-content";
 import HomeViewTracker from "./components/HomeViewTracker";
 import CampaignHero from "./components/campaign/CampaignHero";
 import type { HeroProduct } from "./components/campaign/parts";
-import StoreShelf from "./components/home/StoreShelf";
 import HeroVitrina, { type VitrinaUnit } from "./components/home/HeroVitrina";
-import StoreProductCard, { StoreFeatureCard, batteryLine, specLine, type StoreUnit } from "./components/home/StoreProductCard";
+import StoreProductCard, { batteryLine, specLine, type StoreUnit } from "./components/home/StoreProductCard";
 import Reveal from "./components/home/Reveal";
 import { BrandHeading, LeafMark } from "./components/home/BrandBits";
 import GoogleReviews from "./components/home/GoogleReviews";
@@ -75,9 +74,6 @@ export default async function Home() {
     };
   });
   const featuredUnits = (featured || []).filter((row) => row.image).map((row) => toUnit(row as HomeRow));
-  const featuredSlugs = new Set(featuredUnits.map((unit) => unit.slug));
-  const latest = available.filter((row) => !featuredSlugs.has(row.slug)).slice(0, 8);
-  const latestUnits = (latest.length ? latest : available.slice(0, 8)).map(toUnit);
   const categoryRow = CATEGORY_ROW
     .map((cat) => ({ ...cat, total: 0, minPrice: null as number | null, ...categories.find((summary) => summary.key === cat.key) }))
     .filter((cat) => catalogUnavailable || cat.total > 0);
@@ -88,39 +84,31 @@ export default async function Home() {
   const heroProducts = [...(featured || []), ...available].filter((row) => row.image).slice(0, 8).map(toHero);
   const heroPromotions = (promotions ?? []).filter((row) => row.image).map(toHero);
   const clientPurchases = await clientPurchasesPromise;
-  // Protagonista del hero: el destacado con más fotos publicadas (ficha más
-  // completa); a igualdad, el orden del backend. Nada aleatorio, así no cambia
-  // entre servidor y navegador. Sin inventario con foto, se muestra el logo.
-  const heroSlug = [...(featured || [])]
-    .filter((row) => row.image)
-    .map((row, index) => ({ slug: row.slug, photos: row.images?.length || 1, index }))
-    .sort((a, b) => b.photos - a.photos || a.index - b.index)[0]?.slug;
-  const heroUnit = featuredUnits.find((unit) => unit.slug === heroSlug) || latestUnits.find((unit) => unit.image) || null;
-  // Vitrina: el protagonista y hasta dos unidades más, de otras categorías si
-  // las hay. Todas son unidades reales y publicadas, con su propia foto.
+  // Vitrina: las unidades más recientes (las primeras de `available`), de 3 en 3
+  // y rotando de una en una en el navegador. Solo unidades vendibles con foto
+  // propia; si faltan recientes, completan los destacados.
+  const VITRINA_POOL = 9;
   const vitrinaRows: HomeRow[] = [];
-  // Solo unidades vendibles con foto propia: si un destacado se vende o se queda
-  // sin stock, la vitrina toma la siguiente unidad válida (featured, luego recientes).
-  const pool = ([...(featured || []), ...available] as HomeRow[]).filter((row) => row.image && Number(row.stock) > 0 && row.status !== "sold");
-  const mainRow = pool.find((row) => row.slug === heroUnit?.slug);
-  if (mainRow) vitrinaRows.push(mainRow);
-  for (const row of pool) {
-    if (vitrinaRows.length >= 3) break;
-    if (vitrinaRows.some((picked) => picked.slug === row.slug || picked.category === row.category)) continue;
-    vitrinaRows.push(row);
-  }
-  for (const row of pool) {
-    if (vitrinaRows.length >= 3) break;
+  for (const row of [...available, ...(featured || [])] as HomeRow[]) {
+    if (vitrinaRows.length >= VITRINA_POOL) break;
+    if (!row.image || Number(row.stock) <= 0 || row.status === "sold") continue;
     if (!vitrinaRows.some((picked) => picked.slug === row.slug)) vitrinaRows.push(row);
   }
   const vitrina: VitrinaUnit[] = vitrinaRows.map((row) => {
     const unit = toUnit(row);
     return { slug: row.slug, title: row.title, image: row.image, condition: row.condition, saleType: row.saleType, detail: (/usad|open/i.test(row.condition) && batteryLine(unit)) || specLine(unit), price: Number(row.price || 0), compareAt: row.compareAt };
   });
-  // Los equipos de la vitrina no se repiten en las secciones de abajo.
-  const vitrinaSlugs = new Set(vitrina.map((unit) => unit.slug));
-  const shelfUnits = featuredUnits.filter((unit) => !vitrinaSlugs.has(unit.slug));
-  const recentUnits = latestUnits.filter((unit) => !vitrinaSlugs.has(unit.slug));
+  // Recién llegados conserva el orden real del catálogo aunque repita la vitrina.
+  // Lo más visto muestra siempre 4 equipos: primero los que no salen ya arriba
+  // ni en recién llegados y, si faltan, se completa con los más vistos repetidos.
+  // Con menos de 4 equipos vistos la sección no se muestra.
+  const recentUnits = available.slice(0, 4).map(toUnit);
+  const shownSlugs = new Set([...vitrina.slice(0, 3), ...recentUnits].map((unit) => unit.slug));
+  const shelfCandidates = [
+    ...featuredUnits.filter((unit) => !shownSlugs.has(unit.slug)),
+    ...featuredUnits.filter((unit) => shownSlugs.has(unit.slug)),
+  ].slice(0, 4);
+  const shelfUnits = shelfCandidates.length === 4 ? shelfCandidates : [];
   const homeFaq = HOME_FAQ_IDS.map((id) => FAQ_ITEMS.find((item) => item.id === id)).filter((item): item is (typeof FAQ_ITEMS)[number] => Boolean(item));
   const whatsapp = whatsappUrl("Hola Macsomenos, quisiera ayuda para elegir un equipo.");
 
@@ -135,21 +123,21 @@ export default async function Home() {
       <section className="px-4 pt-8 sm:px-6">
 
         <nav aria-label="Categorías" className="mx-auto max-w-7xl">
-          <ul className="ms-shelf -mx-4 flex gap-3 overflow-x-auto px-4 pb-6 sm:-mx-6 sm:px-6">
+          <ul className="ms-shelf -mx-4 flex gap-3 overflow-x-auto px-4 pb-6 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:px-0">
             {categoryRow.map((cat) => (
               <li key={cat.key} className="shrink-0">
-                <Link href={`/c/${cat.key}`} className="ms-store-card group flex w-[136px] flex-col items-center rounded-[24px] bg-white px-3 pb-4 pt-3 text-center sm:w-[156px]">
-                  <span className="ms-leaf-sm relative block h-[84px] w-full bg-[color:var(--brand-tint)]">
+                <Link href={`/c/${cat.key}`} className="ms-store-card group flex h-full w-[144px] flex-col lg:w-auto items-center rounded-[24px] bg-white px-3 pb-4 pt-3 text-center sm:w-[156px]">
+                  <span className="ms-leaf-sm relative block h-[84px] w-full bg-[color:var(--brand-tint)] lg:h-[110px]">
                     <Image src={cat.icon} alt="" fill sizes="156px" className="object-contain p-2 transition duration-300 group-hover:scale-105" priority />
                   </span>
                   <span className="mt-3 text-[17px] font-semibold text-[color:var(--foreground)]">{CATEGORY_LABELS[cat.key]}</span>
-                  {cat.minPrice ? <span className="mt-0.5 text-[13px] text-[color:var(--foreground-soft)]">Desde {formatSoles(withIgv(cat.minPrice)).replace(/\.00$/, "")}</span> : null}
+                  {cat.minPrice ? <span className="mt-0.5 whitespace-nowrap text-[13px] text-[color:var(--foreground-soft)]">Desde {formatSoles(withIgv(cat.minPrice)).replace(/\.00$/, "")}</span> : null}
                 </Link>
               </li>
             ))}
             <li className="shrink-0">
-              <Link href="/ofertas" className="ms-store-card group flex w-[136px] flex-col items-center rounded-[24px] bg-[color:var(--foreground)] px-3 pb-4 pt-3 text-center sm:w-[156px]">
-                <span className="ms-leaf-sm flex h-[84px] w-full items-center justify-center bg-[color:var(--accent)] text-3xl font-bold text-white" aria-hidden="true">%</span>
+              <Link href="/ofertas" className="ms-store-card group flex h-full w-[144px] flex-col lg:w-auto items-center rounded-[24px] bg-[color:var(--foreground)] px-3 pb-4 pt-3 text-center sm:w-[156px]">
+                <span className="ms-leaf-sm flex h-[84px] w-full items-center lg:h-[110px] justify-center bg-[color:var(--accent)] text-3xl font-bold text-white" aria-hidden="true">%</span>
                 <span className="mt-3 text-[17px] font-semibold text-white">Ofertas</span>
                 <span className="mt-0.5 text-[13px] text-white/80">Precios rebajados</span>
               </Link>
@@ -161,12 +149,14 @@ export default async function Home() {
       {shelfUnits.length > 0 && (
         <Reveal aria-labelledby="featured-title" className="px-4 pt-12 sm:px-6 sm:pt-16">
           <div className="mx-auto max-w-7xl">
-            <BrandHeading id="featured-title" title="Destacados" note="Equipos elegidos de nuestro inventario, con su condición y su batería a la vista." />
-            <div data-reveal style={{ "--reveal-order": 1 } as React.CSSProperties} className="mt-8">
-              <StoreShelf label="Equipos destacados">
-                {shelfUnits.map((unit, index) => <StoreFeatureCard key={unit.slug} unit={unit} priority={index < 2} />)}
-              </StoreShelf>
-            </div>
+            <BrandHeading id="featured-title" title="Los más vistos" note="Los equipos que más están mirando nuestros clientes este mes, con su condición y su batería a la vista." />
+            <ul aria-label="Equipos más vistos" className="mt-8 grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
+              {shelfUnits.map((unit, index) => (
+                <li key={unit.slug} data-reveal style={{ "--reveal-order": index % 4 } as React.CSSProperties}>
+                  <StoreProductCard unit={unit} />
+                </li>
+              ))}
+            </ul>
           </div>
         </Reveal>
       )}
@@ -236,7 +226,7 @@ export default async function Home() {
             {STEPS.map(([title, text], index) => (
               <li key={title} data-reveal style={{ "--reveal-order": index + 1 } as React.CSSProperties} className="ms-leaf-sm bg-white p-7">
                 <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[color:var(--brand-tint)] text-lg font-bold text-[color:var(--accent)]" aria-hidden="true">{index + 1}</span>
-                <h3 className="mt-5 text-[21px] font-semibold leading-tight tracking-[-0.02em]">{title}</h3>
+                <h3 className="mt-5 text-[21px] font-semibold leading-tight tracking-[-0.02em] lg:min-h-[2.5em]">{title}</h3>
                 <p className="mt-2 text-[17px] leading-relaxed text-[color:var(--foreground-soft)]">{text}</p>
               </li>
             ))}
@@ -255,9 +245,9 @@ export default async function Home() {
                 if (band.max) params.set("max", String(band.max));
                 return (
                   <li key={band.key} data-reveal style={{ "--reveal-order": index + 1 } as React.CSSProperties}>
-                    <Link href={`${band.category ? `/c/${band.category}` : "/buscar"}?${params.toString()}`} className="ms-store-card flex min-h-[140px] flex-col justify-between rounded-[24px] bg-white p-7">
+                    <Link href={`${band.category ? `/c/${band.category}` : "/buscar"}?${params.toString()}`} className="ms-store-card flex h-full flex-col justify-between gap-3 rounded-[24px] bg-white px-6 py-5">
                       <span className="text-[21px] font-semibold leading-tight tracking-[-0.02em]">{band.label}</span>
-                      <span className="mt-4 text-[17px] font-semibold text-[color:var(--accent)]">{band.count} {band.count === 1 ? "equipo" : "equipos"} →</span>
+                      <span className="text-[17px] font-semibold text-[color:var(--accent)]">{band.count} {band.count === 1 ? "equipo" : "equipos"} →</span>
                     </Link>
                   </li>
                 );

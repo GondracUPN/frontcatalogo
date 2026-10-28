@@ -182,6 +182,9 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false, initi
       }
       setEditing(null);
       window.dispatchEvent(new Event("sales-updated"));
+      if (result?.sync && !result.sync.ok) {
+        alert(`Venta guardada, pero Servicios no se actualizó: ${result.sync.error || result.sync.status || "error desconocido"}`);
+      }
     } catch {
       alert("No se pudo actualizar la venta");
     } finally {

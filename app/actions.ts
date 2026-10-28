@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { revalidateTag } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { cache } from "react";
 import type { MarketplaceData } from "@/lib/marketplace";
 
@@ -455,6 +455,12 @@ export async function getClientPurchases(): Promise<ClientPurchase[]> {
   return (Array.isArray(data.items) ? data.items : []).filter((item) => item?.id && item?.photoUrl && item?.productTitle);
 }
 
+function revalidateClientPurchases() {
+  revalidateTag("client-purchases");
+  revalidatePath("/");
+  revalidatePath("/clientes");
+}
+
 export async function getHomeCatalog() {
   return apiFetch<{
     items: Array<{
@@ -596,6 +602,7 @@ export async function markProductSold(
       body: JSON.stringify({ saleDate: saleDate || null, salePrice: salePrice ?? undefined, ...(customer || {}) }),
     });
     revalidateTag("catalog-products");
+    revalidateClientPurchases();
     return { ...result, ok: true, error: "" };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "No se pudo registrar la venta" };
@@ -627,6 +634,7 @@ export async function markStagedProductSold(
       body: JSON.stringify({ saleDate: saleDate || null, salePrice: salePrice ?? undefined, ...(customer || {}) }),
     });
     revalidateTag("catalog-products");
+    revalidateClientPurchases();
     return { ...result, ok: true, error: "" };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "No se pudo registrar la venta" };
@@ -645,6 +653,7 @@ export async function unsellProduct(productId: string, saleId?: string) {
       body: JSON.stringify({ saleId: saleId || null }),
     });
     revalidateTag("catalog-products");
+    revalidateClientPurchases();
     return { ok: true, error: "" };
   } catch (error) {
     return {
@@ -698,11 +707,13 @@ export async function updateSale(
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
-  return apiFetch<{ ok: boolean; item: any }>(`/admin/sales/${encodeURIComponent(saleId)}`, {
+  const result = await apiFetch<{ ok: boolean; item: any; sync?: { ok: boolean; status?: string; error?: string } | null }>(`/admin/sales/${encodeURIComponent(saleId)}`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(patch),
   });
+  revalidateClientPurchases();
+  return result;
 }
 
 /** Cambia, quita u oculta la foto del cliente de una venta ya registrada. */
@@ -710,10 +721,12 @@ export async function updateSaleClientPhoto(saleId: string, body: { clientPhotoU
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
-  return apiFetch<{ ok: boolean; item: { id: string; client_photo_url: string | null; client_photo_public: boolean; product_image_url: string | null } }>(
+  const result = await apiFetch<{ ok: boolean; item: { id: string; client_photo_url: string | null; client_photo_public: boolean; product_image_url: string | null } }>(
     `/admin/sales/${encodeURIComponent(saleId)}/client-photo`,
     { method: "PUT", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(body) },
   );
+  revalidateClientPurchases();
+  return result;
 }
 
 export async function listContactRequests() {
@@ -765,11 +778,13 @@ export async function markPossibleClientPurchased(id: string, data: { customerKi
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) return { ok: false };
-  return apiFetch<{ ok: boolean; item?: any }>(`/admin/possible-clients/${encodeURIComponent(id)}/purchase`, {
+  const result = await apiFetch<{ ok: boolean; item?: any }>(`/admin/possible-clients/${encodeURIComponent(id)}/purchase`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(data || {}),
   });
+  revalidateClientPurchases();
+  return result;
 }
 
 export async function getCatalogAnalytics(days = 30) {

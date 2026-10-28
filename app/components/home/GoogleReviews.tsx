@@ -1,6 +1,6 @@
 import { getGoogleReviews } from "@/lib/google-reviews";
 import Reveal from "./Reveal";
-import { BrandHeading, LeafMark } from "./BrandBits";
+import { BrandHeading } from "./BrandBits";
 
 // Enlace al local en Google Maps (el mismo de la página de contacto).
 const MAPS_FALLBACK = "https://maps.app.goo.gl/ttGMLJEKx4LEwNet6";
@@ -27,14 +27,9 @@ export default async function GoogleReviews() {
   if (!data || (!data.reviews.length && data.rating == null)) {
     return (
       <section aria-labelledby="reviews-title" className="px-4 pt-14 sm:px-6 sm:pt-20">
-        <div className="ms-leaf-sm mx-auto flex max-w-7xl flex-col items-start justify-between gap-5 bg-white p-7 sm:flex-row sm:items-center sm:p-9">
-          <div>
-            <h2 id="reviews-title" className="flex items-center gap-3 text-[24px] font-semibold tracking-[-0.02em]">
-              <LeafMark className="h-6 w-6" />
-              Lo que dicen nuestros clientes
-            </h2>
-            <p className="mt-2 text-[17px] text-[color:var(--foreground-soft)]">Lee las reseñas de Macsomenos en Google Maps.</p>
-          </div>
+        {/* Mismo título que el resto de secciones; el botón ocupa el lugar del enlace lateral. */}
+        <div className="mx-auto flex max-w-7xl flex-wrap items-end justify-between gap-4">
+          <BrandHeading id="reviews-title" title="Lo que dicen nuestros clientes" note="Lee las reseñas de Macsomenos en Google Maps." />
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center rounded-full bg-[color:var(--foreground)] px-6 text-base font-semibold text-white hover:bg-black">
             Ver reseñas en Google
           </a>
