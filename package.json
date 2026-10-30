@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:admin-security": "node scripts/test-admin-security.js",
+    "test:marketplace-resolver": "node scripts/test-marketplace-resolver.js",
+    "test:marketplace-chat": "node scripts/test-marketplace-chat.js",
     "check:themes": "node --no-warnings scripts/check-theme-contrast.ts",
     "protect-images": "node scripts/protect-existing-images.js",
     "prepare:photo-editor": "node scripts/prepare-photo-editor.js",

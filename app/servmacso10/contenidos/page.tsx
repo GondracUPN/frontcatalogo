@@ -3,6 +3,7 @@ import { getSessionUser, listCatalogRepairs } from "../../actions";
 import CatalogRepairsPanel from "./CatalogRepairsPanel";
 import ProductVersionsEditor from "./ProductVersionsEditor";
 import RecalculateInventoryButton from "./RecalculateInventoryButton";
+import MarketplaceResolverPanel from "./MarketplaceResolverPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export default async function ContenidosAdminPage() {
       <p className="text-sm text-gray-600">Revisa problemas del catálogo, clientes y versiones de productos.</p>
 
       <CatalogRepairsPanel initialItems={repairLoad.result.items} initialError={repairLoad.error} />
+      <MarketplaceResolverPanel />
 
       <div className="rounded-2xl border bg-white p-4">
         <h2 className="font-semibold text-gray-900">Clientes</h2>
