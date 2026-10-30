@@ -9,8 +9,8 @@ export default function MarketplaceResolverPanel() {
   return <section className="rounded-2xl border bg-white p-4">
     <h2 className="font-semibold text-gray-900">Enlace de producto para Marketplace</h2>
     <p className="mt-1 text-sm text-gray-600">Herramienta exclusiva del administrador. Busca por SKU o por título completo y precio publicado.</p>
-    <a href="/api/admin/marketplace/script" download="macsomenos-chat-anuncio-v1.4.4.user.js" className="mt-3 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">
-      Descargar script de respuestas 🔗 v1.4.4
+    <a href="/api/admin/marketplace/script" download="macsomenos-chat-anuncio-v1.4.5.user.js" className="mt-3 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">
+      Descargar script de respuestas 🔗 v1.4.5
     </a>
     <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={async (event) => {
       event.preventDefault();
@@ -21,7 +21,7 @@ export default function MarketplaceResolverPanel() {
       try {
         const response = await fetch(`/api/admin/marketplace/resolve?${params}`, { cache: "no-store" });
         const body = await response.json();
-        if (!response.ok) throw new Error(response.status === 409 ? "Hay varias coincidencias. Usa el SKU o identificador exacto." : response.status === 404 ? "No se encontró un producto publicado verificable." : "No se pudo resolver el producto.");
+        if (!response.ok) throw new Error([404, 409].includes(response.status) && typeof body.message === 'string' ? body.message : "No se pudo resolver el producto.");
         setResult(body.product);
       } catch (err) { setError(err instanceof Error ? err.message : "Error al consultar"); }
       finally { setBusy(false); }

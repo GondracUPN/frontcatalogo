@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(script, {
       headers: {
         "Content-Type": "application/javascript; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="macsomenos-chat-anuncio-v1.4.4.user.js"',
+        "Content-Disposition": 'attachment; filename="macsomenos-chat-anuncio-v1.4.5.user.js"',
         "Cache-Control": "private, no-store",
       },
     });

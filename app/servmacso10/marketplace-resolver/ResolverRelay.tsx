@@ -19,13 +19,24 @@ export default function ResolverRelay() {
       const params = new URLSearchParams();
       const query = event.data.query;
       if (query && typeof query === "object") {
-        for (const key of ["sku", "productId", "title", "price"]) {
+        for (const key of ["listingId", "sku", "productId", "title", "price"]) {
           if (typeof query[key] === "string") params.set(key, query[key]);
         }
       }
       try {
-        const response = await fetch(`/api/admin/marketplace/resolve?${params}`, { cache: "no-store" });
-        const body = await response.json();
+        let response = await fetch(`/api/admin/marketplace/resolve?${params}`, { cache: "no-store" });
+        let body = await response.json();
+        if (response.ok && body.found && body.product?.available && params.has('listingId') && !body.linked) {
+          const linked = await fetch('/api/admin/marketplace/listings', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
+            body: JSON.stringify({ listingId: params.get('listingId'), sku: body.product.sku, url: body.product.url,
+              ...(params.has('title') ? { title: params.get('title') } : {}),
+              ...(params.has('price') ? { price: params.get('price') } : {}),
+            }),
+          });
+          if (linked.ok) body.linked = true;
+          else { response = linked; body = await linked.json(); }
+        }
         opener.postMessage({ type: "MACSO_RESOLVED", nonce, status: response.status, body }, event.origin);
         setMessage(response.ok ? "Enlace resuelto. Puedes cerrar esta ventana." : "La consulta no pudo identificar un producto. Revisa el chat de Marketplace.");
       } catch {

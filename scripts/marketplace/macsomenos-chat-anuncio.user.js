@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Macsomenos - Chat por anuncio y catalogo
 // @namespace    macsomenos-chat-anuncio
-// @version      1.4.4
+// @version      1.4.5
 // @description  Resuelve el anuncio del chat mediante la API ADMIN y envía un enlace al pulsar 🔗.
 // @match        https://www.facebook.com/*
 // @match        https://facebook.com/*
@@ -19,7 +19,7 @@
   const SENT = 'mm_chat_sent_130'; // Conserva el bloqueo de intentos del script anterior.
   const BUTTON = 'mm-chat-catalog-button-130';
   const STATUS = 'mm-chat-catalog-status-130';
-  const VERSION = '1.4.4';
+  const VERSION = '1.4.5';
   const DEBUG = `[Macsomenos Chat ${VERSION}]`;
   let busy = false, focused = null, statusTimer = null, scriptActive = true;
 
@@ -231,7 +231,6 @@
       }
     }
     const sku = skuFromFields(card);
-    if (sku) return { listingId: id, sku };
     const prices = new Set([...clean(card.textContent).matchAll(currencyPattern())].map(match => parseMoney(match[1])).filter(Boolean));
     const missingReason = prices.size > 1 ? 'El anuncio muestra varios precios.' : 'Facebook no muestra un precio verificable del anuncio.';
     const titleText = value => clean(value).replace(currencyPattern(), '').trim();
@@ -250,10 +249,10 @@
     let title;
     for (const tier of tiers) {
       const titles = [...new Set(tier.map(titleText).filter(value => value.length >= 8 && value.length <= 300 && !/^(marketplace|messenger|facebook|ver anuncio|ver publicación)$/i.test(value)))];
-      if (titles.length > 1) return { listingId: id, missingReason: 'No se pudo obtener un título único del anuncio.' };
+      if (titles.length > 1) return { listingId: id, sku, missingReason: 'No se pudo obtener un título único del anuncio.' };
       if (titles.length === 1) { title = titles[0]; break; }
     }
-    return { listingId: id, title, price: prices.size === 1 ? [...prices][0] : undefined,
+    return { listingId: id, sku, title, price: prices.size === 1 ? [...prices][0] : undefined,
       missingReason: !title ? 'Facebook no muestra el título verificable del anuncio.' : prices.size !== 1 ? missingReason : undefined };
   }
 
@@ -270,7 +269,10 @@
   }
 
   function resolveProduct(chat, popup, nonce) {
-    const query = chat.sku ? { sku: chat.sku } : { title: chat.title, price: chat.price };
+    const query = { listingId: chat.listingId };
+    if (chat.sku) query.sku = chat.sku;
+    if (chat.title) query.title = chat.title;
+    if (chat.price) query.price = chat.price;
     return new Promise((resolve, reject) => {
       let requested = false;
       const cleanup = () => { clearTimeout(timeout); clearInterval(closedTimer); window.removeEventListener('message', receive); };
@@ -285,7 +287,10 @@
           const { status, body } = event.data;
           if (status !== 200 || body?.found !== true) {
             const errors = { 400: 'Los datos visibles del anuncio no son válidos para la API.', 401: 'Inicia sesión como administrador en Macsomenos y vuelve a pulsar 🔗.', 403: 'Esta función está habilitada únicamente para el administrador.', 404: 'El SKU o el título completo/precio no identifican un producto publicado. No se enviará un enlace.', 409: 'Hay varias coincidencias compatibles. No se enviará un producto arbitrario.', 429: 'Se alcanzó el límite de consultas. Espera un minuto.' };
-            reject(Error(errors[status] || 'No se pudo consultar el resolver. Comprueba que la nueva API esté desplegada.'));
+            const detail = [404, 409].includes(status) && typeof body?.message === 'string' && body.message.length <= 700
+              && (body.code || /asociad|vincul|anuncio|precio|equipo/i.test(body.message)) ? body.message : errors[status];
+            const received = [404, 409].includes(status) ? `\nDatos leídos: ${query.sku ? `SKU ${query.sku} · ` : ''}${query.title || '(sin título)'}${query.price ? ` · S/ ${query.price}` : ''}\nAnuncio ${query.listingId} · v${VERSION}` : '';
+            reject(Error((detail || 'No se pudo consultar el resolver. Comprueba que la nueva API esté desplegada.') + received));
           } else resolve(body.product);
         }
       };

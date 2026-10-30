@@ -119,6 +119,74 @@ async function main() {
     catalogStatus = 200; calls = [];
     assert.equal((await mod.exports.GET(request())).status, 404);
     assert.equal(calls.some(call => call.url.includes('/catalog?')), false, 'an unknown SKU never falls back to title matching');
+    const miniId = 'dddddddd-1111-4111-8111-111111111111';
+    const mini = { product_id: miniId, slug: 'mac-mini-current', category: 'otros', availability: 'available',
+      staged: { sku: 'MS-385', title: 'Mac mini M4 · CPU 10 / GPU 10 (2024)', price: '3599.99', final_price: '3199.99', product_condition: 'Usado',
+        notes: { specs: { tipo: 'Otros', detalle: { procesador: 'M4', ram: '16', almacenamiento: '256', descripcionOtro: 'Apple Mac mini M4 ' } } },
+      },
+    };
+    const miniTitle = 'Remato Apple Mac mini M4';
+    assert.equal(helper.exports.publicationCatalogQuery(miniTitle), 'Mac mini');
+    assert.equal(helper.exports.matchingPublications([mini], miniTitle, '3199').length, 1, 'recognizes the real original Mac mini title');
+    assert.equal(helper.exports.matchingPublications([mini], miniTitle, '3599').length, 0, 'does not ignore promotion price');
+    const pro = { ...mini, product_id: 'eeeeeeee-1111-4111-8111-111111111111', staged: { ...mini.staged, title: 'Mac mini M4 Pro', notes: { specs: { detalle: { procesador: 'M4 Pro', descripcionOtro: 'Apple Mac mini M4' } } } } };
+    assert.equal(helper.exports.matchingPublications([pro], miniTitle, '3199').length, 0, 'a stale base-model alias cannot match an M4 Pro');
+    let linkState = 'missing';
+    calls = [];
+    global.fetch = async (url, options) => {
+      calls.push({ url: String(url), options });
+      const parsed = new URL(url);
+      if (parsed.pathname === '/auth/me') return Response.json({ role });
+      if (parsed.pathname.startsWith('/admin/marketplace/listings/')) {
+        if (linkState === 'missing') return Response.json({ message: 'unlinked' }, { status: 404 });
+        if (linkState === 'changed') return Response.json({ code: 'LISTING_EVIDENCE_CHANGED' }, { status: 409 });
+        if (linkState === 'conflict') return Response.json({ code: 'LISTING_LINK_CONFLICT' }, { status: 409 });
+        return Response.json({ found: true, linked: true, product: { sku: '385', url: 'https://www.macsomenos.com/product/mac-mini-current', available: true, availability: 'available' } });
+      }
+      if (parsed.pathname === '/admin/marketplace/listings') {
+        assert.equal(options.method, 'POST');
+        assert.equal(options.headers.Authorization, 'Bearer test-session');
+        return Response.json({ linked: true }, { status: 201 });
+      }
+      if (parsed.pathname === '/catalog') {
+        assert.equal(parsed.searchParams.get('q'), 'Mac mini');
+        return Response.json({ items: [mini, pro] });
+      }
+      assert.equal(parsed.searchParams.has('listingId'), false, 'listing IDs are not forwarded as unknown resolver parameters');
+      if (parsed.searchParams.get('productId') === miniId) return Response.json({ found: true, product: {
+        sku: '385', title: mini.staged.title, url: 'https://www.macsomenos.com/product/mac-mini-current', available: true, availability: 'available',
+      } });
+      return Response.json({ message: 'No exact match' }, { status: 404 });
+    };
+    const miniResponse = await mod.exports.GET(publicationRequest(miniTitle, '3199'));
+    assert.equal(miniResponse.status, 200);
+    assert.equal((await miniResponse.json()).product.sku, '385');
+    const boundRequest = () => new NextRequest('https://www.macsomenos.com/api/admin/marketplace/resolve?' + new URLSearchParams({ listingId: '1111100001', title: miniTitle, price: '3199' }), { headers: { cookie: 'token=test-session' } });
+    calls = [];
+    assert.equal((await mod.exports.GET(boundRequest())).status, 200);
+    assert.ok(calls.every(call => call.options?.method !== 'POST'), 'GET resolution never creates an association');
+    linkState = 'linked'; calls = [];
+    const linkedResponse = await mod.exports.GET(boundRequest());
+    assert.equal((await linkedResponse.json()).linked, true);
+    assert.equal(calls.length, 2, 'a central binding uses only auth + direct listing lookup');
+    assert.equal(calls.some(call => call.url.includes('/catalog?')), false);
+    linkState = 'changed';
+    assert.equal((await mod.exports.GET(boundRequest())).status, 200, 'changed evidence requires fresh product verification');
+    linkState = 'conflict'; calls = [];
+    assert.equal((await mod.exports.GET(boundRequest())).status, 409);
+    assert.equal(calls.some(call => call.url.includes('/catalog?')), false);
+    const linkBuild = await build({ entryPoints: [path.join(root, 'app/api/admin/marketplace/listings/route.ts')], bundle: true, platform: 'node', format: 'cjs', write: false, packages: 'external' });
+    const linkRoute = { exports: {} };
+    new Function('require', 'module', 'exports', linkBuild.outputFiles[0].text)(createRequire(path.join(root, 'package.json')), linkRoute, linkRoute.exports);
+    const postRequest = (cookie = true, origin = 'https://www.macsomenos.com') => new NextRequest('https://www.macsomenos.com/api/admin/marketplace/listings', { method: 'POST', headers: {
+      'Content-Type': 'application/json', origin, ...(cookie ? { cookie: 'token=test-session' } : {}),
+    }, body: JSON.stringify({ listingId: '1111100001', sku: '385', url: 'https://www.macsomenos.com/product/mac-mini-current', title: miniTitle, price: '3199' }) });
+    assert.equal((await linkRoute.exports.POST(postRequest(false))).status, 401);
+    role = 'VENDEDOR';
+    assert.equal((await linkRoute.exports.POST(postRequest())).status, 403);
+    role = 'ADMIN';
+    assert.equal((await linkRoute.exports.POST(postRequest(true, 'https://evil.invalid'))).status, 403);
+    assert.equal((await linkRoute.exports.POST(postRequest())).status, 201);
     global.fetch = async (url) => {
       if (String(url).endsWith("/auth/me")) return Response.json({ role: "ADMIN" });
       throw Error("backend unavailable");
@@ -134,10 +202,10 @@ async function main() {
     role = "ADMIN";
     const scriptResponse = await download.exports.GET(request());
     assert.equal(scriptResponse.status, 200);
-    assert.match(scriptResponse.headers.get("content-disposition"), /v1\.4\.4\.user\.js/);
+    assert.match(scriptResponse.headers.get("content-disposition"), /v1\.4\.5\.user\.js/);
     assert.match(scriptResponse.headers.get("cache-control"), /private, no-store/);
     const script = await scriptResponse.text();
-    assert.match(script, /@version\s+1\.4\.4/);
+    assert.match(script, /@version\s+1\.4\.5/);
     assert.match(script, /aquí le dejo el link de mi catálogo/);
     assert.match(script, /MutationObserver/);
     console.log("marketplace-resolver frontend: ADMIN auth/download, generated Neo/iPhone titles, exact price/specs, ambiguity, live ID/stock checks, privacy, no-store and errors passed");
