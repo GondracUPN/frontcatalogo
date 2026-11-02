@@ -221,8 +221,8 @@ function hasSingleFactoryColor(facts: ProductFacts) {
 function sealedTitleParts(facts: ProductFacts) {
   if (!isSealed(facts)) return [];
   const sealedWord = isMacBook(facts) ? "Sellada" : "Sellado";
-  const color = hasSingleFactoryColor(facts) ? "" : facts.color;
-  return [sealedWord, color, warrantyTitlePart(facts)];
+  const color = hasSingleFactoryColor(facts) || isMacMini(facts) ? "" : facts.color;
+  return [color, sealedWord, "1 año de garantía"];
 }
 
 function warrantyTitlePart(facts: ProductFacts) {
