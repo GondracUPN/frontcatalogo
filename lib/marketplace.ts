@@ -323,11 +323,13 @@ function aestheticState(facts: ProductFacts) {
   return "Excelente estado general";
 }
 
-export function generateMarketplaceTitle(product: MarketplaceProduct) {
+export function generateMarketplaceTitle(product: MarketplaceProduct, options: { legacyMacMiniTitle?: boolean } = {}) {
   const facts = productFacts(product);
   let parts: string[];
   if (isMacBook(facts)) {
     parts = ["Remato MacBook", facts.range, facts.processor, facts.screen ? `${facts.screen}”` : "", facts.ram ? `${facts.ram} RAM` : "", facts.storage ? `${facts.storage} SSD` : ""];
+  } else if (isMacMini(facts) && !options.legacyMacMiniTitle) {
+    parts = ["Remato", macMiniModel(facts), facts.ram ? `${facts.ram} RAM` : "", facts.storage ? `${facts.storage} SSD` : ""];
   } else if (isIpad(facts)) {
     parts = ["Remato iPad", facts.range, facts.processor || facts.generation, facts.screen ? `${facts.screen}”` : "", facts.storage, facts.connectivity];
   } else if (isIphone(facts)) {
@@ -357,7 +359,22 @@ export function generateMarketplaceTitle(product: MarketplaceProduct) {
   return parts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
 }
 
+function macMiniModel(facts: ProductFacts) {
+  const processor = (facts.processor || facts.title.match(/\bM\d+(?:\s+(?:Pro|Max|Ultra))?\b/i)?.[0] || "")
+    .split(/[·|]/)[0].replace(/CPU\s*\d+\s*\/\s*GPU\s*\d+/gi, "").replace(/\(?\b(?:19|20)\d{2}\b\)?/g, "").trim();
+  return ["Mac mini", processor].filter(Boolean).join(" ");
+}
+
 function introLine(facts: ProductFacts) {
+  if (isMacMini(facts)) {
+    const cores = `${facts.title} ${facts.processor}`.match(/CPU\s*(\d+)\s*\/\s*GPU\s*(\d+)/i);
+    return [
+      macMiniModel(facts),
+      cores ? `CPU ${cores[1]} / GPU ${cores[2]}` : "",
+      [facts.ram ? `${facts.ram} RAM` : "", facts.storage ? `${facts.storage} SSD` : ""].filter(Boolean).join(" y "),
+      facts.color ? `color ${facts.color}` : "",
+    ].filter(Boolean).join(", ") + ".";
+  }
   if (isMacBook(facts)) {
     const keyboard = /^ingles$/i.test(facts.keyboard) ? "inglés" : /^espanol$/i.test(facts.keyboard) ? "español" : facts.keyboard.toLowerCase();
     const memory = [facts.ram ? `${facts.ram} RAM` : "", facts.storage ? `${facts.storage} SSD` : ""].filter(Boolean).join(" y ");

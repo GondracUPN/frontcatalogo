@@ -49,6 +49,7 @@ function generatedPublication(row: PublicationCandidate) {
     // No se quitan batería, garantía, condición, RAM ni SSD del título.
     // Si el publicador no distingue dos unidades, ambas siguen siendo candidatas.
     const titles = [publicationTitleKey(generateMarketplaceTitle(product))];
+    titles.push(publicationTitleKey(generateMarketplaceTitle(product, { legacyMacMiniTitle: true })));
     const notes = typeof source.notes === 'string' ? (() => { try { return JSON.parse(source.notes); } catch { return {}; } })() : source.notes || {};
     const detail = notes.specs?.detalle || notes.detalle || {};
     const previousTitle = detail.descripcionOtro || notes.descripcionOtro;
@@ -59,7 +60,7 @@ function generatedPublication(row: PublicationCandidate) {
     if (typeof previousTitle === 'string' && previousTitle.length <= 300
       && desktopFamily(product.title) && desktopFamily(product.title) === desktopFamily(previousTitle)
       && chip(previousTitle) && chip(previousTitle) === chip(String(detail.procesador || product.title))) {
-      titles.push(publicationTitleKey(generateMarketplaceTitle({ ...product, title: previousTitle })));
+      titles.push(publicationTitleKey(generateMarketplaceTitle({ ...product, title: previousTitle }, { legacyMacMiniTitle: true })));
     }
     return { row, price: generateMarketplacePrice(product), titles };
 }
