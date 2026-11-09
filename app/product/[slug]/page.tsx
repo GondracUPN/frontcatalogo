@@ -385,7 +385,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     : [];
   // Accesorios: un único lugar (junto al precio). En usados u Open Box, si no
   // están registrados se dice, porque cambia la decisión de compra.
-  const accessoriesText = accessories.known
+  const accessoriesText = isAccessory(item) ? "" : accessories.known
     ? accessories.included.length
       ? `Incluye ${accessories.included.join(", ").toLowerCase()}.${accessories.missing.length ? ` No incluye ${accessories.missing.join(", ").toLowerCase()}.` : ""}`
       : "Solo el equipo, sin accesorios."

@@ -488,10 +488,6 @@ export default function PublishModal({
   const detalle = (specs?.detalle || {}) as any;
   const titleIphoneParsed = React.useMemo(() => parseIphoneFromTitle(item?.title), [item?.title]);
 
-  const [purchaseCost, setPurchaseCost] = React.useState(String(notes.valor?.costoProducto ?? ""));
-  const [shippingCost, setShippingCost] = React.useState(String(notes.valor?.costoEnvio ?? ""));
-  const canEditAccessoryCosts = !item?.id || notes.valor !== undefined;
-  const accessoryCosts = { purchase: Number(purchaseCost), shipping: Number(shippingCost) };
   const savedPack = readAccessoryPack(notes.accessoryPack);
   const [packEnabled, setPackEnabled] = React.useState(Boolean(savedPack));
   const [packUnits, setPackUnits] = React.useState(String(savedPack?.units ?? 4));
@@ -1150,7 +1146,6 @@ export default function PublishModal({
     errors.push("El stock debe ser 1 para Usado/Open Box/Arreglado");
   }
 
-  if (isAccesorio && canEditAccessoryCosts && [purchaseCost, shippingCost].some((value) => !value.trim() || !Number.isFinite(Number(value)) || Number(value) < 0)) errors.push("Completa los costos internos");
   const canPublish = errors.length === 0 && !saving && !uploadingPhotos && !uploadingDetailPhotos;
 
   const photoEditor = useProductPhotoEditor(item, images, setImages, uploadFile);
@@ -1487,7 +1482,7 @@ export default function PublishModal({
           title: fixedTitle || "Preventa",
           stock: isAccesorio || productCondition === "Nuevo" ? stockNum : 1,
           price: Number(salePrice || 0),
-          ...(isAccesorio ? { accessoryState: productCondition === "Nuevo" ? "Sellado" : productCondition, accessoryCosts: canEditAccessoryCosts ? accessoryCosts : undefined } : {}),
+          ...(isAccesorio ? { accessoryState: productCondition === "Nuevo" ? "Sellado" : productCondition } : {}),
         });
         const newId = String((created?.item as any)?.id || "").trim();
         if (!created?.ok || !newId) throw new Error(created?.error || "No se pudo crear el borrador de preventa");
@@ -1496,7 +1491,6 @@ export default function PublishModal({
       }
       const updateResult = await updateStaged(stagedId, {
         title: fixedTitle,
-        ...(isAccesorio && canEditAccessoryCosts ? { accessoryCosts } : {}),
         price: String(salePrice),
         images,
         stock: isAccesorio || productCondition === "Nuevo" ? stockNum : 1,
@@ -2272,14 +2266,6 @@ export default function PublishModal({
               </div>
             )}
 
-            {isAccesorio && canEditAccessoryCosts && <details open={!item?.id} className="rounded-xl border border-blue-100 bg-blue-50/50 p-3">
-              <summary className="cursor-pointer text-sm font-medium">Costos internos</summary>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <label className="text-sm">Costo del producto (S/)<input type="number" min="0" step="0.01" value={purchaseCost} onChange={(e) => setPurchaseCost(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
-                <label className="text-sm">Costo de envío (S/)<input type="number" min="0" step="0.01" value={shippingCost} onChange={(e) => setShippingCost(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
-              </div>
-              <p className="mt-3 text-sm">Costo total: <output>S/ {((Math.round(Number(purchaseCost || 0) * 100) + Math.round(Number(shippingCost || 0) * 100)) / 100).toFixed(2)}</output></p>
-            </details>}
             <div className="grid grid-cols-2 gap-3">
               {!isAccesorio && <div>
                 <label className="block text-sm text-gray-700">¿Garantía?</label>
