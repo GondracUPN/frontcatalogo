@@ -326,7 +326,7 @@ function aestheticState(facts: ProductFacts) {
 }
 
 export function generateMarketplaceTitle(product: MarketplaceProduct, options: { legacyMacMiniTitle?: boolean } = {}) {
-  if (isAccessory(product)) return `REMATO - ${text(product.title)}`;
+  if (isAccessory(product)) return `Remato ${text(product.title)}`;
   const facts = productFacts(product);
   let parts: string[];
   if (isMacBook(facts)) {
@@ -503,7 +503,14 @@ function exactlyFifteen(candidates: Array<string | false | undefined>) {
 }
 
 export function generateMarketplaceTags(product: MarketplaceProduct) {
-  if (isAccessory(product)) return [text(product.title), "Accesorios", "Remate", "Electrónica"].filter(Boolean);
+  if (isAccessory(product)) {
+    const candidates = [
+      text(product.title), "Accesorios", "Accesorios tecnológicos", "Accesorios de electrónica",
+      "Accesorios en remate", "Ofertas de accesorios", "Tecnología", "Electrónica", "Remate", "Oferta",
+      "Productos tecnológicos", "Accesorios para equipos electrónicos",
+    ];
+    return candidates.filter((tag, index) => tag && candidates.findIndex((candidate) => candidate.toLowerCase() === tag.toLowerCase()) === index).slice(0, 10);
+  }
   const facts = productFacts(product);
   const storage = facts.storage;
   const screen = facts.screen;
@@ -543,9 +550,10 @@ export function generateMarketplaceTags(product: MarketplaceProduct) {
 
 export function generateMarketplaceData(product: MarketplaceProduct): MarketplaceData {
   const facts = productFacts(product);
+  const displaySku = isAccessory(product) ? accessorySku(product) : undefined;
   return {
-    sku: facts.sku,
-    displaySku: isAccessory(product) ? accessorySku(product) : undefined,
+    sku: displaySku || facts.sku,
+    displaySku,
     titulo: generateMarketplaceTitle(product),
     precio: generateMarketplacePrice(product),
     descripcion: generateMarketplaceDescription(product),

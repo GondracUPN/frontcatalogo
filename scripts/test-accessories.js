@@ -14,6 +14,10 @@ async function main() {
   const legacyAccessory = { category: 'otros', product: { sku: 'acc-lot-509' }, staged: { category: 'accesorios', sku: 'acc-lot-509', notes: { accessoryCode: 16 } } };
   assert.equal(display.exports.catalogFacts(legacyAccessory).sku, 'ACC-16');
   assert.equal(display.exports.catalogFacts({ ...legacyAccessory, staged: { ...legacyAccessory.staged, notes: JSON.stringify({ accessoryCode: 16 }) } }).sku, 'ACC-16');
+  const lotPublication = generateMarketplaceData({ ...legacyAccessory, sku: 'acc-lot-509', title: 'Cable USB-C', price: 10 });
+  assert.equal(lotPublication.sku, 'ACC-16', 'Facebook recibe el código comercial, no el lote de sincronización');
+  assert.equal(JSON.parse(JSON.stringify(lotPublication)).sku, lotPublication.displaySku, 'el envío usa el mismo SKU que la vista previa');
+  assert.equal(legacyAccessory.staged.sku, 'acc-lot-509', 'el código de inventario interno no cambia');
   assert.equal(display.exports.catalogFacts({ category: 'macbook', product: { sku: 'MS-374' }, staged: { category: 'macbook' } }).sku, '374');
   for (const state of ['Sellado', 'Usado', 'Open Box']) {
     const data = generateMarketplaceData({
@@ -23,26 +27,35 @@ async function main() {
       notes: JSON.stringify({ accessoryCode: 374, valor: { costoProducto: 35, costoEnvio: 5, costoTotal: 40 }, includes: 'Ninguno', warrantyEnabled: false }),
       images: ['https://example.com/a.jpg', ' https://example.com/b.jpg ', 'https://example.com/a.jpg', ''],
     });
-    assert.equal(data.titulo, 'REMATO - Cargador MagSafe Apple');
+    assert.equal(data.titulo, 'Remato Cargador MagSafe Apple');
+    assert.equal(data.etiquetas.length, 10);
+    assert.equal(new Set(data.etiquetas.map(tag => tag.toLowerCase())).size, 10);
+    assert.ok(data.etiquetas.includes('Cargador MagSafe Apple'));
     assert.ok(data.descripcion.startsWith(`Se remata Cargador MagSafe Apple\n\nEstado: ${state}\n\n`));
     assert.match(data.descripcion, /Se entrega boleta de compra USA/);
     assert.match(data.descripcion, /No Mercado Pago/);
     assert.deepEqual(data.images, ['https://example.com/a.jpg', 'https://example.com/b.jpg'], 'las fotos del accesorio se envían a Marketplace');
     assert.equal(data.precio, '65.5');
     assert.equal(data.displaySku, 'ACC-374');
-    assert.equal(data.sku, 'MS-ACC', 'conserva el identificador interno de ventas');
+    assert.equal(data.sku, 'ACC-374', 'envía el código comercial a Facebook');
     assert.equal(data.estadoMarketplace, state === 'Sellado' ? 'Nuevo' : 'Usado: como nuevo');
     assert.doesNotMatch(JSON.stringify(data), /costo|garantía|No incluye|No cuenta|No incluye: caja/i);
   }
   // El nombre del accesorio puede mencionar equipos sin activar su plantilla.
   const charger = generateMarketplaceData({ sku: 'a', category: 'accesorios', title: 'Cargador MacBook Pro', price: 65, product_condition: 'Usado' });
-  assert.equal(charger.titulo, 'REMATO - Cargador MacBook Pro');
+  assert.equal(charger.titulo, 'Remato Cargador MacBook Pro');
   assert.ok(charger.descripcion.startsWith('Se remata Cargador MacBook Pro\n\nEstado: Usado\n\n'));
   assert.doesNotMatch(charger.descripcion, /color|garantía|Accesorios:|No incluye/i);
   const normal = generateMarketplaceData({ sku: 'b', category: 'macbook', title: 'MacBook Pro', price: '2699.99', product_condition: 'Open Box' });
   assert.equal(normal.precio, '2699');
+  assert.equal(normal.sku, 'b');
   assert.match(normal.descripcion, /Garantía:/);
   assert.notEqual(normal.titulo, 'REMATO - MacBook Pro');
+  for (const title of ['', 'Accesorios', 'ELECTRÓNICA']) {
+    const data = generateMarketplaceData({ category: 'accesorios', title, price: 5 });
+    assert.equal(data.etiquetas.length, 10);
+    assert.equal(new Set(data.etiquetas.map(tag => tag.toLowerCase())).size, 10);
+  }
   const packed = generateMarketplaceData({category:'accesorios',title:'Cable',price:5,notes:{accessoryPack:{units:6,price:25.99,label:'Caja'}}});
   assert.ok(packed.descripcion.includes("Caja de 6 unidades: S/ 25.99"));
   assert.ok(packed.descripcion.includes("Precio por unidad: S/ 5"));
