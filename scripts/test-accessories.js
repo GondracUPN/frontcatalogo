@@ -21,13 +21,13 @@ async function main() {
       product_condition: state === 'Sellado' ? 'Nuevo' : state,
       presentation: state === 'Sellado' ? 'sellado' : null,
       notes: JSON.stringify({ accessoryCode: 374, valor: { costoProducto: 35, costoEnvio: 5, costoTotal: 40 }, includes: 'Ninguno', warrantyEnabled: false }),
-      images: ['https://example.com/wm.jpg'],
+      images: ['https://example.com/a.jpg', ' https://example.com/b.jpg ', 'https://example.com/a.jpg', ''],
     });
     assert.equal(data.titulo, 'REMATO - Cargador MagSafe Apple');
     assert.ok(data.descripcion.startsWith(`Se remata Cargador MagSafe Apple\n\nEstado: ${state}\n\n`));
     assert.match(data.descripcion, /Se entrega boleta de compra USA/);
     assert.match(data.descripcion, /No Mercado Pago/);
-    assert.deepEqual(data.images, []);
+    assert.deepEqual(data.images, ['https://example.com/a.jpg', 'https://example.com/b.jpg'], 'las fotos del accesorio se envían a Marketplace');
     assert.equal(data.precio, '65.5');
     assert.equal(data.displaySku, 'ACC-374');
     assert.equal(data.sku, 'MS-ACC', 'conserva el identificador interno de ventas');

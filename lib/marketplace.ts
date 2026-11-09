@@ -552,7 +552,7 @@ export function generateMarketplaceData(product: MarketplaceProduct): Marketplac
     etiquetas: generateMarketplaceTags(product),
     categoriaMarketplace: "Electrónica e informática",
     estadoMarketplace: isSealed(facts) ? "Nuevo" : "Usado: como nuevo",
-    images: isAccessory(product) ? [] : Array.from(new Set((Array.isArray(product.images) ? product.images : []).map((url) => String(url || "").trim()).filter(Boolean))),
+    images: Array.from(new Set((Array.isArray(product.images) ? product.images : []).map((url) => String(url || "").trim()).filter(Boolean))),
   };
 }
 
