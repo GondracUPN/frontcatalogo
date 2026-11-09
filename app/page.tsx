@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import DeliveryPreview from "./components/home/DeliveryPreview";
+import { WAREHOUSE_ADDRESS } from "@/lib/help-content";
 import { getClientPurchases, getHomeCatalog } from "./actions";
 import { ClientDeliveriesHome } from "./components/ClientDeliveries";
 import { FaqEntry } from "./preguntas-frecuentes/FaqBrowser";
@@ -15,7 +17,7 @@ import GoogleReviews from "./components/home/GoogleReviews";
 import { CATEGORY_LABELS } from "@/lib/catalog-display";
 import { formatSoles, withIgv } from "@/lib/catalog-price";
 import WhatsAppIcon from "./components/WhatsAppIcon";
-import { WHATSAPP_DISPLAY, whatsappUrl } from "@/lib/store-config";
+import { WHATSAPP_DISPLAY, whatsappUrl, GENERAL_WHATSAPP_MESSAGE } from "@/lib/store-config";
 
 export const revalidate = 300;
 
@@ -27,23 +29,24 @@ const CATEGORY_ROW = [
   { key: "ipad", icon: "/imagenestipos/ipad.webp" },
   { key: "watch", icon: "/imagenestipos/watch.webp" },
   { key: "otros", icon: "/imagenestipos/accesorios.webp" },
+  { key: "accesorios", icon: "/imagenestipos/accesorios.webp" },
 ];
 
 // Datos reales de la tienda (página de contacto e información de compra).
-const WAREHOUSE = "Jr. Ganimedes 245, Surco";
+const WAREHOUSE = WAREHOUSE_ADDRESS;
 const WAREHOUSE_MAP = "https://maps.app.goo.gl/ttGMLJEKx4LEwNet6";
 
 const STEPS = [
-  ["Eliges tu equipo", "Revisa sus fotos, su batería, su condición y el precio total con IGV."],
-  ["Envías tu solicitud", "Lo agregas al carrito y nos dejas tu nombre y teléfono. No pagas nada en la web."],
-  ["Te escribimos por WhatsApp", "Confirmamos que siga disponible y coordinamos el pago."],
-  ["Lo recibes", "Recojo gratis en nuestro almacén de Surco o entrega en un centro comercial de Lima."],
+  ["Consulta por WhatsApp", "Abre la ficha y pregúntanos por ese equipo. El mensaje ya incluye su nombre, SKU y enlace."],
+  ["O solicita desde el carrito", "Reúne uno o varios equipos y envía tu solicitud. Confirmamos disponibilidad, pago y entrega por WhatsApp."],
 ];
 
 
 function toUnit(row: HomeRow): StoreUnit {
   return {
     slug: row.slug,
+    sku: row.sku,
+    productId: row.product_id,
     title: row.title,
     image: row.image,
     condition: row.condition,
@@ -99,31 +102,31 @@ export default async function Home() {
     return { slug: row.slug, title: row.title, image: row.image, condition: row.condition, saleType: row.saleType, detail: (/usad|open/i.test(row.condition) && batteryLine(unit)) || specLine(unit), price: Number(row.price || 0), compareAt: row.compareAt };
   });
   // Recién llegados conserva el orden real del catálogo aunque repita la vitrina.
-  // Lo más visto muestra siempre 4 equipos: primero los que no salen ya arriba
+  // Lo más visto muestra hasta 4 equipos: primero los que no salen ya arriba
   // ni en recién llegados y, si faltan, se completa con los más vistos repetidos.
-  // Con menos de 4 equipos vistos la sección no se muestra.
+  // Con pocos equipos vistos, se muestran solo los disponibles.
   const recentUnits = available.slice(0, 4).map(toUnit);
   const shownSlugs = new Set([...vitrina.slice(0, 3), ...recentUnits].map((unit) => unit.slug));
   const shelfCandidates = [
     ...featuredUnits.filter((unit) => !shownSlugs.has(unit.slug)),
     ...featuredUnits.filter((unit) => shownSlugs.has(unit.slug)),
   ].slice(0, 4);
-  const shelfUnits = shelfCandidates.length === 4 ? shelfCandidates : [];
+  const shelfUnits = shelfCandidates;
   const homeFaq = HOME_FAQ_IDS.map((id) => FAQ_ITEMS.find((item) => item.id === id)).filter((item): item is (typeof FAQ_ITEMS)[number] => Boolean(item));
-  const whatsapp = whatsappUrl("Hola Macsomenos, quisiera ayuda para elegir un equipo.");
+  const whatsapp = whatsappUrl(GENERAL_WHATSAPP_MESSAGE);
 
   return (
     <div className="pb-8">
       <HomeViewTracker />
 
       <CampaignHero products={heroProducts} promotions={heroPromotions}>
-        <HeroVitrina units={vitrina} inventory={categories} hasOffers={heroPromotions.length > 0} whatsapp={whatsapp} />
+        <HeroVitrina units={vitrina} inventory={categories} />
       </CampaignHero>
 
       <section className="px-4 pt-8 sm:px-6">
 
-        <nav aria-label="Categorías" className="mx-auto max-w-7xl">
-          <ul className="ms-shelf -mx-4 flex gap-3 overflow-x-auto px-4 pb-6 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:px-0">
+        <nav id="equipos" aria-label="Categorías" className="mx-auto max-w-7xl scroll-mt-24">
+          <ul className="ms-shelf -mx-4 flex gap-3 overflow-x-auto px-4 pb-6 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-7 lg:gap-4 lg:overflow-visible lg:px-0">
             {categoryRow.map((cat) => (
               <li key={cat.key} className="shrink-0">
                 <Link href={`/c/${cat.key}`} className="ms-store-card group flex h-full w-[144px] flex-col lg:w-auto items-center rounded-[24px] bg-white px-3 pb-4 pt-3 text-center sm:w-[156px]">
@@ -160,6 +163,9 @@ export default async function Home() {
           </div>
         </Reveal>
       )}
+
+      <DeliveryPreview items={clientPurchases.slice(0, 3)} />
+      <GoogleReviews />
 
       <Reveal aria-labelledby="about-title" className="px-4 pt-12 sm:px-6 sm:pt-16">
         <div className="ms-leaf relative mx-auto max-w-7xl overflow-hidden bg-[color:var(--foreground)] px-7 py-12 text-white sm:px-14 sm:py-16">
@@ -222,11 +228,11 @@ export default async function Home() {
       <Reveal aria-labelledby="steps-title" className="px-4 pt-14 sm:px-6 sm:pt-20">
         <div className="mx-auto max-w-7xl">
           <BrandHeading id="steps-title" title="Así compras en Macsomenos" note="Sin pagos en la web: primero confirmamos contigo por WhatsApp." />
-          <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <ol className="mt-8 grid gap-4 sm:grid-cols-2">
             {STEPS.map(([title, text], index) => (
               <li key={title} data-reveal style={{ "--reveal-order": index + 1 } as React.CSSProperties} className="ms-leaf-sm bg-white p-7">
                 <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[color:var(--brand-tint)] text-lg font-bold text-[color:var(--accent)]" aria-hidden="true">{index + 1}</span>
-                <h3 className="mt-5 text-[21px] font-semibold leading-tight tracking-[-0.02em] lg:min-h-[2.5em]">{title}</h3>
+                <h3 className="mt-5 text-[21px] font-semibold leading-tight tracking-[-0.02em]">{title}</h3>
                 <p className="mt-2 text-[17px] leading-relaxed text-[color:var(--foreground-soft)]">{text}</p>
               </li>
             ))}
@@ -258,8 +264,6 @@ export default async function Home() {
       )}
 
       <ClientDeliveriesHome items={clientPurchases} />
-
-      <GoogleReviews />
 
       <section aria-labelledby="faq-title" className="px-4 pt-14 sm:px-6 sm:pt-20">
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-14">

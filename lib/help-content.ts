@@ -73,7 +73,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     topic: "compra",
     question: "¿Cómo solicito un equipo?",
     answer: [
-      "Abre su ficha, agrégalo al carrito y envía la solicitud con tu nombre y teléfono. Te escribimos por WhatsApp para confirmar los siguientes pasos.",
+      "Puedes consultar directamente desde «Consultar por WhatsApp» en la tarjeta o la ficha. Si prefieres solicitar uno o varios equipos, agrégalos al carrito y envía tu solicitud. Coordinamos la disponibilidad, el pago y la entrega por WhatsApp.",
       ...PURCHASE_STEPS.map((step, index) => `${index + 1}. ${step}`),
     ],
   },
@@ -90,7 +90,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     topic: "compra",
     question: "¿Puedo pedir más fotos o hacer una consulta sobre un equipo?",
     answer: [
-      "Sí. Desde la ficha usa «Preguntar por WhatsApp»: el mensaje incluye el equipo y su código para que te respondamos sobre esa unidad.",
+      "Sí. Desde la ficha usa «Consultar por WhatsApp»: el mensaje incluye el equipo y su código para que te respondamos sobre esa unidad.",
     ],
     link: { href: "/contact", label: "Ver contacto" },
   },
@@ -212,4 +212,4 @@ export const FAQ_ITEMS: FaqItem[] = [
 ];
 
 /** Preguntas que se muestran en la portada, en este orden. */
-export const HOME_FAQ_IDS = ["como-comprar", "fotos-reales", "igv", "garantia-macsomenos", "entregas"] as const;
+export const HOME_FAQ_IDS = ["como-comprar", "fotos-reales", "igv", "pagos", "recojo", "entregas", "garantia-macsomenos"] as const;

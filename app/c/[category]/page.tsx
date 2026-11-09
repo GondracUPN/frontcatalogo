@@ -1,6 +1,5 @@
 import { listCatalog } from "@/app/actions";
 import CategoryBrowser from "../../components/CategoryBrowser";
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { isBuildPhase, listingRows } from "@/lib/catalog-listing";
@@ -42,7 +41,6 @@ export async function generateMetadata({ params }: { params: Promise<{ category:
 export default async function CategoryPage({ params }: { params: Promise<{ category: string }> }) {
   const { category: rawCategory } = await params;
   const category = String(rawCategory || "").toLowerCase();
-  if (category === "accesorios") redirect("/c/otros");
   let catalogUnavailable = false;
   let items: any[] = [];
   try {

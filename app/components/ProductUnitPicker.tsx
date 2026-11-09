@@ -62,7 +62,8 @@ export default function ProductUnitPicker({ units, currentSlug, showMemory = tru
                 </span>
                 {spec && <span className="block truncate text-[13px] text-[color:var(--foreground-soft)]">{spec}</span>}
                 {bat && <span className="block text-[13px] text-[color:var(--foreground-soft)]">{bat}</span>}
-                <span className="mt-0.5 block text-[15px] font-bold text-[color:var(--foreground)]">
+                <span className="mt-0.5 block text-[11px] text-[color:var(--foreground-soft)]">Precio sin IGV {formatSoles(unit.price)}</span>
+                <span className="block text-[15px] font-bold text-[color:var(--foreground)]">
                   {formatSoles(withIgv(unit.price))} <span className="text-[11px] font-medium text-[color:var(--foreground-soft)]">con IGV</span>
                 </span>
               </span>

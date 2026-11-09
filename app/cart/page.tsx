@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { isAccessory, getAccessoryPack, accessoryPackTotal } from "@/lib/accessories";
 import { whatsappUrl } from "@/lib/store-config";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -297,7 +298,13 @@ export default function CartPage() {
     loadCart();
   }, [loadCart]);
 
-  const subtotal = items.reduce((sum, row) => sum + priceFromRow(row) * Number(row.qty || 1), 0);
+  const rowTotal = (row: CartRow) => {
+    const unitPrice = priceFromRow(row);
+    const negotiated = row.offer_price != null && Number(row.offer_price) !== Number(row.product?.price ?? row.staged?.price);
+    const pack = negotiated ? null : getAccessoryPack(row);
+    return pack ? accessoryPackTotal(unitPrice, Number(row.qty || 1), pack) : unitPrice * Number(row.qty || 1);
+  };
+  const subtotal = items.reduce((sum, row) => sum + rowTotal(row), 0);
   const totalWithIgv = withIgv(subtotal);
 
   const openContact = () => {
@@ -467,8 +474,11 @@ export default function CartPage() {
                 return notes?.productCondition || notes?.estado || notes?.specs?.estado || "";
               })();
               const rawStock = Number(row?.product?.stock ?? row?.staged?.stock ?? 1);
-              const maxQty = condition === "Nuevo" ? Math.max(1, rawStock || 1) : 1;
+              const maxQty = condition === "Nuevo" || isAccessory(row) ? Math.max(1, rawStock || 1) : 1;
               const qtyValue = Number(row.qty || 1);
+              const pack = getAccessoryPack(row);
+              const negotiatedPack = pack && row.offer_price != null && Number(row.offer_price) !== Number(row.product?.price ?? row.staged?.price);
+              const packSummary = pack ? [Math.floor(qtyValue / pack.units) > 0 ? `${Math.floor(qtyValue / pack.units)} × ${pack.label} de ${pack.units}` : "", qtyValue % pack.units > 0 ? `${qtyValue % pack.units} unidades sueltas` : ""].filter(Boolean).join(" + ") : "";
               const canIncrease = qtyValue < maxQty;
               const canNavigate = Boolean(row.slug);
               const goToProduct = () => {
@@ -500,7 +510,8 @@ export default function CartPage() {
                     </div>
                     <h2 className="mt-1 break-words text-base font-semibold leading-5 tracking-tight text-[color:var(--foreground)] sm:text-lg sm:leading-6">{title}</h2>
                     <p className="mt-1.5 break-words text-xs leading-5 text-[color:var(--foreground-soft)] sm:text-sm">{[facts.processor, ram && `${ram} RAM`, storage, color].filter(Boolean).join(" · ")}</p>
-                    <PriceWithIgv price={unitPrice} wrapperClassName="mt-3" priceClassName="text-xl font-bold tracking-tight text-emerald-700 sm:text-2xl" labelClassName="text-[10px] font-semibold uppercase tracking-wide text-red-600" igvClassName="mt-0.5" />
+                    {getAccessoryPack(row) && <p className="mt-2 text-xs font-medium">Total por {qtyValue} {qtyValue === 1 ? "unidad" : "unidades"} · {negotiatedPack ? "precio acordado por unidad" : packSummary}</p>}
+                    <PriceWithIgv price={getAccessoryPack(row) ? rowTotal(row) : unitPrice} wrapperClassName="mt-3" priceClassName="text-xl font-bold tracking-tight text-emerald-700 sm:text-2xl" labelClassName="text-[10px] font-semibold uppercase tracking-wide text-red-600" igvClassName="mt-0.5" />
                     {facts.hasConditionDetails && <p className="mt-2 text-xs font-medium text-amber-800">Detalle estético registrado en la ficha.</p>}
                     {canNavigate && <button type="button" onClick={goToProduct} className="mt-1 min-h-11 text-xs font-semibold text-[color:var(--accent)] underline-offset-4 hover:underline sm:text-sm">Volver a la ficha <span aria-hidden="true">↗</span></button>}
                   </div>

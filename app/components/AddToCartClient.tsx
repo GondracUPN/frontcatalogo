@@ -6,14 +6,18 @@ import { addToCart, getCartId, getOfferStatus, submitOffer } from "@/app/cart/ca
 import { trackCatalogEvent } from "@/lib/analytics";
 
 type Props = {
+  quantity?: number;
   productId: string;
+  productTitle?: string;
+  productSlug?: string;
+  sku?: string;
   saleType?: string | null;
   salePrice: number;
   disabled?: boolean;
   disabledLabel?: string;
 };
 
-export default function AddToCartClient({ productId, saleType, salePrice, disabled, disabledLabel }: Props) {
+export default function AddToCartClient({ quantity = 1, productId, productTitle, productSlug, sku, saleType, salePrice, disabled, disabledLabel }: Props) {
   const router = useRouter();
   const [offer, setOffer] = React.useState<string>("");
   const [saving, setSaving] = React.useState(false);
@@ -81,8 +85,8 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
     setAdded(false);
     try {
       const offerValue = isOferta && offer ? Number(offer) : undefined;
-      await addToCart(productId, 1, offerValue);
-      trackCatalogEvent("add_to_cart", { product_id: productId });
+      await addToCart(productId, quantity, offerValue);
+      trackCatalogEvent("add_to_cart", { product_id: productId, product_title: productTitle, product_slug: productSlug, sku });
       setAdded(true);
     } catch (e: any) {
       setError(e?.message || "No se pudo agregar");
@@ -97,7 +101,7 @@ export default function AddToCartClient({ productId, saleType, salePrice, disabl
     setError("");
     try {
       await addToCart(productId, 1, max);
-      trackCatalogEvent("add_to_cart", { product_id: productId });
+      trackCatalogEvent("add_to_cart", { product_id: productId, product_title: productTitle, product_slug: productSlug, sku });
       setAdded(true);
     } catch (e: any) {
       setError(e?.message || "No se pudo agregar");

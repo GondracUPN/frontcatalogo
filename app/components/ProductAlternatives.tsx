@@ -16,7 +16,8 @@ export default async function ProductAlternatives({ item, category, catalog, exc
         <span className="mt-3 text-xs font-semibold text-[color:var(--accent-strong)]">{alt.reason}</span>
         <span className="mt-0.5 font-semibold leading-5 text-[color:var(--foreground)]">{alt.title}</span>
         <span className="mt-1 text-[13px] leading-5 text-[color:var(--foreground-soft)]">{[alt.specs, alt.condition].filter(Boolean).join(" · ")}</span>
-        <span className="mt-auto pt-2 text-base font-bold text-[color:var(--foreground)]">{formatSoles(withIgv(alt.price))} <span className="text-xs font-medium text-[color:var(--foreground-soft)]">con IGV</span></span>
+        <span className="mt-auto block pt-2 text-xs text-[color:var(--foreground-soft)]">Precio sin IGV {formatSoles(alt.price)}</span>
+        <span className="text-base font-bold text-[color:var(--foreground)]">{formatSoles(withIgv(alt.price))} <span className="text-xs font-medium text-[color:var(--foreground-soft)]">con IGV</span></span>
       </Link>
     </li>)}</ul>
   </section>;

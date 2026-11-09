@@ -1,4 +1,8 @@
 ﻿"use client";
+import { copyTextToClipboard, fetchImageForZip, createZipBlob, downloadBlob } from "./product-publish-media";
+import ProductPhotosPanel from "./ProductPhotosPanel";
+import { accessorySku, readAccessoryPack } from "@/lib/accessories";
+import { generateMarketplaceData } from "@/lib/marketplace";
 import React from "react";
 import { useProductPhotoEditor } from "./useProductPhotoEditor";
 import { mapInOrder, uploadProductImage } from "./uploadProductImage";
@@ -460,148 +464,6 @@ function withCurrentOption(options: string[], current: string) {
   return has ? options : [value, ...options];
 }
 
-async function copyTextToClipboard(text: string) {
-  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  const area = document.createElement("textarea");
-  area.value = text;
-  area.setAttribute("readonly", "true");
-  area.style.position = "fixed";
-  area.style.left = "-9999px";
-  document.body.appendChild(area);
-  area.select();
-  document.execCommand("copy");
-  document.body.removeChild(area);
-}
-
-function getImageExtension(url: string, contentType?: string | null) {
-  if (contentType?.includes("png")) return "png";
-  if (contentType?.includes("webp")) return "webp";
-  if (contentType?.includes("gif")) return "gif";
-  if (contentType?.includes("jpeg") || contentType?.includes("jpg")) return "jpg";
-  const cleanUrl = url.split("?")[0] || "";
-  const match = cleanUrl.match(/\.([a-z0-9]+)$/i);
-  return match?.[1]?.toLowerCase() || "jpg";
-}
-
-const ZIP_CRC_TABLE = (() => {
-  const table = new Uint32Array(256);
-  for (let i = 0; i < 256; i += 1) {
-    let value = i;
-    for (let j = 0; j < 8; j += 1) {
-      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
-    }
-    table[i] = value >>> 0;
-  }
-  return table;
-})();
-
-function getCrc32(data: Uint8Array) {
-  let crc = 0xffffffff;
-  for (let i = 0; i < data.length; i += 1) {
-    crc = ZIP_CRC_TABLE[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function pushZip16(target: number[], value: number) {
-  target.push(value & 0xff, (value >>> 8) & 0xff);
-}
-
-function pushZip32(target: number[], value: number) {
-  target.push(value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, (value >>> 24) & 0xff);
-}
-
-async function fetchImageForZip(url: string, filenameBase: string) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`No se pudo descargar ${filenameBase}`);
-  const blob = await res.blob();
-  const extension = getImageExtension(url, blob.type);
-  const data = await blob.arrayBuffer();
-  return { name: `${filenameBase}.${extension}`, data };
-}
-
-function createZipBlob(files: { name: string; data: ArrayBuffer }[]) {
-  const encoder = new TextEncoder();
-  const localParts: BlobPart[] = [];
-  const centralParts: BlobPart[] = [];
-  let offset = 0;
-  let centralSize = 0;
-
-  files.forEach((file) => {
-    const nameBytes = encoder.encode(file.name);
-    const fileBytes = new Uint8Array(file.data);
-    const crc = getCrc32(fileBytes);
-    const size = file.data.byteLength;
-    const local: number[] = [];
-    pushZip32(local, 0x04034b50);
-    pushZip16(local, 20);
-    pushZip16(local, 0x0800);
-    pushZip16(local, 0);
-    pushZip16(local, 0);
-    pushZip16(local, 0);
-    pushZip32(local, crc);
-    pushZip32(local, size);
-    pushZip32(local, size);
-    pushZip16(local, nameBytes.length);
-    pushZip16(local, 0);
-    local.push(...nameBytes);
-
-    const central: number[] = [];
-    pushZip32(central, 0x02014b50);
-    pushZip16(central, 20);
-    pushZip16(central, 20);
-    pushZip16(central, 0x0800);
-    pushZip16(central, 0);
-    pushZip16(central, 0);
-    pushZip16(central, 0);
-    pushZip32(central, crc);
-    pushZip32(central, size);
-    pushZip32(central, size);
-    pushZip16(central, nameBytes.length);
-    pushZip16(central, 0);
-    pushZip16(central, 0);
-    pushZip16(central, 0);
-    pushZip16(central, 0);
-    pushZip32(central, 0);
-    pushZip32(central, offset);
-    central.push(...nameBytes);
-
-    const localHeader = new Uint8Array(local);
-    const centralHeader = new Uint8Array(central);
-    localParts.push(localHeader.buffer, file.data);
-    centralParts.push(centralHeader.buffer);
-    offset += localHeader.byteLength + size;
-    centralSize += centralHeader.byteLength;
-  });
-
-  const centralStart = offset;
-  const end: number[] = [];
-  pushZip32(end, 0x06054b50);
-  pushZip16(end, 0);
-  pushZip16(end, 0);
-  pushZip16(end, files.length);
-  pushZip16(end, files.length);
-  pushZip32(end, centralSize);
-  pushZip32(end, centralStart);
-  pushZip16(end, 0);
-
-  return new Blob([...localParts, ...centralParts, new Uint8Array(end).buffer], { type: "application/zip" });
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-}
-
 const uploadFile = uploadProductImage;
 
 export default function PublishModal({
@@ -626,6 +488,16 @@ export default function PublishModal({
   const detalle = (specs?.detalle || {}) as any;
   const titleIphoneParsed = React.useMemo(() => parseIphoneFromTitle(item?.title), [item?.title]);
 
+  const [purchaseCost, setPurchaseCost] = React.useState(String(notes.valor?.costoProducto ?? ""));
+  const [shippingCost, setShippingCost] = React.useState(String(notes.valor?.costoEnvio ?? ""));
+  const canEditAccessoryCosts = !item?.id || notes.valor !== undefined;
+  const accessoryCosts = { purchase: Number(purchaseCost), shipping: Number(shippingCost) };
+  const savedPack = readAccessoryPack(notes.accessoryPack);
+  const [packEnabled, setPackEnabled] = React.useState(Boolean(savedPack));
+  const [packUnits, setPackUnits] = React.useState(String(savedPack?.units ?? 4));
+  const [packPrice, setPackPrice] = React.useState(String(savedPack?.price ?? ""));
+  const [packLabel, setPackLabel] = React.useState(savedPack?.label ?? "Paquete");
+  const accessoryPack = packEnabled ? readAccessoryPack({ units: Number(packUnits), price: Number(packPrice), label: packLabel }) : null;
   const legacySalePrice = Number(notes?.precioLista || 0);
   const legacyDiscount = Number(notes?.descuentoPorc || 0);
 
@@ -641,7 +513,7 @@ export default function PublishModal({
 
   const [title, setTitle] = React.useState(() => {
     const prefer = (item?.title || "").trim();
-    if (prefer) return capitalize(prefer);
+    if (prefer) return category === "accesorios" ? prefer : capitalize(prefer);
     const tipo = categoryLabel(item?.category || inferCategoryFromTitle(item?.title));
     const gama0 = detalle?.gama || "";
     const proc0 = detalle?.procesador || "";
@@ -710,7 +582,7 @@ export default function PublishModal({
   const [warrantyDate, setWarrantyDate] = React.useState<string>(() => formatWarrantyDate(initialWarranty.date));
   const [stock, setStock] = React.useState<number>(() => {
     const initial = Number(item?.__mergeStock ?? item?.stock ?? 1);
-    return isFinite(initial) && initial > 0 ? initial : 1;
+    return Number.isSafeInteger(initial) && (category === "accesorios" ? initial >= 0 : initial > 0) ? initial : 1;
   });
   const mergeCandidates = React.useMemo<MergeCandidate[]>(() => {
     const candidates = Array.isArray(item?.__mergeCandidates) ? item.__mergeCandidates : [];
@@ -811,7 +683,6 @@ export default function PublishModal({
   const [variantGroup, setVariantGroup] = React.useState<string>(
     String(item?.variant_group || notes?.variantGroup || notes?.variant_group || "")
   );
-  const [dragImageIndex, setDragImageIndex] = React.useState<number | null>(null);
   const [versionConfig, setVersionConfig] = React.useState<ProductVersionConfig>(() => normalizeProductVersionConfig(DEFAULT_PRODUCT_VERSION_CONFIG));
   const detailUploadInFlightRef = React.useRef(false);
   const replacementCandidates = React.useMemo<ReplacementCandidate[]>(() => {
@@ -869,7 +740,7 @@ export default function PublishModal({
   }, [title, keepTypeUnselectedOnManualPreventa]);
 
   React.useEffect(() => {
-    if (productCondition && productCondition !== "Nuevo") {
+    if (category !== "accesorios" && productCondition && productCondition !== "Nuevo") {
       setStock(1);
     } else if (productCondition === "Nuevo") {
       setCiclos("");
@@ -933,7 +804,7 @@ export default function PublishModal({
   }, [forceSaleType, saleType]);
 
   React.useEffect(() => {
-    if (!category) return;
+    if (!category || category === "accesorios") return;
     if (titleManual) return;
     if (category === "iphone") {
       const auto = buildIphoneTitle(iphoneNumber, iphoneModel, iphoneStorage, color);
@@ -989,10 +860,15 @@ export default function PublishModal({
   const isWatch = category === "watch";
   const isAirpods = category === "airpods";
   const isOtros = category === "otros";
+  const isAccesorio = category === "accesorios";
+  React.useEffect(() => {
+    if (isAccesorio && productCondition === "Nuevo" && presentation !== "sellado") setPresentation("sellado");
+    if (isAccesorio && productCondition === "Arreglado") setProductCondition("");
+  }, [isAccesorio, productCondition, presentation]);
   const isUnusedOpenBox = productCondition === "Open Box" && openBoxType === "Sin uso";
   const iphoneNum = Number(iphoneNumber || 0);
   const stockNum = Number(stock || 0);
-  const requiredMergeSkuCount = productCondition === "Nuevo" ? Math.max(0, stockNum - 1) : 0;
+  const requiredMergeSkuCount = !isAccesorio && productCondition === "Nuevo" ? Math.max(0, stockNum - 1) : 0;
   const mergeSkuValues = mergeSkuInputs.map(normalizeSku);
   const selectedMergeIds = mergeSkuValues
     .map((sku) => mergeCandidateBySku.get(sku)?.id || "")
@@ -1129,6 +1005,7 @@ export default function PublishModal({
   const isCatalogEdit = Boolean(item?.__catalogProductId || String(item?.status || "").toLowerCase() === "published");
   if (!category) errors.push("Selecciona el tipo de producto");
   if (!saleType) errors.push("Selecciona el tipo de venta");
+  if (isAccesorio && packEnabled && !accessoryPack) errors.push("Indica un nombre, cantidad entera desde 2 y precio positivo para el paquete o caja");
   if (!salePrice || salePrice <= 0) errors.push("El precio de venta es obligatorio");
   if (!images.length) errors.push("Sube al menos una imagen");
   if (!productCondition) errors.push("Selecciona el estado del producto");
@@ -1241,20 +1118,21 @@ export default function PublishModal({
     if (productCondition !== "Nuevo" && !includesValue) errors.push("Selecciona que incluye");
     if (!color?.trim()) errors.push("El color es obligatorio");
   }
-  if (productCondition !== "Nuevo" && includesValue === "Otros" && !includesExtra?.trim()) {
+  if (!isAccesorio && productCondition !== "Nuevo" && includesValue === "Otros" && !includesExtra?.trim()) {
     errors.push("Describe lo que incluye");
   }
-  if (productCondition === "Open Box" && !openBoxType) {
+  if (!isAccesorio && productCondition === "Open Box" && !openBoxType) {
     errors.push("Selecciona el tipo de Open Box");
   }
-  const warrantyIsEnabled = productCondition === "Nuevo" || productCondition === "Open Box" || hasWarranty;
+  const warrantyIsEnabled = !isAccesorio && (productCondition === "Nuevo" || productCondition === "Open Box" || hasWarranty);
   if (warrantyIsEnabled && !warrantyType) {
     errors.push("Selecciona el tipo de garantía");
   }
   if (warrantyIsEnabled && warrantyType === LIMITED_APPLE_WARRANTY && !warrantyDate.trim()) {
     errors.push("Ingresa la fecha de la garantía limitada de Apple");
   }
-  if (productCondition === "Nuevo" && stockNum < 1) {
+  if (isAccesorio && (!Number.isSafeInteger(stockNum) || stockNum < 1 || stockNum > 2147483647)) errors.push("El stock del accesorio debe ser un entero mayor o igual a 1");
+  if (!isAccesorio && productCondition === "Nuevo" && stockNum < 1) {
     errors.push("El stock debe ser mayor o igual a 1");
   }
   if (requiredMergeSkuCount > 0) {
@@ -1268,10 +1146,11 @@ export default function PublishModal({
     }
     if (filledSkus.includes(normalizeSku(item?.sku))) errors.push("No pongas el mismo SKU principal como adicional");
   }
-  if (productCondition && productCondition !== "Nuevo" && stockNum !== 1) {
+  if (!isAccesorio && productCondition && productCondition !== "Nuevo" && stockNum !== 1) {
     errors.push("El stock debe ser 1 para Usado/Open Box/Arreglado");
   }
 
+  if (isAccesorio && canEditAccessoryCosts && [purchaseCost, shippingCost].some((value) => !value.trim() || !Number.isFinite(Number(value)) || Number(value) < 0)) errors.push("Completa los costos internos");
   const canPublish = errors.length === 0 && !saving && !uploadingPhotos && !uploadingDetailPhotos;
 
   const photoEditor = useProductPhotoEditor(item, images, setImages, uploadFile);
@@ -1310,16 +1189,7 @@ export default function PublishModal({
     if (!checked && accessory === "Cable") setCableFake(false);
   };
 
-  const moveImage = React.useCallback((from: number, to: number) => {
-    if (from === to || from < 0 || to < 0) return;
-    setImages((arr) => {
-      if (from >= arr.length || to >= arr.length) return arr;
-      const copy = arr.slice();
-      const [moved] = copy.splice(from, 1);
-      copy.splice(to, 0, moved);
-      return copy;
-    });
-  }, []);
+
 
   const getCurrentTitle = () => {
     let baseTitle = title;
@@ -1334,17 +1204,21 @@ export default function PublishModal({
       baseTitle = `${categoryLabel(category)} ${desktopConfig.label.split(" · ").slice(0, 2).join(" · ")}${desktopConfig.size ? ` ${desktopConfig.size}\"` : ""}`;
     } else if (!titleManual && category === "otros") {
       baseTitle = descriptionOther.trim();
-    } else if (!titleManual) {
+    } else if (!titleManual && category !== "accesorios") {
       const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity, ipadGeneration);
       baseTitle = autoTitle || title;
     }
-    if (saleType === "PREVENTA" && baseTitle && !/^preventa\s+/i.test(baseTitle)) {
+    if (category !== "accesorios" && saleType === "PREVENTA" && baseTitle && !/^preventa\s+/i.test(baseTitle)) {
       baseTitle = `Preventa ${baseTitle}`;
     }
-    return capitalize(baseTitle.trim());
+    return isAccesorio ? baseTitle.trim() : capitalize(baseTitle.trim());
   };
 
   const buildProductCopyText = () => {
+    if (isAccesorio) {
+      const data = generateMarketplaceData({ title: getCurrentTitle(), category, price: finalPrice ?? salePrice, product_condition: productCondition, presentation, notes: { accessoryPack } });
+      return [data.titulo, "", data.descripcion, "", "Precio: S/ " + data.precio].join("\n");
+    }
     const lines: string[] = [];
     const add = (label: string, value: unknown) => {
       const text = String(value ?? "").trim();
@@ -1406,7 +1280,7 @@ export default function PublishModal({
     add("Incluye", isWatch
       ? watchIncludes
       : (includesValue === "Otros" ? includesExtra : formatIncludesAccessories(includesValue, cuboFake, cableFake)));
-    if (productCondition === "Nuevo" || productCondition === "Open Box" || hasWarranty) {
+    if (!isAccesorio && (productCondition === "Nuevo" || productCondition === "Open Box" || hasWarranty)) {
       add("Tipo de garantia", warrantyType);
       const warrantyIso = warrantyDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
       const warrantyForCopy = warrantyIso
@@ -1486,14 +1360,14 @@ export default function PublishModal({
       const iphoneStorageGbParsed = parseIphoneStorageGb(iphoneStorage);
       const iphoneStorageValue = formatStorageDisplay(iphoneStorage);
       const iphoneStorageGb = Number.isFinite(iphoneStorageGbParsed) ? iphoneStorageGbParsed : null;
-      const includesPayload = isWatch ? watchIncludes : includesValue;
-      const includesExtraPayload = isWatch && includesWatchAccessory(watchIncludes, "Otros") ? watchAccessories.trim() : includesExtra;
+      const includesPayload = isAccesorio ? null : isWatch ? watchIncludes : includesValue;
+      const includesExtraPayload = isAccesorio ? null : isWatch && includesWatchAccessory(watchIncludes, "Otros") ? watchAccessories.trim() : includesExtra;
       const includesFlags = {
-        caja: includesAccessory(includesPayload, "Caja"),
-        cubo: includesAccessory(includesPayload, "Cubo"),
-        cable: includesAccessory(includesPayload, "Cable"),
+        caja: includesAccessory(includesPayload || "", "Caja"),
+        cubo: includesAccessory(includesPayload || "", "Cubo"),
+        cable: includesAccessory(includesPayload || "", "Cable"),
       };
-      const warrantyEnabled = productCondition === "Nuevo" || productCondition === "Open Box" ? true : hasWarranty;
+      const warrantyEnabled = !isAccesorio && (productCondition === "Nuevo" || productCondition === "Open Box" ? true : hasWarranty);
       const warrantyValue = warrantyEnabled
         ? ((productCondition === "Nuevo" || isUnusedOpenBox) ? UNACTIVATED_WARRANTY : (warrantyDate.trim() || null))
         : null;
@@ -1527,7 +1401,7 @@ export default function PublishModal({
         detailPhotos: null,
       };
       const specsNew = { ...(specs || {}), tipo: categoryLabel(category), detalle: detalleNew } as any;
-      const newNotes = {
+      const newNotes: any = {
         ...(notes || {}),
         specs: { ...specsNew, estado: productCondition },
         variantGroup: variantGroup.trim() || null,
@@ -1594,25 +1468,14 @@ export default function PublishModal({
         minOfferPrice: saleType === "OFERTA" ? minOfferPrice : null,
         detalle: detalleNew,
       };
-      let baseTitle = title;
-      if (!titleManual && category === "iphone") {
-        const auto = buildIphoneTitle(iphoneNumber, iphoneModel, iphoneStorage, color);
-        baseTitle = auto || title;
-      } else if (!titleManual && category === "watch") {
-        baseTitle = buildAppleWatchTitle({ type: watchType, series: watchSeries, version: watchVersion, size: watchSize, connection: watchConnection }) || title;
-      } else if (!titleManual && category === "airpods") {
-        baseTitle = buildAirpodsTitle(airpodsModel, airpodsGeneration, airpodsCharging) || title;
-      } else if (!titleManual && (category === "macmini" || category === "imac") && desktopConfig) {
-        baseTitle = `${categoryLabel(category)} ${desktopConfig.label.split(" · ").slice(0, 2).join(" · ")}${desktopConfig.size ? ` ${desktopConfig.size}\"` : ""}`;
-      } else if (!titleManual && category === "otros") baseTitle = descriptionOther.trim();
-      else if (!titleManual) {
-        const autoTitle = buildTitle(categoryLabel(category), gama, proc, tam, iphoneModel, ipadConnectivity, ipadGeneration);
-        baseTitle = autoTitle || title;
+      if (isAccesorio) {
+        Object.assign(newNotes, { accessoryPack, color: null, includes: null, includesExtra: null, incluye: null, accessories: null, accesorios: null,
+          bateria: null, batteryCycles: null, batteryHealth: null, iphoneModel: null, iphoneNumber: null, storageGb: null,
+          watchType: null, watchSeries: null, watchConnection: null, watchVersion: null, watchSize: null, watchAccessories: null, watchIncludes: null,
+          specs: { tipo: 'Accesorios', estado: productCondition, detalle: { detalles: productDetailsValue || null, productDetails: productDetailsValue || null } },
+        });
       }
-      if (saleType === "PREVENTA" && baseTitle && !/^preventa\s+/i.test(baseTitle)) {
-        baseTitle = `Preventa ${baseTitle}`;
-      }
-      const fixedTitle = capitalize(baseTitle.trim());
+      const fixedTitle = getCurrentTitle();
       // Se guarda el tipo real (macmini, imac, airpods...); el catálogo público ya los agrupa en "otros".
       const catalogCategory = category;
       let stagedId = String(item?.id || "").trim();
@@ -1622,8 +1485,9 @@ export default function PublishModal({
           category: catalogCategory,
           sku: normalizedManualSku,
           title: fixedTitle || "Preventa",
-          stock: productCondition === "Nuevo" ? Number(stock || 1) : 1,
+          stock: isAccesorio || productCondition === "Nuevo" ? stockNum : 1,
           price: Number(salePrice || 0),
+          ...(isAccesorio ? { accessoryState: productCondition === "Nuevo" ? "Sellado" : productCondition, accessoryCosts: canEditAccessoryCosts ? accessoryCosts : undefined } : {}),
         });
         const newId = String((created?.item as any)?.id || "").trim();
         if (!created?.ok || !newId) throw new Error(created?.error || "No se pudo crear el borrador de preventa");
@@ -1632,9 +1496,10 @@ export default function PublishModal({
       }
       const updateResult = await updateStaged(stagedId, {
         title: fixedTitle,
+        ...(isAccesorio && canEditAccessoryCosts ? { accessoryCosts } : {}),
         price: String(salePrice),
         images,
-        stock: productCondition === "Nuevo" ? Number(stock || 1) : 1,
+        stock: isAccesorio || productCondition === "Nuevo" ? stockNum : 1,
         notes: JSON.stringify(newNotes),
         category: catalogCategory,
         productCondition,
@@ -1644,10 +1509,11 @@ export default function PublishModal({
         storageGb: iphoneStorage ? iphoneStorageGb : null,
         batteryCycles: ciclos ? Number(ciclos) : null,
         batteryHealth: salud ? Number(salud) : null,
-        color: color || null,
+        color: isAccesorio ? null : color || null,
         includes: includesPayload,
         includesExtra: includesExtraPayload,
         keyboardLayout,
+        ...(isAccesorio ? { iphoneModel: null, iphoneNumber: null, storageGb: null, batteryCycles: null, batteryHealth: null, keyboardLayout: null } : {}),
         variantGroup: variantGroup.trim() || null,
         saleType,
         discount: saleType === "PROMOCION" ? discount : null,
@@ -1656,10 +1522,10 @@ export default function PublishModal({
         minOfferPrice: saleType === "OFERTA" ? minOfferPrice : null,
       }, { revalidate: false });
       if (!updateResult.ok) throw new Error(updateResult.error || "No se pudo guardar el producto");
-      const mergeStagedIds = productCondition === "Nuevo" && Number(stock || 1) > 1
+      const mergeStagedIds = !isAccesorio && productCondition === "Nuevo" && Number(stock || 1) > 1
         ? selectedMergeIds
         : [];
-      const mergeStagedSkus = productCondition === "Nuevo" && Number(stock || 1) > 1
+      const mergeStagedSkus = !isAccesorio && productCondition === "Nuevo" && Number(stock || 1) > 1
         ? selectedMergeSkus
         : [];
       const publishResult = await publishStaged(stagedId, { slug: toSlug(fixedTitle), mergeStagedIds, mergeStagedSkus });
@@ -1670,7 +1536,7 @@ export default function PublishModal({
         title: fixedTitle,
         price: String(salePrice),
         images,
-        stock: productCondition === "Nuevo" ? Number(stock || 1) : 1,
+        stock: isAccesorio || productCondition === "Nuevo" ? stockNum : 1,
         notes: JSON.stringify(newNotes),
         sale_type: saleType,
         discount: saleType === "PROMOCION" ? String(discount) : null,
@@ -1700,109 +1566,8 @@ export default function PublishModal({
     }
   };
 
-  const mainPhotosPanel = (
-    <div>
-      {photoEditor.modal}
-      <label className="block text-sm mb-1 text-gray-700">Fotos</label>
-      {images.length > 0 && (
-        <div className="mb-3 overflow-hidden rounded-xl border-2 border-emerald-500 bg-emerald-50">
-          <div className="relative aspect-[4/3] bg-white">
-            <img src={images[0]} alt="" className="h-full w-full object-contain" />
-            <div className="absolute left-2 top-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
-              Portada
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 mb-2">
-        {images.map((u, i) => (
-          <div
-            key={`${u}-${i}`}
-            draggable
-            onDragStart={(e) => {
-              setDragImageIndex(i);
-              e.dataTransfer.effectAllowed = "move";
-              e.dataTransfer.setData("text/plain", String(i));
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = "move";
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              const from = dragImageIndex ?? Number(e.dataTransfer.getData("text/plain"));
-              moveImage(from, i);
-              setDragImageIndex(null);
-            }}
-            onDragEnd={() => setDragImageIndex(null)}
-            className={`cursor-grab overflow-hidden rounded-xl border bg-white active:cursor-grabbing ${
-              dragImageIndex === i ? "scale-[0.98] opacity-55" : ""
-            } ${i === 0 ? "border-emerald-500 ring-2 ring-emerald-100" : "border-gray-200"}`}
-          >
-            <div className="relative aspect-square bg-gray-50">
-              <img src={u} alt="" className="h-full w-full object-cover" />
-              <div className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${i === 0 ? "bg-emerald-600 text-white" : "bg-white/90 text-gray-700"}`}>
-                {i === 0 ? "Portada" : `Foto ${i + 1}`}
-              </div>
-              <div className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
-                Arrastra
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-1 p-1">
-              <button type="button" aria-label={`Editar imagen ${i + 1}`} title="Editar imagen" className="col-span-2 rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800" onClick={() => photoEditor.edit(u)}>✎ Editar imagen</button>
-              <button
-                type="button"
-                disabled={i === 0}
-                className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 disabled:bg-emerald-100 disabled:text-emerald-700"
-                onClick={() => setImages(arr => { const copy = arr.slice(); const [img] = copy.splice(i, 1); copy.unshift(img); return copy; })}
-              >
-                {i === 0 ? "Actual" : "Portada"}
-              </button>
-              <button
-                type="button"
-                className="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700"
-                onClick={() => setImages(arr => arr.filter((_, idx) => idx !== i))}
-              >
-                Quitar
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-      <label
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "copy";
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          if (uploadingPhotos || saving) return;
-          addFiles(e.dataTransfer.files);
-        }}
-        className={`mt-3 flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-6 text-center transition ${
-          uploadingPhotos || saving
-            ? "border-gray-200 bg-gray-50 text-gray-400"
-            : "border-blue-200 bg-blue-50/55 text-gray-700 hover:border-blue-300 hover:bg-blue-50"
-        }`}
-      >
-        <input
-          type="file"
-          multiple
-          accept="image/jpeg,image/png,image/avif"
-          disabled={uploadingPhotos || saving}
-          onChange={(e) => {
-            addFiles(e.target.files);
-            e.currentTarget.value = "";
-          }}
-          className="sr-only"
-        />
-        <span className="text-sm font-semibold">{uploadingPhotos ? "Subiendo fotos..." : "Elegir o arrastrar fotos"}</span>
-        <span className="mt-1 text-xs text-gray-500">JPG, PNG o AVIF. Puedes seleccionar varias imágenes.</span>
-      </label>
-      {uploadingPhotos && <p className="text-xs text-blue-600 mt-1">Subiendo fotos...</p>}
-      <p className="text-xs text-gray-500 mt-1">La foto marcada como portada será la primera imagen del producto.</p>
-    </div>
-  );
+  const mainPhotosPanel = <ProductPhotosPanel images={images} setImages={setImages} onEdit={photoEditor.edit} onAddFiles={addFiles} editorModal={photoEditor.modal} disabled={uploadingPhotos || saving} uploading={uploadingPhotos} />;
+
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4">
@@ -1810,9 +1575,9 @@ export default function PublishModal({
         <div className="sticky top-0 z-10 bg-white border-b px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <h3 className="text-xl font-semibold sm:text-2xl">{isCatalogEdit ? "Editar producto" : "Publicar producto"}</h3>
-            {headerSku && (
+            {(isAccesorio ? accessorySku(item) : headerSku) && (
               <span className="shrink-0 rounded-full bg-gray-100 px-3 py-1 font-mono text-sm font-semibold text-gray-700">
-                {headerSku}
+                {isAccesorio ? accessorySku(item) : headerSku}
               </span>
             )}
           </div>
@@ -1821,8 +1586,9 @@ export default function PublishModal({
 
         <div className="grid md:grid-cols-2 gap-6 px-4 sm:px-6 pb-6">
           <div className="space-y-4">
-            <label className="block text-sm font-medium text-gray-900">Título</label>
+            <label htmlFor="publish-title" className="block text-sm font-medium text-gray-900">Título</label>
             <input
+              id="publish-title"
               value={title}
               onChange={(e) => { setTitle(e.target.value); setTitleManual(true); }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
@@ -1894,8 +1660,9 @@ export default function PublishModal({
             )}
 
             <div>
-              <label className="block text-sm text-gray-700">Tipo</label>
+              <label htmlFor="publish-category" className="block text-sm text-gray-700">Tipo</label>
               <select
+                id="publish-category"
                 value={category}
                 onChange={(e) => { setCategory(e.target.value); setCatTouched(true); }}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]"
@@ -1916,16 +1683,16 @@ export default function PublishModal({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm text-gray-700">Estado</label>
-                <select value={productCondition} onChange={(e) => setProductCondition(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                <label htmlFor="publish-condition" className="block text-sm text-gray-700">Estado</label>
+                <select id="publish-condition" value={productCondition} onChange={(e) => { setProductCondition(e.target.value); if (isAccesorio) setPresentation(e.target.value === "Nuevo" ? "sellado" : ""); }} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
                   <option value="">Seleccionar</option>
-                  <option value="Nuevo">Nuevo</option>
+                  <option value="Nuevo">{isAccesorio ? "Sellado" : "Nuevo"}</option>
                   <option value="Usado">Usado</option>
                   <option value="Open Box">Open Box</option>
-                  <option value="Arreglado">Arreglado</option>
+                  {!isAccesorio && <option value="Arreglado">Arreglado</option>}
                 </select>
               </div>
-              {productCondition === "Open Box" && (
+              {!isAccesorio && productCondition === "Open Box" && (
                 <div>
                   <label className="block text-sm text-gray-700">Tipo de Open Box</label>
                   <select value={openBoxType} onChange={(e) => setOpenBoxType(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
@@ -1936,7 +1703,7 @@ export default function PublishModal({
                   <p className="mt-1 text-xs text-gray-500">En la tienda ambos se mostrarán simplemente como Open Box.</p>
                 </div>
               )}
-              {productCondition === "Nuevo" && (
+              {!isAccesorio && productCondition === "Nuevo" && (
                 <div>
                   <label htmlFor="publish-presentation" className="block text-sm text-gray-700">Presentación</label>
                   <select id="publish-presentation" value={presentation} onChange={(e) => setPresentation(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
@@ -1947,10 +1714,11 @@ export default function PublishModal({
                   <p className="mt-1 text-xs text-gray-500">Solo se muestra «Sellado» en la tienda si lo eliges aquí.</p>
                 </div>
               )}
-              {productCondition === "Nuevo" && (
+              {(isAccesorio || productCondition === "Nuevo") && (
                 <div>
-                  <label className="block text-sm text-gray-700">Stock</label>
-                  <input type="number" min={1} value={stock} onChange={(e) => setStock(Math.max(1, Number(e.target.value || 1)))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" />
+                  <label htmlFor="publish-stock" className="block text-sm text-gray-700">Stock</label>
+                  <input id="publish-stock" type="number" step={1} min={isAccesorio ? 0 : 1} value={stock} onChange={(e) => setStock(isAccesorio ? Number(e.target.value) : Math.max(1, Number(e.target.value || 1)))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" />
+                  {isAccesorio && stockNum === 0 && <p className="mt-1 text-xs text-gray-500">Sin unidades disponibles. Podrás publicar cuando recibas stock.</p>}
                 </div>
               )}
               {productCondition === "Nuevo" && sealedPresets.length > 0 && (
@@ -2504,8 +2272,16 @@ export default function PublishModal({
               </div>
             )}
 
+            {isAccesorio && canEditAccessoryCosts && <details open={!item?.id} className="rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+              <summary className="cursor-pointer text-sm font-medium">Costos internos</summary>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <label className="text-sm">Costo del producto (S/)<input type="number" min="0" step="0.01" value={purchaseCost} onChange={(e) => setPurchaseCost(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
+                <label className="text-sm">Costo de envío (S/)<input type="number" min="0" step="0.01" value={shippingCost} onChange={(e) => setShippingCost(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
+              </div>
+              <p className="mt-3 text-sm">Costo total: <output>S/ {((Math.round(Number(purchaseCost || 0) * 100) + Math.round(Number(shippingCost || 0) * 100)) / 100).toFixed(2)}</output></p>
+            </details>}
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              {!isAccesorio && <div>
                 <label className="block text-sm text-gray-700">¿Garantía?</label>
                 <label className="inline-flex items-center gap-2 h-10">
                   <input
@@ -2519,7 +2295,7 @@ export default function PublishModal({
                     {productCondition === "Nuevo" ? "Sí, producto nuevo" : productCondition === "Open Box" ? "Sí, Open Box" : "Sí, tiene garantía"}
                   </span>
                 </label>
-              </div>
+              </div>}
               {warrantyIsEnabled && (
                 <div>
                   <label className="block text-sm text-gray-700">Tipo de garantía</label>
@@ -2549,11 +2325,11 @@ export default function PublishModal({
                   />
                 </div>
               )}
-              <div>
+              {!isAccesorio && <div>
                 <label className="block text-sm text-gray-700">Color</label>
                 <input value={color} onChange={(e) => setColor(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" placeholder="Midnight / Silver" />
-              </div>
-              {!isWatch && (
+              </div>}
+              {!isAccesorio && !isWatch && (
                 <div className="col-span-2 rounded-xl border border-gray-200 bg-white/80 p-3">
                   <label className="block text-sm font-medium text-gray-800">¿Qué incluye?</label>
                   <p className="mt-0.5 text-xs text-gray-500">{productCondition === "Nuevo" ? "Producto nuevo: solo se guardan los accesorios básicos." : "Marca cada accesorio. Puedes combinar Caja, Cubo y Cable libremente."}</p>
@@ -2654,8 +2430,9 @@ export default function PublishModal({
 
           <div className="space-y-3">
             <div>
-              <label className="block text-sm">Tipo de venta</label>
+              <label htmlFor="publish-sale-type" className="block text-sm">Tipo de venta</label>
               <select
+                id="publish-sale-type"
                 value={saleType}
                 onChange={(e) => setSaleType(e.target.value)}
                 disabled={Boolean(forceSaleType)}
@@ -2674,10 +2451,20 @@ export default function PublishModal({
               </select>
             </div>
 
+            {isAccesorio && <fieldset className="space-y-3 rounded-xl border border-gray-200 p-4">
+              <legend className="px-1 font-semibold">Presentaciones del accesorio</legend>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={packEnabled} onChange={(e) => setPackEnabled(e.target.checked)} />Vender también por paquete o caja</label>
+              <p className="text-xs text-gray-600">El stock se registra en unidades. Los precios del paquete o caja son por la presentación completa, sin IGV.</p>
+              {packEnabled && <div className="grid gap-3 sm:grid-cols-3">
+                <label className="text-sm">Nombre de presentación<input aria-label="Nombre de presentación" maxLength={40} value={packLabel} onChange={(e) => setPackLabel(e.target.value)} className="mt-1 w-full rounded-lg border p-2" placeholder="Paquete o caja" /></label>
+                <label className="text-sm">Unidades por presentación<input aria-label="Unidades por presentación" type="number" min={2} max={1000000} step={1} value={packUnits} onChange={(e) => setPackUnits(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
+                <label className="text-sm">Precio de presentación (S/)<input aria-label="Precio de presentación" type="number" min="0.01" step="0.01" value={packPrice} onChange={(e) => setPackPrice(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
+              </div>}
+            </fieldset>}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm">Precio de venta (S/)</label>
-                <input type="number" value={salePrice} onChange={(e) => setSalePrice(Number(e.target.value))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" />
+                <label htmlFor="publish-sale-price" className="block text-sm">{isAccesorio ? "Precio por unidad (S/)" : "Precio de venta (S/)"}</label>
+                <input id="publish-sale-price" type="number" step={isAccesorio ? "0.01" : undefined} value={salePrice} onChange={(e) => setSalePrice(Number(e.target.value))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" />
               </div>
               {saleType === "PROMOCION" && (
                 <div className="space-y-2">
@@ -2746,6 +2533,3 @@ export default function PublishModal({
     </div>
   );
 }
-
-
-

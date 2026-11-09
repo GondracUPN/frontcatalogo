@@ -4,6 +4,7 @@
 // tarjetas de producto con datos reales (precio con IGV, precio anterior solo
 // si el backend lo informa y es mayor).
 import Image from "next/image";
+import WhatsAppLink from "../WhatsAppLink";
 import { useState } from "react";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
@@ -63,16 +64,14 @@ const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visi
 
 /** Botón principal + secundario. El secundario lleva al catálogo o a ofertas. */
 export function Ctas({ c, className = "", invert = false }: { c: ResolvedCampaign; className?: string; invert?: boolean }) {
-  const secondary = c.copy.ctaUrl === "/ofertas" ? { href: "/categorias", label: "Ver catálogo" } : { href: "/ofertas", label: "Ver ofertas" };
+  const secondary = { href: c.copy.ctaUrl, label: c.copy.cta };
   const primary = invert
     ? "bg-[color:var(--c-surface)] text-[color:var(--c-accent)] hover:opacity-90"
     : "bg-[color:var(--c-accent)] text-[color:var(--c-on-accent)] hover:brightness-110";
   const outline = invert ? "border-[color:var(--c-on-accent)] text-[color:var(--c-on-accent)]" : "border-[color:var(--c-ink)]/30 text-[color:var(--c-ink)]";
   return (
     <div className={`flex flex-wrap gap-3 ${className}`}>
-      <Link href={c.copy.ctaUrl} className={`inline-flex min-h-[52px] items-center rounded-full px-7 text-base font-semibold transition ${primary} ${focus}`}>
-        {c.copy.cta}
-      </Link>
+      <WhatsAppLink data-contact-primary source="hero" className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-semibold ${primary} ${focus}`} />
       <Link href={secondary.href} className={`inline-flex min-h-[52px] items-center rounded-full border-2 px-6 text-base font-semibold transition hover:bg-[color:var(--c-ink)]/5 ${outline} ${focus}`}>
         {secondary.label}
       </Link>
@@ -86,13 +85,16 @@ export function hasDiscount(p: HeroProduct) {
 
 export function Price({ p, className = "", strikeClass = "" }: { p: HeroProduct; className?: string; strikeClass?: string }) {
   return (
-    <span className={`flex flex-wrap items-baseline gap-x-2 ${className}`}>
-      <span className="font-semibold">{formatSoles(withIgv(p.price))}</span>
+    <span className="block">
+      <span className="block text-xs opacity-80">Precio sin IGV {formatSoles(p.price)}</span>
+      <span className={`flex flex-wrap items-baseline gap-x-2 ${className}`}>
+      <span className="font-semibold">{formatSoles(withIgv(p.price))} <span className="text-xs font-normal">con IGV</span></span>
       {hasDiscount(p) && (
         <span className={`text-[0.85em] line-through opacity-70 ${strikeClass}`}>
           <span className="sr-only">Antes </span>{formatSoles(withIgv(Number(p.compareAt)))}
         </span>
       )}
+    </span>
     </span>
   );
 }

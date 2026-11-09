@@ -15,7 +15,10 @@ export type CatalogEvent =
   | "add_to_cart"
   | "start_order_request"
   | "complete_order_request"
-  | "click_whatsapp";
+  | "click_whatsapp"
+  | "click_category"
+  | "click_reviews"
+  | "click_deliveries";
 
 type Details = Record<string, string | number | boolean | string[] | undefined | null>;
 
@@ -29,6 +32,21 @@ const FLUSH_MS = 2500;
 const queue: Array<Record<string, unknown>> = [];
 let timer: number | null = null;
 let listening = false;
+let attribution: Details | null = null;
+
+function campaignAttribution(): Details {
+  if (attribution) return attribution;
+  const params = new URLSearchParams(window.location.search);
+  const current = { utmSource: params.get("utm_source")?.slice(0, 80), utmMedium: params.get("utm_medium")?.slice(0, 80), utmCampaign: params.get("utm_campaign")?.slice(0, 120) };
+  attribution = current;
+  try {
+    if (hasConsent("analytics")) {
+      if (Object.values(current).some(Boolean)) sessionStorage.setItem("ms_campaign", JSON.stringify(current));
+      else attribution = JSON.parse(sessionStorage.getItem("ms_campaign") || "null") || current;
+    }
+  } catch {}
+  return attribution || current;
+}
 
 function apiBase() {
   const raw = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -124,6 +142,7 @@ export function trackCatalogEvent(event: CatalogEvent, details: Details = {}) {
   if (typeof window === "undefined") return;
   // El panel interno no cuenta como tráfico de clientes.
   if (window.location.pathname.startsWith("/servmacso10")) return;
+  details = { ...campaignAttribution(), ...details, origin_page: window.location.pathname };
   window.dispatchEvent(new CustomEvent("macsomenos:analytics", { detail: { event, ...details } }));
   const dataLayer = (window as Window & { dataLayer?: Array<Record<string, unknown>> }).dataLayer;
   dataLayer?.push({ event, ...details });

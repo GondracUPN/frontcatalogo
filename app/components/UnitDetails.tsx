@@ -28,7 +28,7 @@ export default function UnitDetails({ specs, condition, photoCount }: { specs: D
   return (
     <section aria-labelledby="unit-details-title" className="surface-card soft-outline mt-6 px-4 py-6 sm:px-8 sm:py-7">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="unit-details-title" className="text-xl font-semibold tracking-[-0.02em] text-[color:var(--foreground)] sm:text-2xl">Detalles de esta unidad</h2>
+        <h2 id="unit-details-title" className="text-xl font-semibold tracking-[-0.02em] text-[color:var(--foreground)] sm:text-2xl">Revisión del equipo</h2>
         {photoCount > 0 && <a href="#galeria" className="text-sm font-semibold text-[color:var(--accent-strong)] hover:underline">{photoCount === 1 ? "Ver la foto" : `Ver las ${photoCount} fotos`}</a>}
       </div>
       {split ? (
@@ -38,7 +38,7 @@ export default function UnitDetails({ specs, condition, photoCount }: { specs: D
             <div className="mt-1"><Rows rows={specs} columns="sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2" /></div>
           </div>
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--foreground-soft)]">Estado de la unidad</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--foreground-soft)]">Estado registrado</h3>
             <div className="mt-1"><Rows rows={condition} columns="" /></div>
           </div>
         </div>

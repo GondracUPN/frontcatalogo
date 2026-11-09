@@ -1,6 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import WhatsAppLink from "./WhatsAppLink";
+import ContactDock from "./ContactDock";
+import { trackCatalogEvent } from "@/lib/analytics";
 import { useEffect, useRef, useState } from "react";
 import { getCachedCartItems } from "@/app/cart/cartClient";
 import { CookiePreferencesButton } from "./CookieConsent";
@@ -17,6 +21,7 @@ const NAV_ITEMS = [
   { href: "/c/iphone", label: "iPhone" },
   { href: "/c/watch", label: "Apple Watch" },
   { href: "/c/otros", label: "Otros" },
+  { href: "/accesorios", label: "Accesorios" },
   { href: "/proximos", label: "Próximos" },
   { href: "/contact", label: "Contacto" },
 ];
@@ -27,7 +32,9 @@ const HELP_ITEMS = [
 ];
 
 export default function RootShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => setMenuOpen(false), [pathname]);
   const [cartCount, setCartCount] = useState(0);
   const siteTheme = useSiteTheme();
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -45,7 +52,14 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
     const returnFocusTo = menuTriggerRef.current;
     document.body.style.overflow = "hidden";
     menuCloseRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+      if (event.key !== "Tab") return;
+      const controls = [...document.querySelectorAll<HTMLElement>('#mobile-navigation a[href], #mobile-navigation button, #mobile-navigation input')].filter((el) => el.getClientRects().length && !el.hasAttribute("disabled"));
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
     window.addEventListener("keydown", onKey);
     return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", onKey); returnFocusTo?.focus(); };
   }, [menuOpen]);
@@ -62,7 +76,15 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className="store-shell flex min-h-svh flex-col" onClickCapture={(event) => {
+      const link = (event.target as Element).closest<HTMLAnchorElement>("a[href]");
+      if (!link) return;
+      const url = new URL(link.href, window.location.origin);
+      if (url.origin === window.location.origin && url.pathname.startsWith("/c/")) trackCatalogEvent("click_category", { category: url.pathname.split("/")[2] });
+      if (url.origin === window.location.origin && url.pathname === "/clientes") trackCatalogEvent("click_deliveries");
+      if (/google|maps.app.goo.gl/.test(url.hostname) && /reseña|opiniones|google/i.test(link.textContent || "")) trackCatalogEvent("click_reviews");
+      if (url.hostname === "wa.me" && !link.hasAttribute("data-whatsapp-tracked") && !link.closest("#product-action")) trackCatalogEvent("click_whatsapp", { source: link.closest("footer") ? "footer" : "home" });
+    }}>
       <a href="#contenido" className="sr-only z-[80] rounded-full bg-[color:var(--foreground)] px-5 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Saltar al contenido</a>
       <header className="sticky top-0 z-50 bg-[color:var(--background)] px-4 sm:px-6">
         <div className="mx-auto max-w-7xl">
@@ -92,7 +114,7 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="rounded-full px-3.5 py-2 text-[15px] text-[color:var(--foreground)] hover:bg-white"
+                  className="rounded-full px-2 py-2 text-[14px] text-[color:var(--foreground)] hover:bg-white"
                 >
                   {item.label}
                 </Link>
@@ -100,10 +122,11 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              <HeaderSearch className="hidden w-56 lg:block xl:hidden 2xl:block 2xl:w-64" />
-              <Link href="/buscar" className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-white px-4 text-[15px] font-semibold text-[color:var(--foreground)] lg:hidden xl:inline-flex 2xl:hidden">
+              <WhatsAppLink source="header" aria-label="Consultar por WhatsApp" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[#167344] px-3 text-[13px] font-semibold text-white hover:bg-[#105c35]"><span className="max-[359px]:sr-only">WhatsApp</span></WhatsAppLink>
+              <HeaderSearch className="hidden w-48 lg:block xl:hidden" />
+              <Link href="/buscar" className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-white px-4 text-[15px] font-semibold text-[color:var(--foreground)] lg:hidden xl:inline-flex">
                 <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="h-4 w-4"><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
-                <span className="max-[359px]:sr-only xl:sr-only">Buscar</span>
+                <span className="sr-only sm:not-sr-only xl:sr-only">Buscar</span>
               </Link>
               <Link
                 href="/cart"
@@ -172,7 +195,9 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <main id="contenido" tabIndex={-1} className="flex-1 focus:outline-none">{children}</main>
+      <main id="contenido" tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">{children}</main>
+
+      <ContactDock />
 
       <footer className="mt-20 bg-white px-4 pb-10 pt-14 sm:px-6">
         <div className="mx-auto max-w-7xl">

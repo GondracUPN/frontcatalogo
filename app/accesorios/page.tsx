@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function AccesoriosPage() {
-  redirect("/c/otros");
+  redirect("/c/accesorios");
 }

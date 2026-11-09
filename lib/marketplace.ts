@@ -1,8 +1,10 @@
+import { isAccessory, accessoryState, accessorySku, getAccessoryPack } from "@/lib/accessories";
 import { buildAppleWatchTitle, cleanAppleWatchTitle } from "@/lib/watch";
 import { formatWarrantyDate, warrantyStatus } from "@/lib/warranty";
 
 export type MarketplaceData = {
   sku: string;
+  displaySku?: string;
   titulo: string;
   precio: string;
   descripcion: string;
@@ -257,7 +259,7 @@ export function generateMarketplacePrice(product: MarketplaceProduct) {
     .filter((candidate) => candidate !== null && candidate !== undefined && String(candidate).trim() !== "")
     .map(Number)
     .find((candidate) => Number.isFinite(candidate) && candidate > 0) ?? 0;
-  return String(Math.trunc(value));
+  return isAccessory(product) ? String(Math.round(value * 100) / 100) : String(Math.trunc(value));
 }
 
 export function normalizeAccessories(product: MarketplaceProduct) {
@@ -324,6 +326,7 @@ function aestheticState(facts: ProductFacts) {
 }
 
 export function generateMarketplaceTitle(product: MarketplaceProduct, options: { legacyMacMiniTitle?: boolean } = {}) {
+  if (isAccessory(product)) return `REMATO - ${text(product.title)}`;
   const facts = productFacts(product);
   let parts: string[];
   if (isMacBook(facts)) {
@@ -443,7 +446,20 @@ function iphoneExtraLines(product: MarketplaceProduct, facts: ProductFacts) {
   return lines;
 }
 
+const MARKETPLACE_CLOSING = [
+  "Se entrega boleta de compra USA",
+  "Producto sin igv , si requiere boleta o factura + 18% igv al precio final acordado",
+  "Aceptamos pagos con tarjeta de crédito +3.5% 💳",
+  "🔸 Contraentrega en Centros Comerciales o en Almacén en Surco 🔸",
+  "🛑 No Mercado Pago 🛑",
+];
+
 export function generateMarketplaceDescription(product: MarketplaceProduct) {
+  if (isAccessory(product)) {
+    const pack = getAccessoryPack(product);
+    const prices = pack ? [`Precio por unidad: S/ ${generateMarketplacePrice(product)}`, `${pack.label} de ${pack.units} unidades: S/ ${pack.price.toFixed(2)}`, ""] : [];
+    return [`Se remata ${text(product.title)}`, "", `Estado: ${accessoryState(product)}`, "", ...prices, ...MARKETPLACE_CLOSING].join("\n");
+  }
   const facts = productFacts(product);
   const battery = !isSealed(facts) && facts.batteryHealth
     ? `Batería: ${facts.batteryCycles ? `${facts.batteryCycles} ciclos | ` : ""}${facts.batteryHealth}% de salud`
@@ -460,11 +476,7 @@ export function generateMarketplaceDescription(product: MarketplaceProduct) {
   const closingLines = [
     operative,
     `Estado estético: ${aestheticState(facts)}`,
-    "Se entrega boleta de compra USA",
-    "Producto sin igv , si requiere boleta o factura + 18% igv al precio final acordado",
-    "Aceptamos pagos con tarjeta de crédito +3.5% 💳",
-    "🔸 Contraentrega en Centros Comerciales o en Almacén en Surco 🔸",
-    "🛑 No Mercado Pago 🛑",
+    ...MARKETPLACE_CLOSING,
   ];
   return [
     introLine(facts),
@@ -491,6 +503,7 @@ function exactlyFifteen(candidates: Array<string | false | undefined>) {
 }
 
 export function generateMarketplaceTags(product: MarketplaceProduct) {
+  if (isAccessory(product)) return [text(product.title), "Accesorios", "Remate", "Electrónica"].filter(Boolean);
   const facts = productFacts(product);
   const storage = facts.storage;
   const screen = facts.screen;
@@ -532,13 +545,14 @@ export function generateMarketplaceData(product: MarketplaceProduct): Marketplac
   const facts = productFacts(product);
   return {
     sku: facts.sku,
+    displaySku: isAccessory(product) ? accessorySku(product) : undefined,
     titulo: generateMarketplaceTitle(product),
     precio: generateMarketplacePrice(product),
     descripcion: generateMarketplaceDescription(product),
     etiquetas: generateMarketplaceTags(product),
     categoriaMarketplace: "Electrónica e informática",
     estadoMarketplace: isSealed(facts) ? "Nuevo" : "Usado: como nuevo",
-    images: Array.from(new Set((Array.isArray(product.images) ? product.images : []).map((url) => String(url || "").trim()).filter(Boolean))),
+    images: isAccessory(product) ? [] : Array.from(new Set((Array.isArray(product.images) ? product.images : []).map((url) => String(url || "").trim()).filter(Boolean))),
   };
 }
 

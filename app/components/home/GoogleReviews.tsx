@@ -31,7 +31,7 @@ export default async function GoogleReviews() {
         <div className="mx-auto flex max-w-7xl flex-wrap items-end justify-between gap-4">
           <BrandHeading id="reviews-title" title="Lo que dicen nuestros clientes" note="Lee las reseñas de Macsomenos en Google Maps." />
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center rounded-full bg-[color:var(--foreground)] px-6 text-base font-semibold text-white hover:bg-black">
-            Ver reseñas en Google
+            Ver opiniones en Google
           </a>
         </div>
       </section>

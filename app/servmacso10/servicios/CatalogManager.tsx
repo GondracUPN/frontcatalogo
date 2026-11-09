@@ -1,4 +1,5 @@
 "use client";
+import { accessorySku, isAccessory } from "@/lib/accessories";
 import React from "react";
 import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
 import dynamic from "next/dynamic";
@@ -106,6 +107,7 @@ function linkedSkuRowsFor(row: CatalogRow) {
 }
 
 function isIndependentUnit(row: CatalogRow) {
+  if (isAccessory(row)) return false;
   return !/^nuevo$/i.test(conditionOf(row));
 }
 
@@ -146,7 +148,7 @@ function matchesSearch(value: unknown, search: string) {
 }
 
 function skuSortValue(row: CatalogRow) {
-  return displaySku(row.product?.sku || row.staged?.sku).toUpperCase();
+  return (isAccessory(row) ? accessorySku(row) : displaySku(row.product?.sku || row.staged?.sku)).toUpperCase();
 }
 
 function skuSortParts(value: string) {
@@ -164,7 +166,7 @@ function compareSkuRows(a: CatalogRow, b: CatalogRow) {
   return left.raw.localeCompare(right.raw);
 }
 
-export default function CatalogManager({ initialItems, inventoryItems = [], canDelete = true, search = "" }: { initialItems: CatalogRow[]; inventoryItems?: any[]; canDelete?: boolean; search?: string }) {
+export default function CatalogManager({ initialItems, inventoryItems = [], canDelete = true, search = "", onlyCategory }: { initialItems: CatalogRow[]; inventoryItems?: any[]; canDelete?: boolean; search?: string; onlyCategory?: string }) {
   const [items, setItems] = React.useState<CatalogRow[]>(initialItems || []);
   const [inventoryRows, setInventoryRows] = React.useState<any[]>(inventoryItems || []);
   const [categoryFilter, setCategoryFilter] = React.useState("all");
@@ -192,9 +194,9 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
   const refreshCatalog = React.useCallback(async () => {
     try {
       const { items } = await listAdminCatalog();
-      setItems(items as any);
+      setItems(items.filter((item: any) => !onlyCategory || (item.category || item.staged?.category) === onlyCategory) as any);
     } catch {}
-  }, []);
+  }, [onlyCategory]);
 
   React.useEffect(() => {
     window.addEventListener("catalog-products-updated", refreshCatalog);
@@ -291,7 +293,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
       .filter((row) => categoryFilter === "all" || rowCategory(row) === categoryFilter)
       .filter((row) => {
         if (!term) return true;
-        const mainSku = displaySku(row.product?.sku || row.staged?.sku).toLowerCase();
+        const mainSku = (isAccessory(row) ? accessorySku(row) : displaySku(row.product?.sku || row.staged?.sku)).toLowerCase();
         const title = String(row.product?.title || row.staged?.title || row.slug || "");
         return matchesSearch(title, term) || mainSku.includes(term) || linkedSkuRowsFor(row).some((linked: any) =>
           displaySku(linked?.sku).toLowerCase().includes(term) || matchesSearch(linked?.title, term)
@@ -314,7 +316,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
     return [
       product.variant_group || staged.variant_group ? `Grupo: ${product.variant_group || staged.variant_group}` : "",
       `Estado: ${conditionLabel(conditionOf(row))}`,
-      product.sku || staged.sku ? `SKU: ${displaySku(product.sku || staged.sku)}` : "",
+      product.sku || staged.sku ? `SKU: ${(isAccessory(row) ? accessorySku(row) : displaySku(product.sku || staged.sku))}` : "",
       product.title || staged.title ? "" : "",
       !isIndependentUnit(row) && product.stock ? `Stock: ${product.stock}` : "",
       product.status === "sold" ? "Vendido" : "",
@@ -433,7 +435,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                     </div>
                   </td>
                   <td className="p-2 text-xs text-gray-600">
-                    {entry.rows.map((row) => displaySku(row.product?.sku || row.staged?.sku)).filter(Boolean).join(", ") || "-"}
+                    {entry.rows.map((row) => (isAccessory(row) ? accessorySku(row) : displaySku(row.product?.sku || row.staged?.sku))).filter(Boolean).join(", ") || "-"}
                   </td>
                   <td className="p-2 text-gray-900">
                     Desde S/ {groupMinPrice.toFixed(2)}
@@ -458,7 +460,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                     {variantLabel(row) && <div className="mt-1 text-xs font-normal text-gray-500">{variantLabel(row)}</div>}
                   </td>
                   <td className="p-2 text-gray-900">
-                    <div>{displaySku(row.product?.sku || row.staged?.sku) || "-"}</div>
+                    <div>{(isAccessory(row) ? accessorySku(row) : displaySku(row.product?.sku || row.staged?.sku)) || "-"}</div>
                     {isIndependentUnit(row) && <div className="mt-1 text-xs text-gray-500">Equipo independiente</div>}
                   </td>
                   <td className="p-2 text-gray-900">S/ {Number(row.product?.price || 0).toFixed(2)}</td>
@@ -519,6 +521,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                       onClick={async () => {
                         try {
                           await unpublishProduct(row.product?.id || row.id);
+                          window.dispatchEvent(new Event("staged-products-updated"));
                           setItems((arr) => arr.filter((r) => r.id !== row.id));
                         } catch {
                           alert("No se pudo despublicar");
@@ -608,6 +611,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                           onClick={async () => {
                             try {
                               await unpublishProduct(linked.catalogProduct.id);
+                              window.dispatchEvent(new Event("staged-products-updated"));
                               await refreshCatalog();
                             } catch {
                               alert("No se pudo despublicar este equipo");

@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Macsomenos Publicaciones Market P
 // @namespace    macsomenos-marketplace
-// @version      4.6.1
-// @description  Recupera productos preparados desde MacsoMenos y rellena Facebook Marketplace sin publicar
+// @version      4.7.2
+// @description  Publicador de Marketplace + respuesta rápida de dos mensajes en el chat (bajo clic)
 // @match        https://www.facebook.com/*
 // @match        https://facebook.com/*
 // @match        https://*.facebook.com/*
@@ -13,6 +13,9 @@
 // @grant        GM_deleteValue
 // @grant        GM_info
 // @connect      backcatalogo.onrender.com
+// @connect      www.macsomenos.com
+// @connect      macsomenos.com
+// @connect      www.facebook.com
 // @connect      *
 // @run-at       document-start
 // @noframes
@@ -654,7 +657,7 @@
 
   function greetingForLocalTime() {
     const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return "Muy buenos dias";
+    if (hour >= 5 && hour < 12) return "Muy buenos días";
     if (hour >= 12 && hour < 19) return "Muy buenas tardes";
     return "Muy buenas noches";
   }
@@ -674,7 +677,7 @@
     if (!composer) throw new Error("Haz clic primero en el cuadro del chat que quieres responder");
     if (composerText(composer)) throw new Error("El chat tiene un borrador. Bórralo o envíalo antes de usar la respuesta rápida");
     const dialog = composer.closest('[role="dialog"]');
-    const messages = [greetingForLocalTime(), "Si aun lo tengo disponible", "Le interesa?"];
+    const messages = [greetingForLocalTime(), "Sí, aún lo tenemos disponible. Estamos ubicados en Surco, límite con Chorrillos. Toda la información del equipo está en la descripción de la publicación. También puedes visitar nuestro catálogo para conocer más sobre nosotros y ver los equipos disponibles: http://www.macsomenos.com/"];
     button.disabled = true;
     button.textContent = "…";
     for (let index = 0; index < messages.length; index += 1) {
@@ -706,15 +709,15 @@
     button.id = "macsomenos-quick-chat";
     button.type = "button";
     button.title = "Enviar respuesta rápida al chat abierto";
-    button.setAttribute("aria-label", "Enviar tres mensajes de respuesta rápida al chat abierto");
-    button.textContent = "💬3";
+    button.setAttribute("aria-label", "Enviar dos mensajes de respuesta rápida al chat abierto");
+    button.textContent = "💬2";
     button.style.cssText = "position:fixed;right:18px;bottom:82px;width:54px;height:54px;z-index:2147483647;border:0;border-radius:999px;background:#42b72a;color:#fff;font:bold 16px Arial,sans-serif;box-shadow:0 8px 25px rgba(0,0,0,.35);cursor:pointer;display:flex;align-items:center;justify-content:center";
     button.onclick = async () => {
       try { await sendQuickChatReply(button); }
       catch (error) { showChatToast(error instanceof Error ? error.message : "No se pudo enviar la respuesta", true); }
       finally {
         button.disabled = false;
-        button.textContent = "💬3";
+        button.textContent = "💬2";
         updateQuickChatButton();
       }
     };
@@ -782,7 +785,7 @@
       return;
     }
     panel.innerHTML = `
-      <div style="display:flex;justify-content:space-between;gap:10px"><div><strong style="font-size:17px">Publicador · ${MODE_LABEL}</strong><div style="margin-top:4px;color:#667085;font-size:12px">SKU: <strong>${escapeHtml(product.sku)}</strong></div></div><button id="mm-minimize" title="Minimizar" aria-label="Minimizar" style="width:32px;height:32px;line-height:1;border:0;border-radius:999px;background:#e4e6eb;font-size:22px;cursor:pointer">−</button></div>
+      <div style="display:flex;justify-content:space-between;gap:10px"><div><strong style="font-size:17px">Publicador · ${MODE_LABEL}</strong><div style="margin-top:4px;color:#667085;font-size:12px">SKU: <strong id="mm-publisher-current-sku">${escapeHtml(product.sku)}</strong></div></div><button id="mm-minimize" title="Minimizar" aria-label="Minimizar" style="width:32px;height:32px;line-height:1;border:0;border-radius:999px;background:#e4e6eb;font-size:22px;cursor:pointer">−</button></div>
       <div style="margin:12px 0;padding:10px;border-radius:9px;background:#f2f4f7;font-size:12px;line-height:1.5"><strong>Título</strong><br>${escapeHtml(product.titulo)}<br><br><strong>Precio</strong><br>S/ ${escapeHtml(product.precio)}</div>
       <button id="mm-fill" style="width:100%;padding:11px;border:0;border-radius:8px;background:#1877f2;color:#fff;font-weight:700;cursor:pointer">Rellenar Marketplace</button>
       <button id="mm-refresh" style="width:100%;margin-top:8px;padding:9px;border:0;border-radius:8px;background:#e4e6eb;cursor:pointer">Actualizar producto</button>
@@ -822,6 +825,7 @@
     if (startMinimized) minimizePanel(panel);
   }
 
+
   async function start() {
     if (!document.body) {
       await new Promise((resolve) => document.addEventListener("DOMContentLoaded", resolve, { once: true }));
@@ -832,7 +836,7 @@
       if (openAfterNavigation) sessionStorage.removeItem(OPEN_AFTER_NAVIGATION_KEY);
     } catch {}
     const startMinimized = !openAfterNavigation;
-    console.log(`[MacsoMenos Marketplace] ${MODE_LABEL} activo v4.6.1 en`, location.href);
+    console.log(`[MacsoMenos Marketplace] ${MODE_LABEL} activo v4.7.2 en`, location.href);
     new MutationObserver(scheduleQuickChatButtonUpdate).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-label", "contenteditable"] });
     updateQuickChatButton();
     createPanel(null, "Tampermonkey está activo. Consultando el backend...", startMinimized);

@@ -229,6 +229,9 @@ export async function createManualPreventaDraft(seed?: {
   title?: string;
   stock?: number;
   price?: number;
+  accessoryState?: string;
+  accessoryCosts?: { purchase: number; shipping: number };
+  images?: string[];
 }) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
@@ -244,6 +247,9 @@ export async function createManualPreventaDraft(seed?: {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({
+        accessoryState: seed?.accessoryState,
+        accessoryCosts: seed?.accessoryCosts,
+        images: seed?.images,
         saleType,
         category,
         sku,
@@ -465,6 +471,8 @@ export async function getHomeCatalog() {
   return apiFetch<{
     items: Array<{
       id: string;
+      product_id?: string;
+      sku?: string;
       slug: string;
       category: string | null;
       image: string;
@@ -488,7 +496,7 @@ export async function getHomeCatalog() {
       hasConditionDetails?: boolean;
     }>;
     featured: Array<{
-      id: string; slug: string; category: string | null; image: string; title: string;
+      id: string; product_id?: string; sku?: string; slug: string; category: string | null; image: string; title: string;
       condition: string; saleType: string; price: number; compareAt: number | null;
       stock: number; status?: string | null; availabilityLabel?: string;
       processor?: string | null; ram?: string | null; storage?: string | number | null;
@@ -497,7 +505,7 @@ export async function getHomeCatalog() {
     }>;
     /** Promociones reales para las campañas. Opcional: el backend puede desplegarse después. */
     promotions?: Array<{
-      id: string; slug: string; category: string | null; image: string; title: string;
+      id: string; product_id?: string; sku?: string; slug: string; category: string | null; image: string; title: string;
       condition: string; saleType: string; price: number; compareAt: number | null;
       stock: number; promoLabel?: string;
     }>;

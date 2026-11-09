@@ -46,7 +46,7 @@ export default function ProductViewTracker({ productId, productSlug, productTitl
   // identificadores si no hay consentimiento; ver lib/analytics).
   React.useEffect(() => {
     if (!productId) return;
-    trackCatalogEvent("view_product", { product_id: productId, product_slug: productSlug, category: category || "" });
+    trackCatalogEvent("view_product", { product_id: productId, product_slug: productSlug, product_title: productTitle, category: category || "" });
     const startedAt = Date.now();
     let sent = false;
     const leave = () => {
@@ -59,7 +59,7 @@ export default function ProductViewTracker({ productId, productSlug, productTitl
       window.removeEventListener("pagehide", leave);
       leave();
     };
-  }, [category, productId, productSlug]);
+  }, [category, productId, productSlug, productTitle]);
 
   // Registro anterior de vistas (panel «Vistas»): solo con consentimiento analítico.
   React.useEffect(() => {

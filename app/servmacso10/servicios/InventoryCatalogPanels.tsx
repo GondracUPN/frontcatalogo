@@ -13,11 +13,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function InventoryCatalogPanels({ inventoryItems, catalogItems, sealedPresets, canDelete }: {
+export default function InventoryCatalogPanels({ inventoryItems, catalogItems, sealedPresets, canDelete, category }: {
   inventoryItems: any[];
   catalogItems: any[];
   sealedPresets: any[];
   canDelete: boolean;
+  category?: string;
 }) {
   const [search, setSearch] = React.useState("");
 
@@ -34,10 +35,10 @@ export default function InventoryCatalogPanels({ inventoryItems, catalogItems, s
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="Inventario">
-          <StagedManager initialItems={inventoryItems} sealedPresets={sealedPresets} canDelete={canDelete} search={search} />
+          <StagedManager onlyCategory={category} initialItems={inventoryItems} sealedPresets={sealedPresets} canDelete={canDelete} search={search} />
         </Section>
         <Section title="Catálogo">
-          <CatalogManager initialItems={catalogItems} inventoryItems={inventoryItems} canDelete={canDelete} search={search} />
+          <CatalogManager onlyCategory={category} initialItems={catalogItems} inventoryItems={inventoryItems} canDelete={canDelete} search={search} />
         </Section>
       </div>
     </div>

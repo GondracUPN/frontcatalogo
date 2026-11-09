@@ -30,6 +30,7 @@ function UnitTag({ unit, large = false }: { unit: VitrinaUnit; large?: boolean }
       )}
       <span className={`mt-1.5 line-clamp-2 font-semibold leading-tight tracking-[-0.01em] text-[color:var(--foreground)] ${large ? "text-[17px] sm:text-[19px]" : "text-[14px]"}`}>{unit.title}</span>
       {unit.detail && large && <span className={`mt-0.5 block truncate text-[color:var(--foreground-soft)] ${large ? "text-[13px] sm:text-sm" : "text-[12px]"}`}>{unit.detail}</span>}
+      <span className="mt-1 block text-[11px] text-[color:var(--foreground-soft)]">Precio sin IGV {formatSoles(unit.price)}</span>
       <span className={`mt-1.5 flex flex-wrap items-baseline gap-x-2 ${large ? "" : "text-[14px]"}`}>
         <span className={`font-bold tabular-nums text-[color:var(--foreground)] ${large ? "text-lg sm:text-xl" : ""}`}>{formatSoles(withIgv(unit.price))}</span>
         <span className="text-[11px] font-medium text-[color:var(--foreground-soft)]">con IGV</span>

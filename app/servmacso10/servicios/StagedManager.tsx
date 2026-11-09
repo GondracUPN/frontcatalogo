@@ -1,4 +1,5 @@
 "use client";
+import { accessorySku, isAccessory } from "@/lib/accessories";
 import React from "react";
 import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
 import dynamic from "next/dynamic";
@@ -8,7 +9,7 @@ import { DeleteIcon, PublishIcon, SellIcon } from "./ActionIcons";
 
 const StagedPublishModal = dynamic(() => import("./PublishModal"), { ssr: false });
 
-export default function StagedManager({ initialItems, sealedPresets = [], canDelete = true, search = "" }: { initialItems: any[]; sealedPresets?: any[]; canDelete?: boolean; search?: string }) {
+export default function StagedManager({ initialItems, sealedPresets = [], canDelete = true, search = "", onlyCategory }: { initialItems: any[]; sealedPresets?: any[]; canDelete?: boolean; search?: string; onlyCategory?: string }) {
   const [items, setItems] = React.useState<any[]>(initialItems || []);
   const [open, setOpen] = React.useState<null | any>(null);
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
@@ -39,12 +40,12 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
     const refreshStaged = async () => {
       try {
         const res = await listStaged({ pageSize: "all" });
-        setItems(Array.isArray(res?.items) ? res.items : []);
+        setItems((Array.isArray(res?.items) ? res.items : []).filter((item: any) => !onlyCategory || item.category === onlyCategory));
       } catch {}
     };
     window.addEventListener("staged-products-updated", refreshStaged);
     return () => window.removeEventListener("staged-products-updated", refreshStaged);
-  }, []);
+  }, [onlyCategory]);
 
   const costoCompra = (it: any) => {
     try {
@@ -103,7 +104,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
     const map = new Map<string, any[]>();
     const term = search.trim().toLowerCase();
     items
-      .filter((it) => !term || displaySku(it?.sku).toLowerCase().includes(term) || matchesSearch(it?.title, term))
+      .filter((it) => !term || (isAccessory(it) ? accessorySku(it) : displaySku(it?.sku)).toLowerCase().includes(term) || matchesSearch(it?.title, term))
       .forEach((it) => {
       const key = groupKeyFor(it);
       map.set(key, [...(map.get(key) || []), it]);
@@ -128,8 +129,8 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
       await deleteStaged(it.id);
       setItems((arr) => arr.filter((a) => a.id !== it.id));
       window.dispatchEvent(new Event("staged-products-updated"));
-    } catch {
-      alert("No se pudo eliminar el borrador");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo eliminar el borrador");
     }
   };
 
@@ -147,7 +148,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
   const renderItemRow = (it: any, nested = false) => (
     <tr key={it.id} className={`border-t ${nested ? "bg-white" : ""}`}>
       <td className={`p-2 text-gray-900 font-medium ${nested ? "pl-6" : ""}`}>{it.title}</td>
-      <td className="p-2 text-gray-900">{displaySku(it.sku)}</td>
+      <td className="p-2 text-gray-900">{(isAccessory(it) ? accessorySku(it) : displaySku(it.sku))}</td>
       <td className="p-2 text-gray-900">{costoCompra(it)}</td>
       <td className="p-2 text-gray-900">{it.price}</td>
       <td className="p-2"><span className="px-2 py-1 rounded bg-gray-100 text-gray-900">{it.status}</span></td>
@@ -272,7 +273,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Vender desde inventario</h3>
-                <p className="text-sm text-gray-600">{soldModal.item?.title} · {displaySku(soldModal.item?.sku)}</p>
+                <p className="text-sm text-gray-600">{soldModal.item?.title} · {(isAccessory(soldModal.item || {}) ? accessorySku(soldModal.item) : displaySku(soldModal.item?.sku))}</p>
               </div>
               <button disabled={selling} onClick={() => setSoldModal(null)} aria-label="Cerrar" className="text-xl text-gray-500 disabled:opacity-40">×</button>
             </div>

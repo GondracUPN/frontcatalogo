@@ -17,7 +17,7 @@ async function copyText(value: string) {
 }
 
 function allText(data: MarketplaceData) {
-  return [`SKU: ${data.sku}`, "", "Título:", data.titulo, "", "Precio:", data.precio, "", "Descripción:", data.descripcion, "", "Etiquetas:", data.etiquetas.join(", ")].join("\n");
+  return [`SKU: ${data.displaySku || data.sku}`, "", "Título:", data.titulo, "", "Precio:", data.precio, "", "Descripción:", data.descripcion, "", "Etiquetas:", data.etiquetas.join(", ")].join("\n");
 }
 
 export default function MarketplacePreviewModal({ initialData, onClose }: { initialData: MarketplaceData; onClose: () => void }) {
@@ -71,13 +71,13 @@ export default function MarketplacePreviewModal({ initialData, onClose }: { init
         <div className="flex items-start justify-between gap-4 pr-12">
           <div>
             <h3 id="marketplace-title" className="text-xl font-semibold">Facebook Marketplace</h3>
-            <p className="mt-1 text-sm text-gray-600">SKU: <span className="font-mono font-semibold text-gray-900">{data.sku || "Sin SKU"}</span></p>
+            <p className="mt-1 text-sm text-gray-600">SKU: <span className="font-mono font-semibold text-gray-900">{data.displaySku || data.sku || "Sin SKU"}</span></p>
           </div>
         </div>
 
         <div className="mt-5 grid gap-4">
           <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">
-            Fotos normales listas para Marketplace: <strong>{data.images.length}</strong>. La primera será la carátula.
+            {data.images.length ? <>Fotos normales listas para Marketplace: <strong>{data.images.length}</strong>. La primera será la carátula.</> : "No se enviarán imágenes con esta preparación."}
           </p>
           <label className="grid gap-1 text-sm font-medium">
             Título

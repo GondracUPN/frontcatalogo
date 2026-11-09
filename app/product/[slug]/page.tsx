@@ -1,3 +1,5 @@
+import { isAccessory, accessoryState, accessorySku, getAccessoryPack } from "@/lib/accessories";
+import AccessoryPurchaseOptions from "@/app/components/AccessoryPurchaseOptions";
 import ProductGallery from "@/app/components/ProductGallery";
 import AddToCartClient from "@/app/components/AddToCartClient";
 import ProductViewTracker from "@/app/components/ProductViewTracker";
@@ -209,7 +211,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const baseShownTitle = iphoneTitle || watchTitle || titleFallback;
   const baseTitle = isPreventa ? (/^preventa\s+/i.test(baseShownTitle) ? baseShownTitle : `Preventa ${baseShownTitle}`.trim()) : baseShownTitle;
   const tecladoLabel = keyboardLabel(teclado);
-  const productCondition = product?.product_condition || staged?.product_condition || notes?.productCondition || notes?.estado || notes?.specs?.estado || "";
+  const productCondition = isAccessory(item) ? accessoryState(item) : product?.product_condition || staged?.product_condition || notes?.productCondition || notes?.estado || notes?.specs?.estado || "";
   const warrantyObject = [notes?.warranty, notes?.garantiaDetalle, notes?.garantia]
     .find((value) => value && typeof value === "object") || {};
   const rawWarrantyValue = notes?.warrantyDate
@@ -313,7 +315,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       { label: "Color", value: colorCap }
     );
   }
-  especs.push({ label: "SKU", value: publicSku(product?.sku || staged?.sku || notes?.manualSku || notes?.sourceSku) });
+  especs.push({ label: "SKU", value: isAccessory(item) ? accessorySku(item) : publicSku(product?.sku || staged?.sku || notes?.manualSku || notes?.sourceSku) });
 
   const includesValue = product?.includes || staged?.includes || notes?.includes || notes?.watchIncludes || null;
   const includesExtra = product?.includes_extra || staged?.includes_extra || notes?.includesExtra || "";
@@ -359,7 +361,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   // Disponibilidad pública (calculada en el backend: vendido, reservado, preventa).
   const availability: string = String(item.availability || (sold ? "sold" : outOfStock ? "sold" : isPreventa ? "preorder" : "available"));
   const notForSale = availability === "sold" || availability === "reserved";
-  const sku = publicSku(product?.sku || staged?.sku || notes?.manualSku || notes?.sourceSku);
+  const accessoryPack = getAccessoryPack(item);
+  const sku = isAccessory(item) ? accessorySku(item) : publicSku(product?.sku || staged?.sku || notes?.manualSku || notes?.sourceSku);
   const allUnits = variants.filter((variant: any) => variant?.slug);
   // Fotos de detalles tal como las ordena la galería (después de las del equipo).
   const galleryPrimaryCount = images.filter(Boolean).length;
@@ -371,7 +374,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     "@type": "Product",
     name: title,
     image: images,
-    sku: product?.sku || staged?.sku || undefined,
+    sku: sku || undefined,
     description: productDescription || undefined,
     url: `https://www.macsomenos.com/product/${encodeURIComponent(item.slug || slug)}`,
   };
@@ -460,14 +463,15 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 </div>
               ) : (
                 <div>
+                  {isAccessory(item) && <p className="mb-2 text-sm font-semibold">Precio por unidad</p>}
                   <PriceWithIgv
                     price={price}
                     compareAt={compareAt}
                     rowClassName="flex flex-wrap items-baseline gap-x-3 gap-y-1"
-                    labelClassName="text-xs font-semibold uppercase tracking-[0.16em] text-red-600"
+                    labelClassName="text-xs font-semibold text-[color:var(--foreground-soft)]"
                     compareAtClassName="text-base text-[color:var(--foreground-soft)] line-through"
                     igvClassName="mt-2"
-                    priceClassName="text-3xl font-bold tracking-[-0.04em] text-emerald-600 sm:text-[34px]"
+                    priceClassName="text-3xl font-bold tracking-[-0.04em] text-[color:var(--foreground)] sm:text-[34px]"
                   />
                 </div>
               )}
@@ -492,14 +496,21 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               {notForSale && <ProductUnitPicker units={units} minUnits={1} currentSlug={item.slug || slug} showMemory={category !== "watch" && category !== "otros"} heading="Unidades disponibles de este modelo" />}
 
               {!notForSale && (
-                <div id="product-action" className="scroll-mt-28">
+                <div id="product-action" data-contact-primary className="scroll-mt-28">
+                  {accessoryPack ? <AccessoryPurchaseOptions productId={productId} pack={accessoryPack} stock={stock} saleType={saleType} salePrice={salePrice} product={{ title, sku, slug: item.slug || slug, price, condition: productCondition }} /> : <>
+                  <WhatsAppProductLink productId={productId} title={title} sku={sku} slug={item.slug || slug} price={price} condition={productCondition} variant={variantOptionLabel({ color: colorCap, ram: ramVal, storage: almVal || formatStorageDisplay(storageGb), batteryHealth, batteryCycles })} />
+                  <div className="mt-3">
                   <AddToCartClient
                     productId={productId}
+                    productTitle={title}
+                    productSlug={item.slug || slug}
+                    sku={sku}
                     saleType={saleType}
                     salePrice={salePrice}
                     disabled={!productId}
                   />
-                  <div className="mt-3"><WhatsAppProductLink productId={productId} title={title} sku={product?.sku || staged?.sku} slug={item.slug || slug} price={price} condition={productCondition} variant={variantOptionLabel({ color: colorCap, ram: ramVal, storage: almVal || formatStorageDisplay(storageGb), batteryHealth, batteryCycles })} /></div>
+                  </div>
+                  </>}
                 </div>
               )}
 
@@ -531,7 +542,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
         {category && <Suspense fallback={null}><ProductAlternatives item={item} category={category} catalog={catalogPromise} excludeSlugs={allUnits.map((variant: any) => String(variant.slug))} /></Suspense>}
       </div>
-      {!notForSale && <MobileProductAction price={price} unavailable={false} isPreventa={isPreventa} />}
+      {!notForSale && !accessoryPack && <MobileProductAction productId={productId} product={{ title, sku, slug: item.slug || slug, price, condition: productCondition, variant: variantOptionLabel({ color: colorCap, ram: ramVal, storage: almVal || formatStorageDisplay(storageGb), batteryHealth, batteryCycles }) }} />}
     </div>
   );
 }

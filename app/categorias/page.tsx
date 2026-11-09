@@ -11,6 +11,7 @@ const CATS = [
   { key: "ipad", label: "iPad", href: "/c/ipad", icon: "/imagenestipos/ipad.webp", note: "Movilidad y creatividad." },
   { key: "watch", label: "Watch", href: "/c/watch", icon: "/imagenestipos/watch.webp", note: "Estilo y ecosistema." },
   { key: "otros", label: "Otros", href: "/c/otros", icon: "/imagenestipos/accesorios.webp", note: "Más opciones." },
+  { key: "accesorios", label: "Accesorios", href: "/accesorios", icon: "/imagenestipos/accesorios.webp", note: "Por unidad, paquete o caja." },
 ] as const;
 
 export default async function CategoriasPage() {
@@ -39,7 +40,7 @@ export default async function CategoriasPage() {
             </p>
           </div>
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {data.map((cat) => (
               <Link
                 key={cat.key}

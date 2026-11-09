@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { listCatalog } from "../actions";
+import WhatsAppProductLink from "../components/WhatsAppProductLink";
 import PriceWithIgv from "../components/PriceWithIgv";
 import { catalogFacts, compactSpecs, detailCountLabel } from "@/lib/catalog-display";
 
@@ -53,10 +54,9 @@ export default async function ProximosPage() {
                 const specLines = compactSpecs(facts);
                 const aestheticLabel = detailCountLabel(facts.detailImages.length, Boolean(facts.conditionDescription));
                 return (
-                  <Link
+                  <article
                     key={row.id}
-                    href={`/product/${row.slug}`}
-                    className="catalog-card group rounded-[28px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.94))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
+                    className="catalog-card group relative rounded-[28px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.94))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
                   >
                     <div className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(145deg,#f5f7fa,#ebf0f6)]">
                       <span className="absolute left-3 top-3 z-10 rounded-full bg-black/85 px-3 py-1 text-[11px] font-semibold text-white">
@@ -73,12 +73,13 @@ export default async function ProximosPage() {
                       </div>
                     </div>
                     <div className="mt-4 text-lg font-semibold leading-6 tracking-[-0.03em] text-[color:var(--foreground)] line-clamp-2">
-                      {title}
+                      <Link href={`/product/${row.slug}`} className="after:absolute after:inset-0 after:content-['']">{title}</Link>
                     </div>
                     {specLines.length > 0 && <div className="mt-2 space-y-1 text-xs font-medium leading-5 text-[color:var(--foreground-soft)]">{specLines.map((line) => <div key={line}>{line}</div>)}</div>}
                     {aestheticLabel && <div className="mt-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-900">{aestheticLabel}</div>}
                     <PriceWithIgv price={priceFromRow(row)} wrapperClassName="mt-3" />
-                  </Link>
+                    <div className="mt-3"><WhatsAppProductLink title={title} slug={row.slug} sku={row.product?.sku || row.staged?.sku} price={Number(row.product?.price ?? row.staged?.price ?? 0)} productId={row.product?.id || row.product_id} source="card" compact /></div>
+                  </article>
                 );
               })
             ) : (

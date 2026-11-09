@@ -1,4 +1,5 @@
 "use client";
+import { isAccessory, accessoryState, getAccessoryPack } from "@/lib/accessories";
 import Link from "next/link";
 import React from "react";
 import dynamic from "next/dynamic";
@@ -7,7 +8,7 @@ import { catalogFacts, compactSpecs, detailCountLabel, formatRam } from "@/lib/c
 import { catalogPrice, withIgv } from "@/lib/catalog-price";
 import { matchScore, matchesTerms, searchTerms, searchableText } from "@/lib/catalog-search";
 import { trackCatalogEvent } from "@/lib/analytics";
-import { whatsappUrl } from "@/lib/store-config";
+import WhatsAppLink from "./WhatsAppLink";
 
 type Row = any;
 
@@ -38,7 +39,7 @@ function parseNotes(row: Row) {
 function priceMeta(row: Row) {
   const { price, compareAt, saleType, promoLabel } = catalogPrice(row);
   const notes = parseNotes(row).notes as any;
-  const condition = String(row?.product?.product_condition || row?.staged?.product_condition || notes?.productCondition || notes?.estado || "");
+  const condition = isAccessory(row) ? accessoryState(row) : String(row?.product?.product_condition || row?.staged?.product_condition || notes?.productCondition || notes?.estado || "");
   return { price, compareAt, condition, saleType, promoLabel };
 }
 
@@ -805,6 +806,9 @@ export default function CategoryBrowser({ initialItems, category, initialQuery =
                     priority={index < 3}
                     data={{
                       slug,
+                      accessoryPack: getAccessoryPack(row),
+                      productId: row.product?.id || row.product_id,
+                      sku: row.product?.sku || row.staged?.sku || item.notes?.manualSku || item.notes?.sourceSku,
                       title: row.product?.title || row.staged?.title || slug,
                       image: (row.images && row.images[0]) || row.staged?.images?.[0] || "/placeholder.svg",
                       color: String(row.product?.color || row.staged?.color || item.notes?.color || "").trim(),
@@ -828,7 +832,7 @@ export default function CategoryBrowser({ initialItems, category, initialQuery =
                 <p className="mx-auto mt-2 max-w-md leading-6">Prueba con menos palabras, quita algún filtro o escríbenos por WhatsApp y te ayudamos a encontrar una alternativa.</p>
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
                   <button type="button" onClick={() => { setSearch(""); resetFilters(); }} className="min-h-11 rounded-full border border-black/10 bg-white px-5 py-2 font-semibold text-[color:var(--foreground)]">Limpiar búsqueda y filtros</button>
-                  <a href={whatsappUrl(`Hola, busco este equipo: ${search.trim() || "un equipo Apple"}`)} target="_blank" rel="noopener noreferrer" onClick={() => trackCatalogEvent("click_whatsapp", { source: "no_results" })} className="inline-flex min-h-11 items-center rounded-full bg-[color:var(--foreground)] px-5 py-2 font-semibold text-white">Preguntar por WhatsApp</a>
+                  <WhatsAppLink source="no_results" message={`Hola, busco este equipo: ${search.trim() || "un equipo Apple"}`} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[color:var(--foreground)] px-5 py-2 font-semibold text-white">Preguntar por WhatsApp</WhatsAppLink>
                 </div>
                 {closeMatches.length > 0 && (
                   <div className="mt-8 text-left">

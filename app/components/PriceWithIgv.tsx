@@ -1,7 +1,4 @@
-// Precio de un equipo. Orden pedido por la tienda:
-// 1) precio sin IGV (rojo) con el precio anterior tachado y su descuento;
-// 2) debajo, el TOTAL CON IGV en verde y más grande: es el precio que paga el
-//    cliente y el que la normativa de consumo exige destacar.
+// Dos importes visibles con el cálculo comercial compartido.
 import { withIgv } from "@/lib/catalog-price";
 
 type PriceWithIgvProps = {
@@ -24,8 +21,8 @@ export default function PriceWithIgv({
   compareAt,
   wrapperClassName = "",
   rowClassName = "flex flex-wrap items-baseline gap-x-2 gap-y-0.5",
-  priceClassName = "text-xl font-bold tracking-[-0.03em] text-emerald-600",
-  labelClassName = "text-[11px] font-semibold uppercase tracking-wide text-red-600",
+  priceClassName = "text-xl font-bold tracking-[-0.03em] text-[color:var(--foreground)]",
+  labelClassName = "text-[11px] font-semibold uppercase tracking-wide text-[color:var(--foreground-soft)]",
   compareAtClassName = "text-sm text-[color:var(--foreground-soft)] line-through",
   igvClassName = "mt-1",
 }: PriceWithIgvProps) {
@@ -36,8 +33,8 @@ export default function PriceWithIgv({
   return (
     <div className={wrapperClassName}>
       <div className={rowClassName}>
-        <span className={labelClassName}>Sin IGV</span>
-        <span className="text-sm font-semibold text-red-600">S/ {money(cleanPrice)}</span>
+        <span className={labelClassName}>Precio sin IGV</span>
+        <span className="text-sm font-semibold text-[color:var(--foreground)]">S/ {money(cleanPrice)}</span>
         {hasDiscount && (
           <>
             <span className={compareAtClassName}>S/ {money(Number(compareAt))}</span>
@@ -46,7 +43,7 @@ export default function PriceWithIgv({
         )}
       </div>
       <div className={igvClassName}>
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Total con IGV</div>
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--foreground-soft)]">Precio con IGV</div>
         <div className={priceClassName}>S/ {money(withIgv(cleanPrice))}</div>
       </div>
     </div>

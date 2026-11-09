@@ -1,29 +1,21 @@
 "use client";
-
-import { useEffect, useState } from "react";
 import { formatSoles, withIgv } from "@/lib/catalog-price";
+import type { WhatsAppProduct } from "@/lib/store-config";
+import WhatsAppProductLink from "./WhatsAppProductLink";
+import { useContactVisibility } from "./useContactVisibility";
 
-// Barra inferior en móvil cuando la acción principal queda fuera de pantalla.
-// Lleva a la acción en lugar de ejecutarla, para que el cliente vea qué hará.
-export default function MobileProductAction({ price, unavailable, isPreventa = false }: { price: number; unavailable: boolean; isPreventa?: boolean }) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const target = document.getElementById("product-action");
-    if (!target) return;
-    const observer = new IntersectionObserver(([entry]) => setVisible(!entry.isIntersecting), { threshold: 0.1 });
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, []);
+export default function MobileProductAction({ product, productId }: { product: WhatsAppProduct; productId: string }) {
+  const visible = useContactVisibility("#product-action");
   if (!visible) return null;
-  return (
-    <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[color:var(--border)] bg-white/95 px-4 py-3 shadow-lg backdrop-blur-lg lg:hidden" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
-      <div>
-        <div className="text-xs text-[color:var(--foreground-soft)]">Total con IGV</div>
-        <div className="text-lg font-bold">{formatSoles(withIgv(price))}</div>
+  return <nav aria-label="Acciones de este equipo" className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--border)] bg-white px-3 py-2 shadow-lg lg:hidden" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}>
+    <div className="mx-auto flex max-w-lg items-center gap-2">
+      <div className="min-w-0 flex-1 text-[11px] leading-4 text-[color:var(--foreground-soft)]">
+        <span className="block truncate font-medium">{product.title}</span>
+        <span className="block">Sin IGV {formatSoles(product.price)}</span>
+        <span className="block text-sm font-bold text-[color:var(--foreground)]">{formatSoles(withIgv(product.price))} <span className="text-[10px] font-normal">con IGV</span></span>
       </div>
-      <a href="#product-action" className="inline-flex min-h-12 items-center rounded-full bg-[color:var(--accent)] px-5 text-sm font-semibold text-white">
-        {unavailable ? "Ver opciones" : isPreventa ? "Solicitar separación" : "Solicitar este equipo"}
-      </a>
+      <WhatsAppProductLink {...product} productId={productId} source="product_mobile" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-[#167344] px-3 text-sm font-semibold text-white" compact />
+      <a href="#product-action" aria-label="Ver opciones para agregar al carrito" className="inline-flex min-h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-tint)] text-[color:var(--accent-strong)]"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-2"><path d="M2 3h3l3 12h10l3-9H6M9 21h.01M18 21h.01" strokeLinecap="round" /></svg></a>
     </div>
-  );
+  </nav>;
 }

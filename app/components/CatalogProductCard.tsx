@@ -1,5 +1,8 @@
+import type { AccessoryPack } from "@/lib/accessories";
+import { formatSoles, withIgv } from "@/lib/catalog-price";
 import Image from "next/image";
 import Link from "next/link";
+import WhatsAppProductLink from "./WhatsAppProductLink";
 import PriceWithIgv from "./PriceWithIgv";
 import ThemedSaleBadge from "./theme/ThemedSaleBadge";
 import { badgeTone, productBadges, type ProductBadge } from "@/lib/catalog-display";
@@ -13,12 +16,12 @@ import { badgeTone, productBadges, type ProductBadge } from "@/lib/catalog-displ
 // columna, no hay espacio vacío.
 //
 // Toda la tarjeta enlaza a la ficha mediante el título (enlace extendido con
-// `after:`); el botón de comparar queda por encima.
+// `after:`); consultar y comparar quedan por encima.
 //
 // En móvil (< 640 px) la tarjeta es horizontal: foto cuadrada a la izquierda y
 // los datos a la derecha, para ver varios equipos por pantalla. Los distintivos
 // pasan de la foto a una fila propia (la 1.ª de las 5) para no tapar la imagen,
-// y «Comparar» se coloca bajo la foto, a la altura del precio.
+// y las acciones comparten una fila completa debajo del precio.
 
 export const CATALOG_CARD_ROWS = 5;
 
@@ -29,7 +32,10 @@ export const CATALOG_GRID_CLASS = "grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols
 export const CATALOG_CARD_IMAGE_SIZES = "(min-width: 1280px) 300px, (min-width: 640px) 46vw, 128px";
 
 export type CatalogCardData = {
+  accessoryPack?: AccessoryPack | null;
   slug: string;
+  sku?: string;
+  productId?: string;
   title: string;
   image: string;
   color?: string;
@@ -114,11 +120,12 @@ export default function CatalogProductCard({
       {/* 4. Precio: alineado abajo para que el total con IGV coincida en la fila. */}
       <div className="col-start-2 mt-2 flex flex-col justify-end border-t border-black/[0.06] pt-2 sm:col-start-1 sm:mt-3 sm:pt-3">
         <PriceWithIgv price={Number(price)} compareAt={compareAt} />
+        {data.accessoryPack && <p className="mt-2 text-xs leading-5 text-[color:var(--foreground-soft)]">{data.accessoryPack.label} de {data.accessoryPack.units}: {formatSoles(data.accessoryPack.price)} sin IGV · {formatSoles(withIgv(data.accessoryPack.price))} con IGV</p>}
       </div>
 
       {/* 5. Acciones. */}
-      <div className="col-start-1 row-start-4 flex items-end justify-start gap-2 self-end sm:row-start-auto sm:mt-3 sm:items-center sm:justify-between sm:self-auto">
-        <span aria-hidden="true" className="hidden text-sm font-semibold text-[color:var(--accent)] sm:inline">Ver equipo →</span>
+      <div className="col-span-2 col-start-1 row-start-5 mt-3 flex flex-wrap items-center gap-2 sm:col-span-1 sm:row-start-auto">
+        <div className="min-w-0 flex-1"><WhatsAppProductLink {...data} productId={data.productId} source="card" compact /></div>
         {compare && (
           <button
             type="button"
@@ -126,7 +133,7 @@ export default function CatalogProductCard({
             aria-label={`${compare.selected ? "Quitar de la comparación" : "Añadir a la comparación"}: ${title}`}
             disabled={compare.disabled}
             onClick={compare.onToggle}
-            className={`relative z-[1] inline-flex min-h-11 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-2 text-[13px] font-semibold sm:w-auto sm:px-4 sm:text-sm disabled:opacity-50 ${compare.selected ? "border-blue-600 bg-blue-50 text-blue-800" : "border-[color:var(--border)] bg-slate-50 text-slate-800 hover:border-slate-400"}`}
+            className={`relative z-[1] inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-2 text-[13px] font-semibold sm:w-auto sm:px-4 sm:text-sm disabled:opacity-50 ${compare.selected ? "border-blue-600 bg-blue-50 text-blue-800" : "border-[color:var(--border)] bg-slate-50 text-slate-800 hover:border-slate-400"}`}
           >
             {compare.selected ? "✓ Comparando" : "+ Comparar"}
           </button>
@@ -145,7 +152,7 @@ export function CatalogProductCardSkeleton() {
       <div className="col-start-2 mt-2 space-y-2 sm:col-start-1 sm:mt-3.5"><div className="skeleton-block h-4 w-4/5 rounded-full" /><div className="skeleton-block h-4 w-1/2 rounded-full" /></div>
       <div className="col-start-2 mt-2 space-y-2 sm:col-start-1 sm:mt-2.5"><div className="skeleton-block h-3.5 w-2/5 rounded-full" /><div className="skeleton-block h-3.5 w-3/5 rounded-full" /></div>
       <div className="col-start-2 mt-2 space-y-2 border-t border-black/[0.06] pt-2 sm:col-start-1 sm:mt-3 sm:pt-3"><div className="skeleton-block h-3.5 w-1/2 rounded-full" /><div className="skeleton-block h-3 w-1/4 rounded-full" /><div className="skeleton-block h-6 w-2/5 rounded-full" /></div>
-      <div className="col-start-1 row-start-4 flex items-end self-end sm:row-start-auto sm:mt-3 sm:items-center sm:justify-between sm:self-auto"><div className="skeleton-block hidden h-4 w-20 rounded-full sm:block" /><div className="skeleton-block h-11 w-28 rounded-full" /></div>
+      <div className="col-span-2 col-start-1 row-start-5 mt-3 flex items-center gap-2 sm:col-span-1 sm:row-start-auto"><div className="skeleton-block hidden h-4 w-20 rounded-full sm:block" /><div className="skeleton-block h-11 w-28 rounded-full" /></div>
     </div>
   );
 }

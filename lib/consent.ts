@@ -58,13 +58,14 @@ function clearCookiesWithPrefix(prefixes: string[]) {
   }
 }
 
-const ANALYTICS_STORAGE_KEYS = ["catalog_view_session_id", "ms_visitor"];
+const ANALYTICS_STORAGE_KEYS = ["catalog_view_session_id", "ms_visitor", "ms_campaign"];
 const ANALYTICS_STORAGE_PREFIXES = ["catalog_view_seen_"];
 
 function clearAnalyticsStorage() {
   try {
     for (const key of ANALYTICS_STORAGE_KEYS) window.localStorage.removeItem(key);
     window.sessionStorage.removeItem("ms_session");
+    window.sessionStorage.removeItem("ms_campaign");
     for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
       const key = window.localStorage.key(i) || "";
       if (ANALYTICS_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix))) window.localStorage.removeItem(key);

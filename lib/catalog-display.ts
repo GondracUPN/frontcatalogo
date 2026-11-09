@@ -1,3 +1,4 @@
+import { isAccessory, accessorySku } from "@/lib/accessories";
 import { formatStorageDisplay } from "@/lib/storage";
 
 export function parseCatalogNotes(row: any) {
@@ -38,7 +39,7 @@ export function catalogFacts(row: any) {
   const storage = formatStorageDisplay(detail?.almacenamiento || detail?.ssd || row?.product?.storage_gb || row?.staged?.storage_gb || notes?.storageGb || notes?.storage || "");
   const batteryHealth = String(row?.product?.battery_health ?? row?.staged?.battery_health ?? notes?.batteryHealth ?? notes?.bateria?.salud ?? "").trim();
   const batteryCycles = String(row?.product?.battery_cycles ?? row?.staged?.battery_cycles ?? notes?.batteryCycles ?? notes?.bateria?.ciclos ?? "").trim();
-  const sku = String(row?.product?.sku || row?.staged?.sku || notes?.manualSku || notes?.sourceSku || "").replace(/^MS(?:[-_\s]+)?/i, "").trim();
+  const sku = isAccessory(row) ? accessorySku(row) : String(row?.product?.sku || row?.staged?.sku || notes?.manualSku || notes?.sourceSku || "").replace(/^MS(?:[-_\s]+)?/i, "").trim();
   const conditionDescription = String(detail?.detalles || detail?.productDetails || notes?.productDetails || notes?.detalles || "").trim();
   const detailImages = uniqueText([
     ...(Array.isArray(notes?.detailImages) ? notes.detailImages : []),
@@ -99,6 +100,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   ipad: "iPad",
   watch: "Apple Watch",
   otros: "Otros",
+  accesorios: "Accesorios",
 };
 
 export function categoryLabel(category: unknown) {

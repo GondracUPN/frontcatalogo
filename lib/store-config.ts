@@ -1,3 +1,5 @@
+import { publicSku } from "./catalog-display";
+
 // Configuración comercial pública de Macsomenos: un único lugar para el
 // número de WhatsApp y los textos de marca de la portada.
 
@@ -24,5 +26,12 @@ export const HERO_COPY = {
     { text: "menos gasto.", accent: true },
   ],
   location: "Almacén en Surco, Lima",
-  description: "Equipos reales, fotos de cada unidad y precios claros. Encuentra el que mejor va contigo.",
+  description: "MacBook, iPhone, iPad y más. Nuevos, open box y usados, con fotos reales y la información de cada equipo.",
 } as const;
+
+export const GENERAL_WHATSAPP_MESSAGE = "Hola, quisiera consultar por los equipos disponibles en Macsomenos.";
+export type WhatsAppProduct = { title: string; sku?: string; slug: string; price: number; variant?: string; condition?: string };
+
+export function productWhatsAppMessage({ title, sku, slug, variant, condition }: WhatsAppProduct) {
+  return ["Hola, estoy interesado en este equipo:", "", title, variant ? `Configuración: ${variant}` : "", condition ? `Condición: ${condition}` : "", sku ? `SKU: ${publicSku(sku)}` : "", `https://www.macsomenos.com/product/${encodeURIComponent(slug)}`, "", "¿Sigue disponible?"].join("\n").replace(/\n{3,}/g, "\n\n");
+}

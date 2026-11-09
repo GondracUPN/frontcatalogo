@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:admin-security": "node scripts/test-admin-security.js",
+    "test:accessories": "node scripts/test-accessories.js",
     "test:marketplace-resolver": "node scripts/test-marketplace-resolver.js",
     "test:marketplace-chat": "node scripts/test-marketplace-chat.js",
     "check:themes": "node --no-warnings scripts/check-theme-contrast.ts",
