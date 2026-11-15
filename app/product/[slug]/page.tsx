@@ -14,8 +14,8 @@ import MobileProductAction from "@/app/components/MobileProductAction";
 import { getCatalogItem, listCatalog } from "@/app/actions";
 import { Suspense } from "react";
 import ProductAlternatives from "@/app/components/ProductAlternatives";
-import { accessoryBreakdown, categoryLabel, screenSizeLabel, badgeTone, formatRam, isUsedCondition, keyboardLabel, productBadges, publicSku } from "@/lib/catalog-display";
-import { catalogPrice } from "@/lib/catalog-price";
+import { accessoryBreakdown, categoryLabel, screenSizeLabel, badgeTone, conditionInfo, formatRam, isUsedCondition, keyboardLabel, productBadges, publicSku } from "@/lib/catalog-display";
+import { catalogPrice, formatSoles, withIgv } from "@/lib/catalog-price";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { formatStorageCompact, formatStorageDisplay } from "@/lib/storage";
@@ -39,8 +39,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const { item } = await getCatalogItem(slug).catch(() => ({ item: null as any }));
   if (!item) return { title: "Equipo no disponible", robots: { index: false } };
-  const title = String(item.product?.title || item.staged?.title || "Equipo Apple");
-  const description = `Consulta fotografías, condición, características y precio de ${title} en Macsomenos.`;
+  const baseName = String(item.product?.title || item.staged?.title || "Equipo Apple");
+  // SEO: el título y la descripción incluyen la condición, el precio total y
+  // la ciudad, que es como se busca en Google («iPhone 15 usado Lima»).
+  const metaNotes = parseNotes(item.staged?.notes);
+  const metaCondition = isAccessory(item) ? accessoryState(item) : item.product?.product_condition || item.staged?.product_condition || metaNotes?.productCondition || metaNotes?.estado || metaNotes?.specs?.estado || "";
+  const conditionText = conditionInfo(metaCondition)?.label || "";
+  const { price: metaPrice } = catalogPrice(item);
+  const title = `${baseName}${conditionText ? ` ${conditionText}` : ""} en Lima`;
+  const description = `${baseName}${conditionText ? ` ${conditionText.toLowerCase()}` : ""}${metaPrice > 0 ? ` a ${formatSoles(withIgv(metaPrice))} con IGV` : ""}. Fotos reales y estado verificado. Recojo en Surco, contra entrega en Lima o envío a todo el Perú.`;
   const url = `/product/${item.slug || slug}`;
   // Una unidad vendida o reservada no se ofrece en buscadores; su URL sigue
   // abriendo (enlaces compartidos) con alternativas disponibles.
@@ -377,6 +384,21 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     sku: sku || undefined,
     description: productDescription || undefined,
     url: `https://www.macsomenos.com/product/${encodeURIComponent(item.slug || slug)}`,
+    ...(isAccessory(item) ? {} : { brand: { "@type": "Brand", name: "Apple" } }),
+    ...(price > 0 ? {
+      offers: {
+        "@type": "Offer",
+        url: `https://www.macsomenos.com/product/${encodeURIComponent(item.slug || slug)}`,
+        price: withIgv(price).toFixed(2),
+        priceCurrency: "PEN",
+        availability: availability === "sold" ? "https://schema.org/SoldOut"
+          : availability === "reserved" ? "https://schema.org/OutOfStock"
+          : availability === "preorder" ? "https://schema.org/PreOrder"
+          : "https://schema.org/InStock",
+        itemCondition: conditionInfo(productCondition)?.key === "nuevo" ? "https://schema.org/NewCondition" : "https://schema.org/UsedCondition",
+        seller: { "@type": "Organization", name: "Macsomenos" },
+      },
+    } : {}),
   };
 
   // Observaciones: el texto registrado, separado en frases cuando trae varias líneas.

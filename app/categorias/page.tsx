@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { formatSoles, withIgv } from "@/lib/catalog-price";
 import { getHomeCatalog } from "../actions";
 
 export const revalidate = 300;
+
+export const metadata: Metadata = {
+  title: "Categorías: MacBook, iPhone, iPad y Apple Watch",
+  description: "Elige entre MacBook, iPhone, iPad, Apple Watch y accesorios nuevos, Open Box y usados en Lima, con fotos reales y precio total.",
+  alternates: { canonical: "/categorias" },
+};
 
 const CATS = [
   { key: "macbook", label: "MacBook", href: "/c/macbook", icon: "/imagenestipos/mac.webp", note: "Trabajo y estudio." },
