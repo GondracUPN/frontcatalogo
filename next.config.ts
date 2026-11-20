@@ -5,6 +5,16 @@ const nextConfig: NextConfig = {
   // NEXT_DIST_DIR permite un segundo servidor de pruebas (e2e) sin pisar el de desarrollo.
   distDir: process.env.NEXT_DIST_DIR || (process.env.NODE_ENV === "development" ? ".next-dev" : ".next"),
   poweredByHeader: false,
+  // Redirecciones en configuración: redirect() dentro de una página con loading.tsx
+  // se transmite como 200 + meta refresh, y Google lo marca como soft 404.
+  async redirects() {
+    return [
+      { source: "/accesorios", destination: "/c/accesorios", permanent: true },
+      { source: "/ayuda", destination: "/preguntas-frecuentes", permanent: true },
+      { source: "/checkout", destination: "/cart", permanent: false },
+      { source: "/login", destination: "/servmacso10", permanent: false },
+    ];
+  },
   outputFileTracingRoot: process.cwd(),
   images: {
     formats: ["image/avif", "image/webp"],

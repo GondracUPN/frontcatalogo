@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import DeliveryPreview from "./components/home/DeliveryPreview";
@@ -44,6 +45,9 @@ import WhatsAppIcon from "./components/WhatsAppIcon";
 import { WHATSAPP_DISPLAY, whatsappUrl, GENERAL_WHATSAPP_MESSAGE } from "@/lib/store-config";
 
 export const revalidate = 300;
+
+// Canonical solo para el home: en el layout raíz lo heredaban todas las páginas sin canonical propio.
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 type HomeRow = Awaited<ReturnType<typeof getHomeCatalog>>["items"][number];
 

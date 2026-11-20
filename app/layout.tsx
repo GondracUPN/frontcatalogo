@@ -31,7 +31,6 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://www.macsomenos.com"),
   title: { default: "Macsomenos | Equipos Apple en Perú", template: "%s | Macsomenos" },
   description: "MacBook, iPhone, iPad y Apple Watch nuevos, Open Box y usados en Lima, Perú. Fotos reales, estado verificado, recojo en Surco y contra entrega en Lima.",
-  alternates: { canonical: "/" },
   openGraph: { type: "website", locale: "es_PE", siteName: "Macsomenos", title: "Macsomenos | Equipos Apple en Perú", description: "MacBook, iPhone, iPad y Apple Watch nuevos, Open Box y usados en Lima, con fotos reales y precio total.", url: "/", images: [{ url: "/logo.png", width: 1024, height: 1024, alt: "Macsomenos" }] },
   twitter: { card: "summary_large_image" },
   icons: {

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { isBuildPhase, listingRows } from "@/lib/catalog-listing";
 
 export const revalidate = 300;
+// Categorías desconocidas responden 404 real (antes 200 indexable = soft 404 en Search Console).
+export const dynamicParams = false;
 
 const CATEGORY_PARAMS = ["macbook", "macmini", "imac", "ipad", "iphone", "watch", "airpods", "otros", "accesorios"] as const;
 
