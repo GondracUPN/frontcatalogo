@@ -3,6 +3,7 @@ import CategoryBrowser from "../../components/CategoryBrowser";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { isBuildPhase, listingRows } from "@/lib/catalog-listing";
+import { categorySeo } from "@/lib/category-seo";
 
 export const revalidate = 300;
 // Categorías desconocidas responden 404 real (antes 200 indexable = soft 404 en Search Console).
@@ -30,13 +31,18 @@ function toTitle(cat: string) {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ category: string }> }): Promise<Metadata> {
-  const { category } = await params;
-  const title = toTitle(category);
+  const { category: rawCategory } = await params;
+  const category = String(rawCategory || "").toLowerCase();
+  const seo = categorySeo(category, toTitle(category));
+  // Una categoría sin equipos es una página vacía: Google la trata como soft 404.
+  // listCatalog usa la caché de fetch, así que no duplica la llamada de la página.
+  const empty = await listCatalog({ category }).then(({ items }) => listingRows(items).length === 0).catch(() => false);
   return {
-    title,
-    description: `Explora ${title.toLowerCase()} en Macsomenos. Consulta fotografías, condición y precio total antes de solicitar un equipo.`,
+    title: seo.title,
+    description: seo.description,
     alternates: { canonical: `/c/${category}` },
-    openGraph: { title, url: `/c/${category}` },
+    ...(empty ? { robots: { index: false, follow: true } } : {}),
+    openGraph: { title: seo.title, description: seo.description, url: `/c/${category}` },
   };
 }
 
@@ -52,9 +58,20 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
     catalogUnavailable = true;
   }
 
+  const seo = categorySeo(category, toTitle(category));
+  const breadcrumb = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Inicio", item: "https://www.macsomenos.com/" },
+      { "@type": "ListItem", position: 2, name: toTitle(category), item: `https://www.macsomenos.com/c/${category}` },
+    ],
+  };
+
   return (
     <div className="route-enter px-3 pb-10 pt-4 sm:px-4 sm:pb-14 sm:pt-6">
       <div className="mx-auto max-w-7xl">
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb).replace(/</g, "\\u003c") }} />
         <nav aria-label="Ruta de navegación" className="mb-3 px-1 text-sm sm:mb-4 sm:px-2 text-[color:var(--foreground-soft)]"><Link href="/">Inicio</Link><span aria-hidden="true"> / </span><span aria-current="page">{toTitle(category)}</span></nav>
         <div className="catalog-flat surface-card-strong soft-outline overflow-clip px-3 py-6 sm:px-8 sm:py-10">
           <div className="max-w-3xl px-1 sm:px-0">
@@ -66,6 +83,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
             <h1 className="text-[28px] font-semibold leading-[1.1] tracking-[-0.04em] text-[color:var(--foreground)] sm:mt-5 sm:text-5xl sm:tracking-[-0.06em] lg:text-6xl">
               {toTitle(category)}
             </h1>
+            <p className="mt-3 max-w-[62ch] text-[15px] leading-relaxed text-[color:var(--foreground-soft)] sm:mt-4 sm:text-[17px]">{seo.intro}</p>
           </div>
 
           {catalogUnavailable ? <div role="alert" className="mt-8 rounded-2xl bg-slate-50 p-6 text-sm">El catálogo no está disponible temporalmente. Intenta de nuevo más tarde.</div> : <CategoryBrowser initialItems={items} category={category} />}
