@@ -415,13 +415,42 @@ function introLine(facts: ProductFacts) {
   return `${facts.title || facts.type}${facts.color ? `, color ${facts.color}` : ""}.`;
 }
 
+/** Accesorios de inventario añadidos a la unidad (accesorios_stock). Se anuncian aunque diga «No incluye». */
+export function stockAccessoryNames(product: MarketplaceProduct): string[] {
+  const list = Array.isArray(product?.accesorios_stock) ? product.accesorios_stock : [];
+  const seen = new Set<string>();
+  return list
+    .map((item: any) => String(item?.nombre ?? "").trim().replace(/\s+/g, " "))
+    .filter((name: string) => {
+      const key = name.toLowerCase();
+      if (!name || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+const STOCK_COVERS: Record<string, RegExp> = {
+  cubo: /\b(?:cubo|cargador)\b/i,
+  cable: /\bcable\b/i,
+  "cable de poder": /\bcable\b/i,
+  correa: /\bcorrea\b/i,
+  eartips: /\b(?:eartips?|ear\s*tips?|almohadillas?)\b/i,
+};
+
 function accessoryLines(product: MarketplaceProduct, facts: ProductFacts) {
   const expectedAccessories = mainAccessories(facts);
+  const stock = stockAccessoryNames(product);
   if (!expectedAccessories.length) {
     const raw = facts.includes === "Otros" ? facts.includesExtra : facts.includes;
-    return raw ? [`Accesorios: Incluye ${raw}`] : [];
+    const base = raw && !/^\s*(?:no incluye|ninguno?)\b/i.test(raw) ? [raw] : [];
+    const names = [...base, ...stock.filter((name) => !base.some((item) => item.toLowerCase().includes(name.toLowerCase())))];
+    if (names.length) return [`Accesorios: Incluye ${joinSpanish(names)}`];
+    return raw ? [`Accesorios: ${/^\s*no incluye/i.test(raw) ? "No incluye" : `Incluye ${raw}`}`] : [];
   }
   const accessories = normalizeAccessories(product);
+  if (stock.length) {
+    accessories.missing = accessories.missing.filter((item) => !stock.some((name) => STOCK_COVERS[item]?.test(name)));
+  }
   const included = [
     ...accessories.included.map((accessory) => {
       if (accessory === "cubo" && accessories.generic.cubo) return "cubo genérico";
@@ -431,6 +460,7 @@ function accessoryLines(product: MarketplaceProduct, facts: ProductFacts) {
       return accessory;
     }),
     accessories.extra,
+    ...stock,
   ].filter(Boolean);
   const lines = [included.length ? `Accesorios: Incluye ${joinSpanish(included)}` : "Accesorios: No incluye"];
   if (accessories.missing.length) lines.push(`No incluye: ${accessories.missing.join(", ")}`);
