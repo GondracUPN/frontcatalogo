@@ -48,3 +48,9 @@ export function getAccessoryPack(product: Record<string, any>): AccessoryPack | 
     return readAccessoryPack(notes?.accessoryPack);
   } catch { return null; }
 }
+
+/** SKU para mostrar: un accesorio sincronizado (acc-lot-12) se ve como ACC-12; el resto, igual. */
+export function shownSku(sku: unknown): string {
+  const text = String(sku ?? '').trim();
+  return /^acc-/i.test(text) ? accessorySku({ sku: text }) : text;
+}

@@ -2,6 +2,7 @@
 import React from "react";
 import { customerContact } from "@/lib/customer-contact";
 import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
+import SalePlaceField from "./SalePlaceField";
 import {
   discardPossibleClient,
   listContactRequests,
@@ -612,18 +613,16 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
               </div>
               <div>
                 <label className="block font-medium text-gray-700">Lugar de venta</label>
-                <select value={editDraft.salePlaceType || ""} onChange={(e) => setEditDraft({ ...editDraft, salePlaceType: e.target.value, saleLocation: e.target.value === "almacen" ? "" : editDraft.saleLocation || "" })} className="mt-1 w-full rounded border px-3 py-2 bg-white">
-                  <option value="">Sin registrar</option>
-                  <option value="almacen">Almacen</option>
-                  <option value="otro">Otro lado</option>
-                </select>
+                <SalePlaceField
+                  placeType={editDraft.salePlaceType || ""}
+                  location={editDraft.saleLocation || ""}
+                  onChange={(salePlaceType, saleLocation) => setEditDraft({ ...editDraft, salePlaceType, saleLocation })}
+                  emptyLabel="Sin registrar"
+                  selectClassName="mt-1 w-full rounded border px-3 py-2 bg-white"
+                  labelClassName="mt-3 block font-medium text-gray-700"
+                  inputClassName="mt-1 w-full rounded border px-3 py-2"
+                />
               </div>
-              {editDraft.salePlaceType === "otro" && (
-                <div className="sm:col-span-2">
-                  <label className="block font-medium text-gray-700">Ubicacion de la venta</label>
-                  <input value={editDraft.saleLocation || ""} onChange={(e) => setEditDraft({ ...editDraft, saleLocation: e.target.value })} className="mt-1 w-full rounded border px-3 py-2" />
-                </div>
-              )}
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
@@ -664,19 +663,16 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Lugar de venta</label>
-                <select value={salePlaceType} onChange={(e) => setSalePlaceType(e.target.value as any)} className="mt-1 w-full rounded border px-3 py-2">
-                  <option value="">-</option>
-                  <option value="almacen">Almacen</option>
-                  <option value="otro">Otro lado</option>
-                </select>
+                <SalePlaceField
+                  placeType={salePlaceType}
+                  location={saleLocation}
+                  onChange={(nextType, nextLocation) => { setSalePlaceType(nextType as any); setSaleLocation(nextLocation); }}
+                  selectClassName="mt-1 w-full rounded border px-3 py-2"
+                  labelClassName="mt-3 block text-sm font-medium text-gray-700"
+                  inputClassName="mt-1 w-full rounded border px-3 py-2"
+                  placeholder="Ej: Miraflores, Jockey Plaza, provincia..."
+                />
               </div>
-
-              {salePlaceType === "otro" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Ubicacion de la venta</label>
-                  <input value={saleLocation} onChange={(e) => setSaleLocation(e.target.value)} className="mt-1 w-full rounded border px-3 py-2" placeholder="Ej: Miraflores, Jockey Plaza, provincia..." />
-                </div>
-              )}
 
             <SaleClientPhoto key={purchaseClient.id} disabled={busy} onChange={(upload) => { purchasePhotoUploadRef.current = upload; }} />
               <div className="flex justify-end gap-2 pt-2">

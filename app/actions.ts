@@ -877,3 +877,18 @@ export async function getAccessoryCompatibleModels() {
     return { ok: false as const, ...apiErrorParts(error, "No se pudo cargar el catálogo de modelos de Servicios") };
   }
 }
+
+export type SalePlaceOptions = { fixed: string[]; frequent: Array<{ name: string; count: number }> };
+
+/** Opciones del selector «Lugar de venta». Si falla, el selector sigue con Almacén, Delivery, Shalom y Otro lado. */
+export async function listSalePlaces(): Promise<SalePlaceOptions> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  const fallback = { fixed: ["Delivery", "Shalom"], frequent: [] };
+  if (!token) return fallback;
+  try {
+    return await apiFetch<SalePlaceOptions>(`/admin/sale-places`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  } catch {
+    return fallback;
+  }
+}

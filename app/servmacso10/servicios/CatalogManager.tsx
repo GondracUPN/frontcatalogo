@@ -3,6 +3,7 @@ import { accessorySku, isAccessory } from "@/lib/accessories";
 import SaleQuantityField, { parseSaleQuantity, saleTotal } from "./SaleQuantityField";
 import React from "react";
 import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
+import SalePlaceField from "./SalePlaceField";
 import IncludedStockAccessories, { initialStockSelection, isOtherUnitAccessoryConflict, isStockAccessoryConflict, stockSelectionPayload, type StockAccessorySelection } from "./IncludedStockAccessories";
 import dynamic from "next/dynamic";
 import { listAdminCatalog, listStaged, markProductSold, unpublishProduct } from "../../actions";
@@ -732,26 +733,14 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
               <option value="regateador">Regateador</option>
             </select>
             <label className="block text-sm text-gray-700 mb-1">Lugar de venta</label>
-            <select
-              value={soldModal.salePlaceType}
-              onChange={(e) => setSoldModal({ ...soldModal, salePlaceType: e.target.value as any, saleLocation: e.target.value === "almacen" ? "" : soldModal.saleLocation })}
-              className="w-full border rounded px-3 py-2 mb-3 bg-white"
-            >
-              <option value="">-</option>
-              <option value="almacen">Almacen</option>
-              <option value="otro">Otro lado</option>
-            </select>
-            {soldModal.salePlaceType === "otro" && (
-              <>
-                <label className="block text-sm text-gray-700 mb-1">Ubicacion de la venta</label>
-                <input
-                  value={soldModal.saleLocation}
-                  onChange={(e) => setSoldModal({ ...soldModal, saleLocation: e.target.value })}
-                  className="w-full border rounded px-3 py-2 mb-4"
-                  placeholder="Ej: Miraflores, Jockey Plaza..."
-                />
-              </>
-            )}
+            <SalePlaceField
+              placeType={soldModal.salePlaceType}
+              location={soldModal.saleLocation}
+              onChange={(salePlaceType, saleLocation) => setSoldModal({ ...soldModal, salePlaceType: salePlaceType as any, saleLocation })}
+              selectClassName="w-full border rounded px-3 py-2 mb-3 bg-white"
+              labelClassName="block text-sm text-gray-700 mb-1"
+              inputClassName="w-full border rounded px-3 py-2 mb-4"
+            />
             {isAccessory(soldModal.row) && (
               <SaleQuantityField
                 disabled={selling}

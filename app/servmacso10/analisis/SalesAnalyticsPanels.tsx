@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { shownSku } from "@/lib/accessories";
 import {
   salesSummaryAction,
   salesTimelineAction,
@@ -330,7 +331,7 @@ export function SalesTab({
                       {item.title}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {item.sku} · alta {formatLimaDateTime(item.created_at)}
+                      {shownSku(item.sku)} · alta {formatLimaDateTime(item.created_at)}
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-800">

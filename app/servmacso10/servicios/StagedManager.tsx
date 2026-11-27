@@ -4,6 +4,7 @@ import { accessoryUnitCost } from "@/lib/services-accessories";
 import SaleQuantityField, { parseSaleQuantity, saleTotal } from "./SaleQuantityField";
 import React from "react";
 import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
+import SalePlaceField from "./SalePlaceField";
 import IncludedStockAccessories, { initialStockSelection, isOtherUnitAccessoryConflict, isStockAccessoryConflict, stockSelectionPayload, type StockAccessorySelection } from "./IncludedStockAccessories";
 import dynamic from "next/dynamic";
 import { deleteStaged, listStaged, markStagedProductSold } from "../../actions";
@@ -312,17 +313,16 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
               <option value="regateador">Regateador</option>
             </select>
             <label className="mb-1 block text-sm text-gray-700">Lugar de venta</label>
-            <select value={soldModal.salePlaceType} onChange={(e) => setSoldModal({ ...soldModal, salePlaceType: e.target.value as any, saleLocation: e.target.value === "almacen" ? "" : soldModal.saleLocation })} className="mb-3 w-full rounded border px-3 py-2">
-              <option value="">Seleccionar</option>
-              <option value="almacen">Almacen</option>
-              <option value="otro">Otro lugar</option>
-            </select>
-            {soldModal.salePlaceType === "otro" && (
-              <>
-                <label className="mb-1 block text-sm text-gray-700">Ubicacion de la venta</label>
-                <input value={soldModal.saleLocation} onChange={(e) => setSoldModal({ ...soldModal, saleLocation: e.target.value })} className="mb-4 w-full rounded border px-3 py-2" placeholder="Ej: Miraflores, Jockey Plaza..." />
-              </>
-            )}
+            <SalePlaceField
+              placeType={soldModal.salePlaceType}
+              location={soldModal.saleLocation}
+              onChange={(salePlaceType, saleLocation) => setSoldModal({ ...soldModal, salePlaceType: salePlaceType as any, saleLocation })}
+              emptyLabel="Seleccionar"
+              otherLabel="Otro lugar"
+              selectClassName="mb-3 w-full rounded border px-3 py-2"
+              labelClassName="mb-1 block text-sm text-gray-700"
+              inputClassName="mb-4 w-full rounded border px-3 py-2"
+            />
             {isAccessory(soldModal.item || {}) && (
               <SaleQuantityField
                 disabled={selling}

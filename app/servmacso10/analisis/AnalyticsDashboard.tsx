@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { shownSku } from "@/lib/accessories";
 import { SalesTab, SellersTab } from "./SalesAnalyticsPanels";
 import { funnelAction, overviewAction, productsAction, searchesAction, sourcesAction } from "./actions";
 import { ColumnChart, Empty, fmt, LineChart, RankBars } from "./charts";
@@ -278,7 +279,7 @@ function ProductsTab({ from, to }: { from: string; to: string }) {
                         <tr key={item.id} className="border-b last:border-0">
                           <td className="max-w-[280px] py-2 pr-3">
                             <div className="truncate font-medium text-gray-900">{item.title}</div>
-                            <div className="text-xs text-gray-500">{item.sku} · {item.category || "—"}{!item.available ? " · sin stock" : ""}</div>
+                            <div className="text-xs text-gray-500">{shownSku(item.sku)} · {item.category || "—"}{!item.available ? " · sin stock" : ""}</div>
                           </td>
                           <td className="px-2 text-right tabular-nums">{fmt(item.views)}</td>
                           <td className="px-2 text-right tabular-nums">{fmt(item.unique_sessions)}</td>
@@ -298,7 +299,7 @@ function ProductsTab({ from, to }: { from: string; to: string }) {
                   {items.slice(0, 60).map((item: any) => (
                     <li key={item.id} className="rounded-xl border border-gray-200 p-3">
                       <div className="font-medium text-gray-900">{item.title}</div>
-                      <div className="text-xs text-gray-500">{item.sku} · {item.category || "—"}{!item.available ? " · sin stock" : ""}</div>
+                      <div className="text-xs text-gray-500">{shownSku(item.sku)} · {item.category || "—"}{!item.available ? " · sin stock" : ""}</div>
                       <dl className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
                         {[["Vistas", item.views], ["Interés", item.interest], ["Solicitudes", item.requests], ["Confirmadas", item.confirmed], ["Ventas", item.sold], ["Vista→venta", pctText(item.rates.salePerView)]].map(([label, value]) => (
                           <div key={String(label)} className="rounded-lg bg-gray-50 p-1.5"><dt className="text-gray-500">{label}</dt><dd className="font-semibold tabular-nums text-gray-900">{typeof value === "number" ? fmt(value) : value}</dd></div>
