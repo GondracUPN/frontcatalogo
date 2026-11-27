@@ -59,7 +59,7 @@ export function buildComparison(items: CompareItem[], onlyDifferences = false): 
     const number = Number(first(p.item.product?.iphone_number, p.item.staged?.iphone_number, p.notes.iphoneNumber, p.detail.numero));
     return p.category === "iphone" && (!number || number >= 15);
   };
-  const accessories = (p: Product) => accessoryBreakdown({ category: p.category, includes: p.item.product?.includes ?? p.item.staged?.includes ?? p.notes.includes ?? p.notes.watchIncludes ?? p.notes.watchAccessories, includesExtra: p.item.product?.includes_extra ?? p.item.staged?.includes_extra ?? p.notes.includesExtra, legacy: p.notes.incluye, cuboGeneric: p.notes.cuboFake === true || p.notes.cuboFake === "true", cableGeneric: p.notes.cableFake === true || p.notes.cableFake === "true" });
+  const accessories = (p: Product) => accessoryBreakdown({ category: p.category, includes: p.item.product?.includes ?? p.item.staged?.includes ?? p.notes.includes ?? p.notes.watchIncludes ?? p.notes.watchAccessories, includesExtra: p.item.product?.includes_extra ?? p.item.staged?.includes_extra ?? p.notes.includesExtra, legacy: p.notes.incluye, cuboGeneric: p.notes.cuboFake === true || p.notes.cuboFake === "true", cableGeneric: p.notes.cableFake === true || p.notes.cableFake === "true", stock: p.item.staged?.accesorios_stock });
   const groups: Array<{ key: string; label: string; fields: Definition[] }> = [
     { key: "commercial", label: "Precio y condición", fields: [
       field("price", "Precio final con IGV", p => p.priceKnown ? known(formatSoles(withIgv(p.price.price))) : known(""), true),

@@ -228,7 +228,33 @@ export function accessoryBreakdown(input: {
   legacy?: Record<string, unknown> | null;
   cuboGeneric?: boolean;
   cableGeneric?: boolean;
+  /** Accesorios de stock reservados en Servicios (p. ej. «Apple Pencil Pro»). */
+  stock?: unknown;
 }) {
+  const base = registeredAccessories(input);
+  const stockIncluded = uniqueStockNames(input.stock).filter((name) => !base.included.some((item) => item.toLowerCase() === name.toLowerCase()));
+  if (!stockIncluded.length) return { ...base, stockIncluded, baseKnown: base.known };
+  // Se suman a «Incluye» con su nombre tal cual; nunca dejan la ficha como «sin accesorios».
+  // baseKnown=false: el resto de accesorios del equipo no está registrado.
+  // Un cable o cargador del stock cubre ese hueco: no se anuncia «No incluye cable» si ya va uno.
+  // Un case, teclado, etc. no cubre nada de caja, cubo o cable.
+  const covers = (pattern: RegExp) => stockIncluded.some((name) => pattern.test(name));
+  const missing = base.missing.filter((item) => !(
+    (/^cable/i.test(item) && covers(/\bcables?\b/i))
+    || (/^cargador/i.test(item) && covers(/\b(cargador|cubo|adaptador|charger|power\s*adapter)\b/i))
+    || (/^caja/i.test(item) && covers(/\bcaja\b/i))
+  ));
+  return { included: [...base.included, ...stockIncluded], missing, known: true, none: false, stockIncluded, baseKnown: base.known };
+}
+
+function uniqueStockNames(value: unknown) {
+  const names = (Array.isArray(value) ? value : [])
+    .map((item) => String(typeof item === "object" && item ? (item as { nombre?: unknown }).nombre ?? "" : item ?? "").trim())
+    .filter(Boolean);
+  return names.filter((name, index) => names.findIndex((other) => other.toLowerCase() === name.toLowerCase()) === index);
+}
+
+function registeredAccessories(input: Parameters<typeof accessoryBreakdown>[0]) {
   const category = String(input.category || "").toLowerCase();
   const raw = String(input.includes || "").trim();
   const extra = String(input.includesExtra || "").trim();

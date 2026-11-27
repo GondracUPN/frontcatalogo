@@ -1,7 +1,9 @@
 "use client";
 import { accessorySku, isAccessory } from "@/lib/accessories";
+import SaleQuantityField, { parseSaleQuantity, saleTotal } from "./SaleQuantityField";
 import React from "react";
 import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
+import IncludedStockAccessories, { initialStockSelection, isOtherUnitAccessoryConflict, isStockAccessoryConflict, stockSelectionPayload, type StockAccessorySelection } from "./IncludedStockAccessories";
 import dynamic from "next/dynamic";
 import { listAdminCatalog, listStaged, markProductSold, unpublishProduct } from "../../actions";
 import { dateInputInPeru, formatPeruDate, hasMeaningfulPeruUpdate } from "../../utils/peruTime";
@@ -179,6 +181,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
     unit?: any;
     date: string;
     price: string;
+    quantity: string;
     exchangeRate: string;
     customerName: string;
     customerPhone: string;
@@ -186,6 +189,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
     salePlaceType: "" | "almacen" | "otro";
     saleLocation: string;
     clientPhotoUrl?: string;
+    accesoriosStock?: StockAccessorySelection | null;
   } | null>(null);
   const [selling, setSelling] = React.useState(false);
   const clientPhotoUploadRef = React.useRef<ClientPhotoUpload | null>(null);
@@ -376,13 +380,13 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
   return (
     <div className="overflow-auto">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row">
           <div>
             <label className="block text-sm font-medium text-gray-700">Filtrar por tipo</label>
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="mt-1 w-40 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              className="mt-1 w-full sm:w-40 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
             >
               {CATEGORY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -396,7 +400,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
             <select
               value={sortMode}
               onChange={(e) => setSortMode(e.target.value as SortMode)}
-              className="mt-1 w-full min-w-[180px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              className="mt-1 w-full sm:min-w-[180px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
             >
               <option value="upload">Subida</option>
               <option value="sku">SKU</option>
@@ -408,7 +412,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
         </div>
       </div>
 
-      <table className="min-w-full text-sm">
+      <table className="m-cards min-w-full text-sm">
         <thead>
           <tr className="text-left text-gray-700">
             <th className="p-2">Título</th>
@@ -434,13 +438,13 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                       {groupConditionSummary(entry.rows) ? ` · ${groupConditionSummary(entry.rows)}` : ""}
                     </div>
                   </td>
-                  <td className="p-2 text-xs text-gray-600">
+                  <td data-label="SKU" className="p-2 text-xs text-gray-600">
                     {entry.rows.map((row) => (isAccessory(row) ? accessorySku(row) : displaySku(row.product?.sku || row.staged?.sku))).filter(Boolean).join(", ") || "-"}
                   </td>
-                  <td className="p-2 text-gray-900">
+                  <td data-label="Precio" className="p-2 text-gray-900">
                     Desde S/ {groupMinPrice.toFixed(2)}
                   </td>
-                  <td className="p-2 text-xs text-gray-500">Grupo automático</td>
+                  <td data-label="Fechas" className="p-2 text-xs text-gray-500">Grupo automático</td>
                   <td className="p-2">
                     <button onClick={() => toggleGroup(entry.key)} className="rounded bg-gray-900 px-3 py-1 text-white">
                       {expanded ? "Ocultar equipos" : "Ver equipos"}
@@ -454,23 +458,23 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
             const showUpdated = hasMeaningfulPeruUpdate(row.created_at, row.updated_at);
             return (
               <React.Fragment key={row.id}>
-                <tr className={`border-t ${entry.nested ? "bg-gray-200" : ""} ${row.mainUnitSold ? "hidden" : ""}`}>
+                <tr className={`border-t ${entry.nested ? "bg-gray-200 max-sm:ml-4" : ""} ${row.mainUnitSold ? "hidden" : ""}`}>
                   <td className="p-2 text-gray-900 font-medium">
                     <div>{row.product?.title || row.staged?.title || row.slug}</div>
                     {variantLabel(row) && <div className="mt-1 text-xs font-normal text-gray-500">{variantLabel(row)}</div>}
                   </td>
-                  <td className="p-2 text-gray-900">
+                  <td data-label="SKU" className="p-2 text-gray-900">
                     <div>{(isAccessory(row) ? accessorySku(row) : displaySku(row.product?.sku || row.staged?.sku)) || "-"}</div>
                     {isIndependentUnit(row) && <div className="mt-1 text-xs text-gray-500">Equipo independiente</div>}
                   </td>
-                  <td className="p-2 text-gray-900">S/ {Number(row.product?.price || 0).toFixed(2)}</td>
-                  <td className="p-2 text-xs leading-5 text-gray-600">
+                  <td data-label="Precio" className="p-2 text-gray-900">S/ {Number(row.product?.price || 0).toFixed(2)}</td>
+                  <td data-label="Fechas" className="p-2 text-xs leading-5 text-gray-600">
                     <div>Subida: {formatPeruDate(row.created_at)}</div>
                     {showUpdated && <div>Actualizada: {formatPeruDate(row.updated_at)}</div>}
                   </td>
                   <td className="p-2">
                 <div className="flex w-fit flex-col gap-2">
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => {
                         if (!row.staged?.id) {
@@ -498,12 +502,14 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                   >
                     Preparar Marketplace
                   </button>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setSoldModal({
                         row,
+                        accesoriosStock: initialStockSelection(row.staged),
                         date: dateInputInPeru(),
                         price: String(row.product?.price || 0),
+                        quantity: "1",
                         exchangeRate: "",
                         customerName: "",
                         customerPhone: "",
@@ -538,7 +544,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                   </td>
                 </tr>
                 {linkedRows.map((linked: any) => (
-                  <tr key={`linked-${row.id}-${linked.id || linked.sku}`} className="border-t bg-gray-300">
+                  <tr key={`linked-${row.id}-${linked.id || linked.sku}`} className="border-t bg-gray-300 max-sm:ml-4">
                     <td className="p-2 pl-6 text-gray-900">
                       <div className="text-sm font-medium">{linked.title || row.product?.title || row.staged?.title || row.slug}</div>
                       <div className="mt-1 text-xs text-gray-500">
@@ -548,15 +554,15 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                         <div className="mt-1 text-xs font-medium text-gray-600">Equipo independiente</div>
                       )}
                     </td>
-                    <td className="p-2 font-mono text-xs text-gray-900">{displaySku(linked.sku) || "-"}</td>
-                    <td className="p-2 text-gray-900">S/ {Number(linked.price || row.product?.price || 0).toFixed(2)}</td>
-                    <td className="p-2 text-xs leading-5 text-gray-600">
+                    <td data-label="SKU" className="p-2 font-mono text-xs text-gray-900">{displaySku(linked.sku) || "-"}</td>
+                    <td data-label="Precio" className="p-2 text-gray-900">S/ {Number(linked.price || row.product?.price || 0).toFixed(2)}</td>
+                    <td data-label="Fechas" className="p-2 text-xs leading-5 text-gray-600">
                       <div>Subida: {formatPeruDate(linked.created_at)}</div>
                       {hasMeaningfulPeruUpdate(linked.created_at, linked.updated_at) && <div>Actualizada: {formatPeruDate(linked.updated_at)}</div>}
                     </td>
                     <td className="p-2">
                       <div className="flex flex-col items-start gap-2">
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => setOpen({
                             ...linked,
@@ -591,8 +597,10 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                         onClick={() => setSoldModal({
                           row,
                           unit: linked,
+                          accesoriosStock: initialStockSelection(linked),
                           date: dateInputInPeru(),
                           price: String(linked.price || row.product?.price || 0),
+                          quantity: "1",
                           exchangeRate: "",
                           customerName: "",
                           customerPhone: "",
@@ -662,7 +670,7 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
 
       {soldModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 text-gray-900">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-3 sm:p-5 text-gray-900">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-lg font-semibold">Marcar como vendido</h3>
@@ -706,12 +714,13 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
               className="w-full border rounded px-3 py-2 mb-3"
               placeholder="Nombre"
             />
-            <label className="block text-sm text-gray-700 mb-1">Numero del cliente</label>
+            <label className="block text-sm text-gray-700 mb-1">Número o usuario de WhatsApp</label>
             <input
               value={soldModal.customerPhone}
               onChange={(e) => setSoldModal({ ...soldModal, customerPhone: e.target.value })}
               className="w-full border rounded px-3 py-2 mb-3"
-              placeholder="Celular"
+              placeholder="987654321 o @usuario"
+              autoCapitalize="none"
             />
             <label className="block text-sm text-gray-700 mb-1">Tipo de cliente</label>
             <select
@@ -743,6 +752,17 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                 />
               </>
             )}
+            {isAccessory(soldModal.row) && (
+              <SaleQuantityField
+                disabled={selling}
+                quantity={soldModal.quantity}
+                stock={Number(soldModal.row.product?.stock)}
+                unitPrice={soldModal.price}
+                total={saleTotal(soldModal.row, soldModal.price, parseSaleQuantity(soldModal.quantity, Number(soldModal.row.product?.stock)) ?? 0)}
+                onChange={(quantity) => setSoldModal({ ...soldModal, quantity })}
+              />
+            )}
+            <IncludedStockAccessories disabled={selling} value={soldModal.accesoriosStock} onChange={(accesoriosStock) => setSoldModal({ ...soldModal, accesoriosStock })} />
             <SaleClientPhoto disabled={selling} onChange={(upload) => { clientPhotoUploadRef.current = upload; }} />
             <div className="flex justify-end gap-2">
               <button disabled={selling} onClick={() => setSoldModal(null)} className="px-3 py-1 rounded border bg-white shadow-sm disabled:opacity-50">
@@ -753,24 +773,62 @@ export default function CatalogManager({ initialItems, inventoryItems = [], canD
                   className="px-3 py-1 rounded bg-amber-600 text-white shadow-sm disabled:cursor-wait disabled:opacity-60"
                   onClick={async () => {
                     if (sellingRef.current) return;
-                    if (!soldModal.customerName.trim() || !soldModal.customerPhone.replace(/\D+/g, "")) {
-                      alert("Completa el nombre y número del cliente");
+                    const looseAccessory = isAccessory(soldModal.row);
+                    const quantity = looseAccessory ? parseSaleQuantity(soldModal.quantity, Number(soldModal.row.product?.stock)) : 1;
+                    if (quantity === null) {
+                      alert("Indica una cantidad entera entre 1 y el stock disponible");
                       return;
                     }
+                    if (!soldModal.customerName.trim() || !soldModal.customerPhone.trim()) {
+                      alert("Completa el nombre y el número o usuario de WhatsApp del cliente");
+                      return;
+                    }
+                    // La foto se sube una sola vez: los reintentos reutilizan la URL.
+                    const uploadedPhotoUrl = async () => {
+                      if (soldModal.clientPhotoUrl || !clientPhotoUploadRef.current) return soldModal.clientPhotoUrl || undefined;
+                      const url = await clientPhotoUploadRef.current();
+                      if (url) setSoldModal((m) => m ? { ...m, clientPhotoUrl: url } : m);
+                      return url;
+                    };
                     try {
                       sellingRef.current = true;
                       setSelling(true);
                       const pid = soldModal.row.product?.id || soldModal.row.id;
-                      const result = await markProductSold(pid, soldModal.date, soldModal.price, {
+                      const result = await markProductSold(pid, soldModal.date, looseAccessory ? saleTotal(soldModal.row, soldModal.price, quantity) : soldModal.price, {
                         name: soldModal.customerName,
                         phone: soldModal.customerPhone,
                         customerKind: soldModal.customerKind,
                         salePlaceType: soldModal.salePlaceType,
                         saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
                         stagedId: soldModal.unit?.id || undefined,
+                        ...stockSelectionPayload(soldModal.accesoriosStock),
+                        ...(looseAccessory ? { cantidad: quantity } : {}),
                         exchangeRate: soldModal.exchangeRate || undefined,
-                        clientPhotoUrl: soldModal.clientPhotoUrl || (clientPhotoUploadRef.current ? await clientPhotoUploadRef.current() : undefined),
+                        clientPhotoUrl: await uploadedPhotoUrl(),
                       });
+                      if (!result.ok && isOtherUnitAccessoryConflict(result.error)) {
+                        // Otra unidad del grupo con accesorios distintos: se cierra el modal y se recarga, sin reintento.
+                        alert(result.error);
+                        setSoldModal(null);
+                        try {
+                          const { items: fresh } = await listAdminCatalog();
+                          setItems(fresh as any);
+                        } catch {}
+                        return;
+                      }
+                      if (!result.ok && isStockAccessoryConflict(result.error)) {
+                        // Recarga la unidad para mostrar los accesorios vigentes sin perder lo ya escrito.
+                        const unitId = soldModal.accesoriosStock?.unitId;
+                        try {
+                          const { items: fresh } = await listAdminCatalog();
+                          setItems(fresh as any);
+                          const freshUnit = (fresh as any[]).flatMap((r: any) => [r.staged, ...(Array.isArray(r.linkedStaged) ? r.linkedStaged : [])])
+                            .find((u: any) => u && unitId && String(u.id) === unitId);
+                          setSoldModal((m) => m ? { ...m, accesoriosStock: freshUnit ? initialStockSelection(freshUnit) : m.accesoriosStock } : m);
+                        } catch {}
+                        alert(`${result.error} Revisa los accesorios marcados y pulsa Listo otra vez.`);
+                        return;
+                      }
                       if (!result.ok) throw new Error(result.error || "No se pudo marcar como vendido");
                       try {
                         const { items } = await listAdminCatalog();

@@ -2,6 +2,7 @@
 
 import React from "react";
 import { changeRequestStatusAction, listRequestsAction, requestDetailAction } from "./actions";
+import type { AppointmentPrefill } from "./AppointmentsAgenda";
 import { formatDate, formatMoney, PAYMENT_METHODS, STATUS_LABELS, STATUS_TONES, whatsappLink } from "./status";
 
 const FILTERS: Array<{ value: string; label: string }> = [
@@ -22,7 +23,7 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_TONES[status] || "bg-gray-100"}`}>{STATUS_LABELS[status] || status}</span>;
 }
 
-export default function RequestsList({ initial, initialError }: { initial: { items: any[]; total: number; counts: Record<string, number> }; initialError: string }) {
+export default function RequestsList({ initial, initialError, onSchedule }: { initial: { items: any[]; total: number; counts: Record<string, number> }; initialError: string; onSchedule?: (prefill: AppointmentPrefill) => void }) {
   const [data, setData] = React.useState(initial);
   const [status, setStatus] = React.useState("activas");
   const [query, setQuery] = React.useState("");
@@ -141,6 +142,7 @@ export default function RequestsList({ initial, initialError }: { initial: { ite
           detail={detail}
           loading={detailLoading}
           onClose={() => setDetail(null)}
+          onSchedule={onSchedule}
           onChanged={(updated) => {
             setDetail(updated);
             void load();
@@ -151,7 +153,7 @@ export default function RequestsList({ initial, initialError }: { initial: { ite
   );
 }
 
-function RequestDetail({ detail, loading, onClose, onChanged }: { detail: any; loading: boolean; onClose: () => void; onChanged: (updated: any) => void }) {
+function RequestDetail({ detail, loading, onClose, onChanged, onSchedule }: { detail: any; loading: boolean; onClose: () => void; onChanged: (updated: any) => void; onSchedule?: (prefill: AppointmentPrefill) => void }) {
   const [target, setTarget] = React.useState("");
   const [note, setNote] = React.useState("");
   const [paymentMethod, setPaymentMethod] = React.useState("");
@@ -202,6 +204,15 @@ function RequestDetail({ detail, loading, onClose, onChanged }: { detail: any; l
               <div className="flex flex-wrap items-center gap-2">
                 <span>{detail.customer_phone}</span>
                 <a href={whatsappLink(detail.customer_phone, detail.customer_name, detail.number)} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center rounded-lg bg-green-600 px-3 font-semibold text-white">Abrir WhatsApp</a>
+                {onSchedule && (
+                  <button
+                    type="button"
+                    onClick={() => onSchedule({ customerName: detail.customer_name, customerContact: String(detail.customer_phone || ""), productTitle: detail.items?.[0]?.title, sku: detail.items?.[0]?.sku, sourceRequestId: detail.id })}
+                    className="inline-flex min-h-10 items-center rounded-lg border border-gray-300 px-3 font-semibold"
+                  >
+                    Agendar cita
+                  </button>
+                )}
               </div>
             </section>
             <section className="space-y-1">

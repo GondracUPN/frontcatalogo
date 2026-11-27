@@ -1,7 +1,10 @@
 "use client";
 import { accessorySku, isAccessory } from "@/lib/accessories";
+import { accessoryUnitCost } from "@/lib/services-accessories";
+import SaleQuantityField, { parseSaleQuantity, saleTotal } from "./SaleQuantityField";
 import React from "react";
 import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
+import IncludedStockAccessories, { initialStockSelection, isOtherUnitAccessoryConflict, isStockAccessoryConflict, stockSelectionPayload, type StockAccessorySelection } from "./IncludedStockAccessories";
 import dynamic from "next/dynamic";
 import { deleteStaged, listStaged, markStagedProductSold } from "../../actions";
 import { dateInputInPeru } from "../../utils/peruTime";
@@ -15,8 +18,10 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
   const [soldModal, setSoldModal] = React.useState<null | {
     item: any;
+    accesoriosStock?: StockAccessorySelection | null;
     date: string;
     price: string;
+    quantity: string;
     exchangeRate: string;
     customerName: string;
     customerPhone: string;
@@ -50,6 +55,11 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
   const costoCompra = (it: any) => {
     try {
       const notes = it?.notes && typeof it.notes === "string" ? JSON.parse(it.notes) : (it?.notes || {});
+      if (isAccessory(it)) {
+        // Accesorios: costo UNITARIO (el total histórico del lote no se reescribe).
+        const unit = accessoryUnitCost(notes);
+        return unit === null ? "-" : `S/ ${unit.toFixed(2)}`;
+      }
       const v = notes?.valor || notes?.specs?.valor || {};
       const c = Number(v?.costoTotal ?? v?.valorSoles ?? 0);
       if (!isFinite(c) || c <= 0) return "-";
@@ -138,7 +148,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
     setOpen({
       ...it,
       __sealedPresets: sealedPresets,
-      __mergeStock: 1,
+      __mergeStock: isAccessory(it) ? undefined : 1,
       __mergeStagedIds: [],
       __mergeInitialSkus: [],
       __mergeCandidates: items.filter((candidate) => String(candidate?.id || "") !== String(it?.id || "")),
@@ -146,13 +156,16 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
   };
 
   const renderItemRow = (it: any, nested = false) => (
-    <tr key={it.id} className={`border-t ${nested ? "bg-white" : ""}`}>
-      <td className={`p-2 text-gray-900 font-medium ${nested ? "pl-6" : ""}`}>{it.title}</td>
-      <td className="p-2 text-gray-900">{(isAccessory(it) ? accessorySku(it) : displaySku(it.sku))}</td>
-      <td className="p-2 text-gray-900">{costoCompra(it)}</td>
-      <td className="p-2 text-gray-900">{it.price}</td>
-      <td className="p-2"><span className="px-2 py-1 rounded bg-gray-100 text-gray-900">{it.status}</span></td>
-      <td className="p-2 flex gap-2">
+    <tr key={it.id} className={`border-t ${nested ? "bg-white max-sm:ml-4" : ""}`}>
+      <td className={`p-2 text-gray-900 font-medium ${nested ? "pl-6" : ""}`}>
+        {it.title}
+        {isAccessory(it) && <div className="text-xs font-normal text-gray-600">{Number(it.stock || 0)} disponibles</div>}
+      </td>
+      <td data-label="SKU" className="p-2 text-gray-900">{(isAccessory(it) ? accessorySku(it) : displaySku(it.sku))}</td>
+      <td data-label="Costo compra" className="p-2 text-gray-900">{costoCompra(it)}</td>
+      <td data-label="Precio" className="p-2 text-gray-900">{it.price}</td>
+      <td data-label="Estado" className="p-2"><span className="px-2 py-1 rounded bg-gray-100 text-gray-900">{it.status}</span></td>
+      <td className="p-2 flex flex-wrap gap-2">
         <button
           onClick={() => openForPublish(it)}
           className="rounded bg-emerald-600 p-2 text-white hover:bg-emerald-700"
@@ -164,8 +177,10 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
         <button
           onClick={() => setSoldModal({
             item: it,
+            accesoriosStock: initialStockSelection(it),
             date: dateInputInPeru(),
             price: String(it?.price || 0),
+            quantity: "1",
             exchangeRate: "",
             customerName: "",
             customerPhone: "",
@@ -195,7 +210,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
 
   return (
     <div className="overflow-auto">
-      <table className="min-w-full text-sm">
+      <table className="m-cards min-w-full text-sm">
         <thead>
           <tr className="text-left text-gray-700">
             <th className="p-2">Titulo</th>
@@ -213,18 +228,22 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
             const expanded = expandedGroups.has(key);
             if (!isGrouped) return renderItemRow(first, false);
 
-            const skus = rows.map((it) => displaySku(it.sku)).filter(Boolean);
+            // Los accesorios muestran su código comercial (ACC-n), nunca el identificador de lote.
+            const skus = Array.from(new Set(rows.map((it) => (isAccessory(it) ? accessorySku(it) : displaySku(it.sku))).filter(Boolean)));
             const statuses = Array.from(new Set(rows.map((it) => String(it.status || "").trim()).filter(Boolean))).join(", ");
+            const accessoryStock = rows.every(isAccessory) ? rows.reduce((total, it) => total + Number(it.stock || 0), 0) : null;
 
             return (
               <React.Fragment key={key}>
                 <tr className="border-t bg-gray-50/80">
                   <td className="p-2 text-gray-900 font-semibold">
                     {first.title}
-                    <div className="mt-1 text-xs font-medium text-gray-500">{rows.length} unidades agrupadas</div>
+                    <div className="mt-1 text-xs font-medium text-gray-500">
+                      {accessoryStock == null ? `${rows.length} unidades agrupadas` : `${accessoryStock} disponibles`}
+                    </div>
                   </td>
-                  <td className="p-2 text-gray-900">
-                    <div className="flex min-w-40 flex-wrap gap-1">
+                  <td data-label="SKU" className="p-2 text-gray-900">
+                    <div className="flex sm:min-w-40 flex-wrap gap-1">
                       {skus.length
                         ? skus.map((sku, index) => (
                             <span key={`${sku}-${index}`} className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs">
@@ -234,9 +253,9 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                         : "-"}
                     </div>
                   </td>
-                  <td className="p-2 text-gray-900">{formatRange(rows.map(costValue), "S/ ")}</td>
-                  <td className="p-2 text-gray-900">{formatRange(rows.map(priceValue))}</td>
-                  <td className="p-2"><span className="px-2 py-1 rounded bg-gray-100 text-gray-900">{statuses || "-"}</span></td>
+                  <td data-label="Costo compra" className="p-2 text-gray-900">{formatRange(rows.map(costValue), "S/ ")}</td>
+                  <td data-label="Precio" className="p-2 text-gray-900">{formatRange(rows.map(priceValue))}</td>
+                  <td data-label="Estado" className="p-2"><span className="px-2 py-1 rounded bg-gray-100 text-gray-900">{statuses || "-"}</span></td>
                   <td className="p-2">
                     <button onClick={() => toggleGroup(key)} className="px-3 py-1 rounded bg-gray-900 text-white">
                       {expanded ? "Ocultar" : "Ver unidades"}
@@ -269,7 +288,7 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
 
       {soldModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-5 shadow-xl">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-3 sm:p-5 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Vender desde inventario</h3>
@@ -285,8 +304,8 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
             <input type="number" min="0.0001" step="0.0001" value={soldModal.exchangeRate} onChange={(e) => setSoldModal({ ...soldModal, exchangeRate: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" placeholder="Puedes completarlo luego en Servicios" />
             <label className="mb-1 block text-sm text-gray-700">Nombre del cliente</label>
             <input value={soldModal.customerName} onChange={(e) => setSoldModal({ ...soldModal, customerName: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" placeholder="Nombre y apellido" />
-            <label className="mb-1 block text-sm text-gray-700">Telefono del cliente</label>
-            <input value={soldModal.customerPhone} onChange={(e) => setSoldModal({ ...soldModal, customerPhone: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" placeholder="999 999 999" />
+            <label className="mb-1 block text-sm text-gray-700">Número o usuario de WhatsApp</label>
+            <input value={soldModal.customerPhone} onChange={(e) => setSoldModal({ ...soldModal, customerPhone: e.target.value })} className="mb-3 w-full rounded border px-3 py-2" placeholder="999 999 999 o @usuario" autoCapitalize="none" />
             <label className="mb-1 block text-sm text-gray-700">Tipo de cliente</label>
             <select value={soldModal.customerKind} onChange={(e) => setSoldModal({ ...soldModal, customerKind: e.target.value as any })} className="mb-3 w-full rounded border px-3 py-2">
               <option value="tranquilo">Tranquilo</option>
@@ -304,6 +323,17 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                 <input value={soldModal.saleLocation} onChange={(e) => setSoldModal({ ...soldModal, saleLocation: e.target.value })} className="mb-4 w-full rounded border px-3 py-2" placeholder="Ej: Miraflores, Jockey Plaza..." />
               </>
             )}
+            {isAccessory(soldModal.item || {}) && (
+              <SaleQuantityField
+                disabled={selling}
+                quantity={soldModal.quantity}
+                stock={Number(soldModal.item?.stock)}
+                unitPrice={soldModal.price}
+                total={saleTotal(soldModal.item, soldModal.price, parseSaleQuantity(soldModal.quantity, Number(soldModal.item?.stock)) ?? 0)}
+                onChange={(quantity) => setSoldModal({ ...soldModal, quantity })}
+              />
+            )}
+            <IncludedStockAccessories disabled={selling} value={soldModal.accesoriosStock} onChange={(accesoriosStock) => setSoldModal({ ...soldModal, accesoriosStock })} />
             <SaleClientPhoto disabled={selling} onChange={(upload) => { clientPhotoUploadRef.current = upload; }} />
             <div className="flex justify-end gap-2">
               <button disabled={selling} onClick={() => setSoldModal(null)} className="rounded border px-3 py-1 disabled:opacity-50">Cancelar</button>
@@ -316,22 +346,59 @@ export default function StagedManager({ initialItems, sealedPresets = [], canDel
                     alert("Completa la fecha y el precio de venta");
                     return;
                   }
-                  if (!soldModal.customerName.trim() || !soldModal.customerPhone.replace(/\D+/g, "")) {
-                    alert("Completa el nombre y telefono del cliente");
+                  const looseAccessory = isAccessory(soldModal.item || {});
+                  const quantity = looseAccessory ? parseSaleQuantity(soldModal.quantity, Number(soldModal.item?.stock)) : 1;
+                  if (quantity === null) {
+                    alert("Indica una cantidad entera entre 1 y el stock disponible");
                     return;
                   }
+                  if (!soldModal.customerName.trim() || !soldModal.customerPhone.trim()) {
+                    alert("Completa el nombre y el número o usuario de WhatsApp del cliente");
+                    return;
+                  }
+                  // La foto se sube una sola vez: los reintentos reutilizan la URL.
+                  const uploadedPhotoUrl = async () => {
+                    if (soldModal.clientPhotoUrl || !clientPhotoUploadRef.current) return soldModal.clientPhotoUrl || undefined;
+                    const url = await clientPhotoUploadRef.current();
+                    if (url) setSoldModal((m) => m ? { ...m, clientPhotoUrl: url } : m);
+                    return url;
+                  };
                   sellingRef.current = true;
                   setSelling(true);
                   try {
-                    const result = await markStagedProductSold(soldModal.item.id, soldModal.date, soldModal.price, {
+                    const result = await markStagedProductSold(soldModal.item.id, soldModal.date, looseAccessory ? saleTotal(soldModal.item, soldModal.price, quantity) : soldModal.price, {
                       name: soldModal.customerName,
                       phone: soldModal.customerPhone,
                       customerKind: soldModal.customerKind,
                       salePlaceType: soldModal.salePlaceType,
                       saleLocation: soldModal.salePlaceType === "otro" ? soldModal.saleLocation : "",
                       exchangeRate: soldModal.exchangeRate || undefined,
-                      clientPhotoUrl: soldModal.clientPhotoUrl || (clientPhotoUploadRef.current ? await clientPhotoUploadRef.current() : undefined),
+                      clientPhotoUrl: await uploadedPhotoUrl(),
+                      ...stockSelectionPayload(soldModal.accesoriosStock),
+                      ...(looseAccessory ? { cantidad: quantity } : {}),
                     });
+                    if (!result.ok && isOtherUnitAccessoryConflict(result.error)) {
+                      // Otra unidad del grupo con accesorios distintos: se cierra el modal y se recarga, sin reintento.
+                      alert(result.error);
+                      setSoldModal(null);
+                      try {
+                        const res = await listStaged({ pageSize: "all" });
+                        setItems(Array.isArray(res?.items) ? res.items : []);
+                      } catch {}
+                      return;
+                    }
+                    if (!result.ok && isStockAccessoryConflict(result.error)) {
+                      // Recarga la unidad para mostrar los accesorios vigentes sin perder lo ya escrito.
+                      try {
+                        const res = await listStaged({ pageSize: "all" });
+                        const fresh = Array.isArray(res?.items) ? res.items : [];
+                        setItems(fresh);
+                        const freshUnit = fresh.find((u: any) => String(u?.id) === String(soldModal.item?.id));
+                        setSoldModal((m) => m ? { ...m, accesoriosStock: freshUnit ? initialStockSelection(freshUnit) : m.accesoriosStock } : m);
+                      } catch {}
+                      alert(`${result.error} Revisa los accesorios marcados y pulsa Registrar venta otra vez.`);
+                      return;
+                    }
                     if (!result.ok) throw new Error(result.error || "No se pudo registrar la venta");
                     const res = await listStaged({ pageSize: "all" });
                     setItems(Array.isArray(res?.items) ? res.items : []);

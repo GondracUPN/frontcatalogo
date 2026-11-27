@@ -1,6 +1,10 @@
 ﻿"use client";
 import { copyTextToClipboard, fetchImageForZip, createZipBlob, downloadBlob } from "./product-publish-media";
 import ProductPhotosPanel from "./ProductPhotosPanel";
+import ServicesAccessoriesEditor from "./ServicesAccessoriesEditor";
+import CompatibleModelsField, { type CompatibleModelsValue } from "./CompatibleModelsField";
+import { cleanCompatibleModels, effectiveCompatibleModels, hasManualCompatibleModels } from "@/lib/accessory-compatibility";
+import { isServicesLinkedSku } from "@/lib/services-accessories";
 import { accessorySku, readAccessoryPack } from "@/lib/accessories";
 import { generateMarketplaceData } from "@/lib/marketplace";
 import React from "react";
@@ -494,6 +498,8 @@ export default function PublishModal({
   const [packPrice, setPackPrice] = React.useState(String(savedPack?.price ?? ""));
   const [packLabel, setPackLabel] = React.useState(savedPack?.label ?? "Paquete");
   const accessoryPack = packEnabled ? readAccessoryPack({ units: Number(packUnits), price: Number(packPrice), label: packLabel }) : null;
+  const [compat, setCompat] = React.useState<CompatibleModelsValue>(() => ({ labels: effectiveCompatibleModels(notes), mode: "unchanged" }));
+  const servicesCompatLabels = React.useMemo(() => cleanCompatibleModels(notes?.servicesModelosCompatibles), [notes]);
   const legacySalePrice = Number(notes?.precioLista || 0);
   const legacyDiscount = Number(notes?.descuentoPorc || 0);
 
@@ -577,9 +583,10 @@ export default function PublishModal({
   const [warrantyType, setWarrantyType] = React.useState<string>(() => initialWarranty.type);
   const [warrantyDate, setWarrantyDate] = React.useState<string>(() => formatWarrantyDate(initialWarranty.date));
   const [stock, setStock] = React.useState<number>(() => {
-    const initial = Number(item?.__mergeStock ?? item?.stock ?? 1);
+    const initial = Number((category === "accesorios" ? item?.stock : item?.__mergeStock ?? item?.stock) ?? 1);
     return Number.isSafeInteger(initial) && (category === "accesorios" ? initial >= 0 : initial > 0) ? initial : 1;
   });
+  const initialStockRef = React.useRef(stock);
   const mergeCandidates = React.useMemo<MergeCandidate[]>(() => {
     const candidates = Array.isArray(item?.__mergeCandidates) ? item.__mergeCandidates : [];
     return candidates
@@ -624,6 +631,9 @@ export default function PublishModal({
   const [watchSize, setWatchSize] = React.useState<string>(initialWatch.size);
   const [watchAccessories, setWatchAccessories] = React.useState<string>(String(notes?.watchAccessories || item?.includes_extra || notes?.includesExtra || notes?.accesoriosTexto || ""));
   const [watchIncludes, setWatchIncludes] = React.useState<string>(() => deriveWatchIncludes(item, notes, detalle));
+  // Accesorios del stock de Servicios incluidos en el equipo (se guardan al momento desde el editor).
+  const [servicesIncluded, setServicesIncluded] = React.useState<string[]>(() =>
+    (Array.isArray(item?.accesorios_stock) ? item.accesorios_stock : []).map((a: any) => String(a?.nombre || "").trim()).filter(Boolean));
   const [includesValue, setIncludesValue] = React.useState<string>(() => deriveIncludesValue(item, notes));
   const [includesExtra, setIncludesExtra] = React.useState<string>(item?.includes_extra || notes?.includesExtra || "");
   const [cuboFake, setCuboFake] = React.useState<boolean>(() => deriveAccessoryFake("cubo", item, notes));
@@ -1127,7 +1137,7 @@ export default function PublishModal({
   if (warrantyIsEnabled && warrantyType === LIMITED_APPLE_WARRANTY && !warrantyDate.trim()) {
     errors.push("Ingresa la fecha de la garantía limitada de Apple");
   }
-  if (isAccesorio && (!Number.isSafeInteger(stockNum) || stockNum < 1 || stockNum > 2147483647)) errors.push("El stock del accesorio debe ser un entero mayor o igual a 1");
+  if (isAccesorio && (!Number.isSafeInteger(stockNum) || stockNum < 0 || stockNum > 2147483647)) errors.push("El stock del accesorio debe ser un entero mayor o igual a 0");
   if (!isAccesorio && productCondition === "Nuevo" && stockNum < 1) {
     errors.push("El stock debe ser mayor o igual a 1");
   }
@@ -1211,7 +1221,7 @@ export default function PublishModal({
 
   const buildProductCopyText = () => {
     if (isAccesorio) {
-      const data = generateMarketplaceData({ title: getCurrentTitle(), category, price: finalPrice ?? salePrice, product_condition: productCondition, presentation, notes: { accessoryPack } });
+      const data = generateMarketplaceData({ title: getCurrentTitle(), category, price: finalPrice ?? salePrice, product_condition: productCondition, presentation, notes: { accessoryPack }, compatibleModels: compat.labels });
       return [data.titulo, "", data.descripcion, "", "Precio: S/ " + data.precio].join("\n");
     }
     const lines: string[] = [];
@@ -1272,9 +1282,10 @@ export default function PublishModal({
       add("Salud de bateria", salud ? `${salud}%` : "");
       add("Ciclos de carga", ciclos);
     }
-    add("Incluye", isWatch
+    add("Incluye", [isWatch
       ? watchIncludes
-      : (includesValue === "Otros" ? includesExtra : formatIncludesAccessories(includesValue, cuboFake, cableFake)));
+      : (includesValue === "Otros" ? includesExtra : formatIncludesAccessories(includesValue, cuboFake, cableFake)), ...servicesIncluded]
+      .filter((part) => part && !/^ninguno$/i.test(String(part).trim())).join(" + ") || (includesValue === "Ninguno" ? "Ninguno" : ""));
     if (!isAccesorio && (productCondition === "Nuevo" || productCondition === "Open Box" || hasWarranty)) {
       add("Tipo de garantia", warrantyType);
       const warrantyIso = warrantyDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
@@ -1493,7 +1504,9 @@ export default function PublishModal({
         title: fixedTitle,
         price: String(salePrice),
         images,
-        stock: isAccesorio || productCondition === "Nuevo" ? stockNum : 1,
+        // Un accesorio existente solo envía el stock si el usuario lo cambió: Servicios lo actualiza por snapshot y
+        // reenviar el valor leído al abrir repondría una cifra vieja.
+        ...(isAccesorio && String(item?.id || "").trim() && stockNum === initialStockRef.current ? {} : { stock: isAccesorio || productCondition === "Nuevo" ? stockNum : 1 }),
         notes: JSON.stringify(newNotes),
         category: catalogCategory,
         productCondition,
@@ -1508,6 +1521,9 @@ export default function PublishModal({
         includesExtra: includesExtraPayload,
         keyboardLayout,
         ...(isAccesorio ? { iphoneModel: null, iphoneNumber: null, storageGb: null, batteryCycles: null, batteryHealth: null, keyboardLayout: null } : {}),
+        // Solo si el usuario tocó la lista: [] es válido y null devuelve a los datos de Servicios.
+        ...(isAccesorio && compat.mode === "manual" ? { modelosCompatibles: compat.labels } : {}),
+        ...(isAccesorio && compat.mode === "services" ? { modelosCompatibles: null } : {}),
         variantGroup: variantGroup.trim() || null,
         saleType,
         discount: saleType === "PROMOCION" ? discount : null,
@@ -2381,11 +2397,15 @@ export default function PublishModal({
                       placeholder="Especifica"
                     />
                   )}
-                  {includesValue && includesValue !== "Otros" && (
+                  {Boolean(item?.id) && isServicesLinkedSku(item?.sku) && <ServicesAccessoriesEditor stagedId={String(item.id)} onChange={(items) => setServicesIncluded(items.map((a) => a.nombre))} />}
+                  {(includesValue && includesValue !== "Otros") || servicesIncluded.length ? (
                     <p className="mt-2 text-xs text-gray-600">
-                      Se guardará: <span className="font-medium text-gray-800">{formatIncludesAccessories(includesValue, cuboFake, cableFake)}</span>
+                      Se mostrará «Incluye»: <span className="font-medium text-gray-800">{[
+                        includesValue && includesValue !== "Otros" && includesValue !== "Ninguno" ? formatIncludesAccessories(includesValue, cuboFake, cableFake) : "",
+                        ...servicesIncluded,
+                      ].filter(Boolean).join(" + ") || "Ninguno"}</span>
                     </p>
-                  )}
+                  ) : null}
                 </div>
               )}
               {saleType === "PREVENTA" && (
@@ -2447,6 +2467,7 @@ export default function PublishModal({
                 <label className="text-sm">Precio de presentación (S/)<input aria-label="Precio de presentación" type="number" min="0.01" step="0.01" value={packPrice} onChange={(e) => setPackPrice(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
               </div>}
             </fieldset>}
+            {isAccesorio && <CompatibleModelsField value={compat} servicesLabels={servicesCompatLabels} hasManual={hasManualCompatibleModels(notes)} onChange={setCompat} />}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="publish-sale-price" className="block text-sm">{isAccesorio ? "Precio por unidad (S/)" : "Precio de venta (S/)"}</label>
@@ -2492,6 +2513,7 @@ export default function PublishModal({
                 </span>
               </div>
             )}
+
 
             {errors.length > 0 && (
               <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm p-3">

@@ -30,15 +30,18 @@ export default async function ServiciosPage({ searchParams }: { searchParams: Pr
   const sealedPresets = [...items, ...published.map((row: any) => row?.staged).filter(Boolean)];
 
   return (
-    <div className="services-panel mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="services-panel mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-5 sm:space-y-8">
       <ButtonClickFeedback />
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-gray-900">Panel de Servicios</h1>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="hidden md:flex gap-3">
-            <Stat label="Usuario" value={me.username} />
-            <Stat label="Rol" value={me.role} />
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Panel de Servicios</h1>
+          <p className="mt-0.5 text-sm text-gray-600 md:hidden">{me.username} · {me.role}</p>
+        </div>
+        <div className="ml-auto hidden md:flex gap-3">
+          <Stat label="Usuario" value={me.username} />
+          <Stat label="Rol" value={me.role} />
+        </div>
+        <nav aria-label="Accesos del panel" className="panel-actions">
           {isAdmin && <AdminToolbar />}
           <PreventaManualButton independent={!isAdmin && !me.canViewServiceInventory} />
           <a href="/servmacso10/accesorios" className="rounded bg-blue-600 px-4 py-2 text-white">Accesorios</a>
@@ -51,10 +54,10 @@ export default async function ServiciosPage({ searchParams }: { searchParams: Pr
             <input type="hidden" name="next" value="/servmacso10" />
             <button className="bg-red-600 hover:bg-red-700 text-white rounded px-4 py-2">Cerrar sesión</button>
           </form>
-        </div>
+        </nav>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <SoldProductsPanel initialSales={[]} isAdmin={isAdmin} initialOwner={isAdmin ? requestedOwner : undefined} />
         <ContactAlertsPanel initialItems={[]} />
       </div>

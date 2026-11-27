@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { customerContact } from "@/lib/customer-contact";
 import SaleClientPhoto, { type ClientPhotoUpload } from "./SaleClientPhoto";
 import {
   discardPossibleClient,
@@ -294,7 +295,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
     setEditClient(client);
     setEditDraft({
       customerName: String(client.customer_name || ""),
-      customerPhone: String(client.customer_phone || "").replace(/\D+/g, ""),
+      customerPhone: customerContact(client.customer_phone),
       productTitle: String(client.product_title || ""),
       productColor: String(client.product_color || ""),
       productPrice: String(client.product_price || "0"),
@@ -316,6 +317,8 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
       setEditDraft({});
       await refreshClients();
       window.dispatchEvent(new Event("possible-clients-updated"));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo guardar el posible cliente");
     } finally {
       setBusy(false);
     }
@@ -344,7 +347,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
 
   const copyPhone = async () => {
     if (!selected) return;
-    const phone = String(selected.customer_phone || "").replace(/\D+/g, "");
+    const phone = customerContact(selected.customer_phone);
     const productLines = getRequestItems(selected).map((row) => `- ${copyProductLine(row)}`).join("\n");
     const district = String(selected.location_value || "").trim().toLowerCase();
     const payload = [`Productos:`, productLines, `Distrito : ${district}`, phone].join("\n");
@@ -361,15 +364,15 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
   };
 
   return (
-    <div className="bg-white rounded-2xl border p-5">
+    <div className="bg-white rounded-2xl border p-3 sm:p-5 min-w-0">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-gray-900">Alertas</h2>
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Alertas</h2>
         <button onClick={() => setClientsOpen(true)} className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white">
           Clientes ({clients.length})
         </button>
       </div>
-      <div className="overflow-auto max-h-[340px]">
-        <table className="min-w-full text-sm">
+      <div className="overflow-auto max-h-[70vh] sm:max-h-[340px]">
+        <table className="m-cards min-w-full text-sm">
           <thead>
             <tr className="text-left text-gray-700">
               <th className="p-2">Producto</th>
@@ -386,14 +389,14 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
                     <div key={`${row.id}-${index}`}>{productLine(product)}</div>
                   ))}
                 </td>
-                <td className="p-2 text-gray-900">
+                <td data-label="Tipo" className="p-2 text-gray-900">
                   {String(row.request_type || "purchase").toLowerCase() === "preventa"
                     ? "Preventa"
                     : String(row.request_type || "purchase").toLowerCase() === "offer"
                       ? "Mejor oferta"
                       : "Compra"}
                 </td>
-                <td className="p-2 text-gray-900">{formatPeruDateTime(row.created_at)}</td>
+                <td data-label="Fecha" className="p-2 text-gray-900">{formatPeruDateTime(row.created_at)}</td>
                 <td className="p-2">
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => setSelected(row)} className="px-3 py-1 rounded bg-amber-600 text-white">
@@ -418,8 +421,8 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-xl p-5 text-gray-900">
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-2xl w-full max-w-xl p-3 sm:p-5 text-gray-900">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold">Solicitud de compra</h3>
               <button
@@ -457,7 +460,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
               </div>
               <div>
                 <div className="text-gray-500">Contacto</div>
-                <div className="font-medium">{String(selected.customer_phone || "").replace(/\D+/g, "") || "-"}</div>
+                <div className="font-medium">{customerContact(selected.customer_phone) || "-"}</div>
               </div>
               <div>
                 <div className="text-gray-500">Ubicación</div>
@@ -481,15 +484,15 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
       )}
 
       {clientsOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-5xl p-5 text-gray-900 max-h-[86vh] overflow-auto">
-            <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-2xl w-full max-w-5xl p-3 sm:p-5 text-gray-900 max-h-[86vh] overflow-auto">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-lg font-semibold">Posibles clientes</h3>
               <button onClick={() => setClientsOpen(false)} aria-label="Cerrar">X</button>
             </div>
 
             <div className="overflow-auto">
-              <table className="min-w-full text-sm">
+              <table className="m-cards min-w-full text-sm">
                 <thead>
                   <tr className="text-left text-gray-700">
                     <th className="p-2">Cliente</th>
@@ -504,13 +507,13 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
                   {clients.map((client) => (
                     <tr key={client.id} className="border-t">
                       <td className="p-2"><div className="flex items-center gap-2">{client.client_photo_url && <img src={client.client_photo_url} alt="" className="h-10 w-10 rounded-full object-cover" />}{client.customer_name || "-"}</div></td>
-                      <td className="p-2">{String(client.customer_phone || "").replace(/\D+/g, "") || "-"}</td>
-                      <td className="p-2">
+                      <td data-label="Numero" className="p-2">{customerContact(client.customer_phone) || "-"}</td>
+                      <td data-label="Ubicacion" data-wide="" className="p-2">
                         {client.location_value || "-"}
                         {client.location_scope ? <span className="text-gray-500"> ({client.location_scope})</span> : null}
                       </td>
-                      <td className="p-2"><div className="flex items-center gap-2">{client.product_image_url && <img src={client.product_image_url} alt="" className="h-10 w-10 rounded object-cover" />}{productSummary(client) || "-"}</div></td>
-                      <td className="p-2">
+                      <td data-label="Producto" data-wide="" className="p-2"><div className="flex items-center gap-2">{client.product_image_url && <img src={client.product_image_url} alt="" className="h-10 w-10 rounded object-cover" />}{productSummary(client) || "-"}</div></td>
+                      <td data-label="Estado" data-wide="" className="p-2">
                         {client.status === "purchased" ? (
                           <span className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
                             Compro - {client.customer_kind || "-"} - {salePlaceLabel(client)}
@@ -549,9 +552,9 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
       )}
 
       {editClient && (
-        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl p-5 text-gray-900 max-h-[86vh] overflow-auto">
-            <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-3 sm:p-5 text-gray-900 max-h-[86vh] overflow-auto">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-lg font-semibold">Editar cliente</h3>
               <button onClick={() => setEditClient(null)} aria-label="Cerrar">X</button>
             </div>
@@ -638,9 +641,9 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
       )}
 
       {purchaseClient && (
-        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 text-gray-900">
-            <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-3 sm:p-5 text-gray-900">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-lg font-semibold">Registrar compra</h3>
               <button onClick={() => setPurchaseClient(null)} aria-label="Cerrar">X</button>
             </div>
@@ -648,7 +651,7 @@ export default function ContactAlertsPanel({ initialItems }: { initialItems: Con
             <div className="space-y-4 text-sm">
               <div>
                 <div className="text-gray-500">Cliente</div>
-                <div className="font-medium">{purchaseClient.customer_name || "-"} - {String(purchaseClient.customer_phone || "").replace(/\D+/g, "")}</div>
+                <div className="font-medium">{purchaseClient.customer_name || "-"} - {customerContact(purchaseClient.customer_phone)}</div>
               </div>
 
               <div>

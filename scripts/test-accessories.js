@@ -1,6 +1,8 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { build } = require('esbuild');
+const { createElement } = require('react');
+const { renderToStaticMarkup } = require('react-dom/server');
 
 async function main() {
   const result = await build({ entryPoints: [path.join(__dirname, '../lib/marketplace.ts')], bundle: true, platform: 'node', format: 'cjs', write: false });
@@ -59,6 +61,24 @@ async function main() {
   const packed = generateMarketplaceData({category:'accesorios',title:'Cable',price:5,notes:{accessoryPack:{units:6,price:25.99,label:'Caja'}}});
   assert.ok(packed.descripcion.includes("Caja de 6 unidades: S/ 25.99"));
   assert.ok(packed.descripcion.includes("Precio por unidad: S/ 5"));
-  console.log('Accesorios: Marketplace, estados, centavos y regresión de equipos OK');
+
+  const editorBuild = await build({
+    entryPoints: [path.join(__dirname, '../app/servmacso10/servicios/PublishModal.tsx')],
+    bundle: true, platform: 'node', format: 'cjs', packages: 'external', write: false,
+    external: ['../../actions', '*.css'], jsx: 'automatic',
+  });
+  const editor = { exports: {} };
+  new Function('module', 'exports', 'require', editorBuild.outputFiles[0].text)(
+    editor, editor.exports, (name) => name === '../../actions' || name.endsWith('.css') ? {} : require(name),
+  );
+  for (const [sku, stock, condition] of [['acc-lot-433', 16, 'Usado'], ['acc-lot-435', 30, 'Open Box'], ['acc-lot-436', 0, 'Nuevo']]) {
+    const markup = renderToStaticMarkup(createElement(editor.exports.default, {
+      item: { id: sku, sku, title: 'Cable de prueba', category: 'accesorios', product_condition: condition,
+        price: 25, sale_type: 'VENTA_SIMPLE', status: 'draft', stock, __mergeStock: 1 },
+      onClose() {},
+    }));
+    assert.match(markup, new RegExp(`<input[^>]*id="publish-stock"[^>]*value="${stock}"`));
+  }
+  console.log('Accesorios: Marketplace, estados, centavos y stock de publicación OK');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

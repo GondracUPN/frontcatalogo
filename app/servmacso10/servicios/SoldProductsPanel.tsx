@@ -1,15 +1,18 @@
 "use client";
 import React from "react";
+import { customerContact } from "@/lib/customer-contact";
 import { sellersAction } from "../analisis/actions";
 import type { SellerRow } from "../analisis/sales-types";
 import { listSales, retrySaleSync, unsellProduct, updateSale, manageSoldPhotos, planSoldPhotos } from "../../actions";
 import { dateInputInPeru, formatPeruDate } from "../../utils/peruTime";
 import SaleClientPhotoEditor from "./SaleClientPhotoEditor";
+import { accessorySku } from "@/lib/accessories";
 
 type Sale = {
   id: string;
   product_id: string;
   sku?: string;
+  accessory_code?: string | number | null;
   sale_price?: string | number;
   sold_at?: string;
   title?: string;
@@ -32,7 +35,12 @@ type Sale = {
   photos_hold?: boolean;
   photos_hold_reason?: string | null;
   presentation?: string | null;
+  quantity?: number | string | null;
+  accesorios_desglose?: AccessoryBreakdown[] | null;
 };
+
+/** Desglose por pieza; el backend solo lo envía al ADMIN (con costos y ganancia). */
+type AccessoryBreakdown = { productoId?: number; nombre?: string | null; cantidad?: number | null; ingreso?: number | null; costo?: number | null; ganancia?: number | null };
 
 function formatDate(value: unknown) {
   return formatPeruDate(value);
@@ -43,11 +51,52 @@ function inputDate(value: unknown) {
 }
 
 function phone(value: unknown) {
-  return String(value || "").replace(/\D+/g, "") || "-";
+  return customerContact(value) || "-";
 }
 
 function displaySku(value: unknown) {
   return String(value || "").trim().replace(/^svc(?=[-_\s]*\d)/i, "MS");
+}
+
+function saleQuantity(sale: Sale) {
+  const n = Number(sale.quantity);
+  return Number.isSafeInteger(n) && n > 1 ? n : 1;
+}
+
+function money(value: unknown) {
+  return value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) ? "-" : `S/ ${Number(value).toFixed(2)}`;
+}
+
+/** Precio de venta: importe total; con varias unidades se muestra el precio unitario (total / cantidad). */
+function priceCell(sale: Sale) {
+  const total = Number(sale.sale_price || 0);
+  const qty = saleQuantity(sale);
+  const breakdown = Array.isArray(sale.accesorios_desglose) ? sale.accesorios_desglose.filter(Boolean) : [];
+  return (
+    <>
+      <div>{qty > 1 ? `S/ ${(total / qty).toFixed(2)} c/u` : `S/ ${total.toFixed(2)}`}</div>
+      {qty > 1 && <div className="text-xs text-gray-500">Cantidad {qty} · Total S/ {total.toFixed(2)}</div>}
+      {breakdown.length > 0 && (
+        <details className="mt-1 text-xs text-gray-600">
+          <summary className="cursor-pointer">Desglose de accesorios</summary>
+          <ul className="mt-1 space-y-0.5">
+            {breakdown.map((piece, index) => (
+              <li key={`${piece.productoId ?? index}-${index}`}>
+                {piece.nombre || `Accesorio ${piece.productoId ?? ""}`} ×{piece.cantidad ?? 1} · ingreso {money(piece.ingreso)}
+                {piece.costo !== undefined && ` · costo ${money(piece.costo)}`}
+                {piece.ganancia !== undefined && ` · ganancia ${money(piece.ganancia)}`}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </>
+  );
+}
+
+/** Los accesorios muestran su código comercial (ACC-n), nunca el identificador de lote. */
+function saleSku(sale: Sale) {
+  return /^acc-/i.test(String(sale.sku || "").trim()) ? accessorySku({ sku: sale.sku, accessoryCode: sale.accessory_code }) : displaySku(sale.sku);
 }
 
 function salePlace(sale: Sale) {
@@ -249,16 +298,16 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false, initi
   </div>;
 
   return (
-    <div className="bg-white rounded-2xl border p-5">
+    <div className="bg-white rounded-2xl border p-3 sm:p-5 min-w-0">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-gray-900">Vendidos</h2>
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Vendidos</h2>
         <button onClick={() => setOpen(true)} className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white">
           Lista Completa
         </button>
       </div>
       {isAdmin && <label className="mb-3 flex flex-wrap items-center gap-2 text-xs text-gray-500">Ventas de<select aria-label="Vendedor en Vendidos" value={owner} onChange={e=>setOwner(e.target.value)} className="min-h-10 max-w-full rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-800"><option value="macsomenos">Macsomenos</option>{sellers.map(seller=><option key={seller.owner_id} value={String(seller.owner_id)}>{seller.username}</option>)}<option value="all">Todos</option></select></label>}
-      <div className="overflow-auto max-h-[340px]">
-        <table className="min-w-full text-sm">
+      <div className="overflow-auto max-h-[70vh] sm:max-h-[340px]">
+        <table className="m-cards min-w-full text-sm">
           <thead>
             <tr className="text-left text-gray-700">
               <th className="p-2">Producto</th>
@@ -273,10 +322,10 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false, initi
             {recentSales.map((sale) => (
               <tr key={sale.id} className="h-14 border-t align-middle text-gray-900">
                 <td className="p-2">{productCell(sale)}</td>
-                <td className="whitespace-nowrap p-2">{displaySku(sale.sku) || "-"}</td>
-                <td className="whitespace-nowrap p-2">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
-                <td className="whitespace-nowrap p-2">{formatDate(sale.sold_at)}</td>
-                <td className="p-2 text-gray-700">{syncCell(sale)}</td>
+                <td data-label="SKU" className="whitespace-nowrap p-2">{saleSku(sale) || "-"}</td>
+                <td data-label="Precio venta" className="p-2">{priceCell(sale)}</td>
+                <td data-label="Fecha" className="whitespace-nowrap p-2">{formatDate(sale.sold_at)}</td>
+                <td data-label="Servicios" data-wide="" className="p-2 text-gray-700">{syncCell(sale)}</td>
                 <td className="p-2">{actions(sale)}</td>
               </tr>
             ))}
@@ -292,15 +341,15 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false, initi
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-[1400px] p-5 text-gray-900 max-h-[86vh] overflow-auto">
-            <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-2xl w-full max-w-[1400px] p-3 sm:p-5 text-gray-900 max-h-[86vh] overflow-auto">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-lg font-semibold">Productos vendidos</h3>
               <button onClick={() => setOpen(false)} aria-label="Cerrar">
                 X
               </button>
             </div>
-            <table className="min-w-full text-sm">
+            <table className="m-cards min-w-full text-sm">
               <thead>
                 <tr className="text-left text-gray-700">
                   <th className="p-2">Producto</th>
@@ -320,15 +369,15 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false, initi
                 {sales.map((sale) => (
                   <tr key={sale.id} className="h-14 border-t align-middle">
                     <td className="p-2">{productCell(sale)}</td>
-                    <td className="whitespace-nowrap p-2">{displaySku(sale.sku) || "-"}</td>
-                    <td className="whitespace-nowrap p-2">S/ {Number(sale.sale_price || 0).toFixed(2)}</td>
-                    <td className="whitespace-nowrap p-2">{formatDate(sale.sold_at)}</td>
-                    <td className="p-2"><div className="flex w-36 items-center gap-2"><Thumb src={sale.client_photo_url} alt="" round dim={sale.client_photo_public === false} title={sale.client_photo_public === false ? "Oculta en la web" : "Visible en la web"} /><span className="truncate">{sale.customer_name || "-"}</span></div></td>
-                    <td className="whitespace-nowrap p-2">{phone(sale.customer_phone)}</td>
-                    <td className="p-2">{sale.customer_kind || "-"}</td>
-                    <td className="p-2">{salePlace(sale)}</td>
-                    <td className="p-2">{syncCell(sale)}</td>
-                    <td className="p-2">{photoControls(sale)}</td>
+                    <td data-label="SKU" className="whitespace-nowrap p-2">{saleSku(sale) || "-"}</td>
+                    <td data-label="Precio" className="p-2">{priceCell(sale)}</td>
+                    <td data-label="Fecha" className="whitespace-nowrap p-2">{formatDate(sale.sold_at)}</td>
+                    <td data-label="Cliente" className="p-2"><div className="flex w-36 items-center gap-2"><Thumb src={sale.client_photo_url} alt="" round dim={sale.client_photo_public === false} title={sale.client_photo_public === false ? "Oculta en la web" : "Visible en la web"} /><span className="truncate">{sale.customer_name || "-"}</span></div></td>
+                    <td data-label="Numero" className="whitespace-nowrap p-2">{phone(sale.customer_phone)}</td>
+                    <td data-label="Tipo" className="p-2">{sale.customer_kind || "-"}</td>
+                    <td data-label="Lugar" className="p-2">{salePlace(sale)}</td>
+                    <td data-label="Servicios" data-wide="" className="p-2">{syncCell(sale)}</td>
+                    <td data-label="Fotos" data-wide="" className="p-2">{photoControls(sale)}</td>
                     <td className="p-2">{actions(sale)}</td>
                   </tr>
                 ))}
@@ -346,9 +395,9 @@ export default function SoldProductsPanel({ initialSales, isAdmin = false, initi
       )}
 
       {editing && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-5 text-gray-900">
-            <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-2 sm:p-4">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-3 sm:p-5 text-gray-900">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold">Editar venta</h3>
                 <p className="mt-1 text-sm text-gray-500">{editing.title || editing.sku || "Producto"}</p>

@@ -1,4 +1,5 @@
 import { isAccessory, accessoryState, accessorySku, getAccessoryPack } from "@/lib/accessories";
+import { compactCompatibleModels, compatibleModelsOf } from "@/lib/accessory-compatibility";
 import AccessoryPurchaseOptions from "@/app/components/AccessoryPurchaseOptions";
 import ProductGallery from "@/app/components/ProductGallery";
 import AddToCartClient from "@/app/components/AddToCartClient";
@@ -341,6 +342,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     legacy: incluyeLegacy,
     cuboGeneric: notes?.cuboFake === true || notes?.cuboFake === "true",
     cableGeneric: notes?.cableFake === true || notes?.cableFake === "true",
+    stock: staged?.accesorios_stock,
   });
   const variants = Array.isArray(item.variants) ? item.variants : [];
   // Línea que distingue esta unidad de otra del mismo modelo.
@@ -385,9 +387,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     : [];
   // Accesorios: un único lugar (junto al precio). En usados u Open Box, si no
   // están registrados se dice, porque cambia la decisión de compra.
+  // Los accesorios de stock conservan su nombre comercial («Apple Pencil Pro»).
+  const includedText = accessories.included
+    .map((name) => accessories.stockIncluded.includes(name) ? name : name.toLowerCase())
+    .join(", ");
   const accessoriesText = isAccessory(item) ? "" : accessories.known
     ? accessories.included.length
-      ? `Incluye ${accessories.included.join(", ").toLowerCase()}.${accessories.missing.length ? ` No incluye ${accessories.missing.join(", ").toLowerCase()}.` : ""}`
+      ? `Incluye ${includedText}.${accessories.missing.length ? ` No incluye ${accessories.missing.join(", ").toLowerCase()}.` : ""}${!accessories.baseKnown && usedUnit && category !== "otros" ? " Los demás accesorios no están registrados: consúltalos antes de solicitar." : ""}`
       : "Solo el equipo, sin accesorios."
     : usedUnit && category !== "otros" ? "No registrados: consúltalos antes de solicitar." : "";
 
@@ -398,6 +404,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   ]
     .map((spec) => ({ label: spec.label, value: String(spec.value ?? "").trim() }))
     .filter((spec) => spec.value);
+  if (isAccessory(item)) {
+    const compatible = compatibleModelsOf(item);
+    if (compatible.length) specRows.push({ label: "Compatible con", value: compactCompatibleModels(compatible) });
+  }
 
   // Estado de la unidad: condición, batería (si aplica) y garantía registrada.
   // «Nuevo» no implica «sellado»: solo se muestra la presentación registrada en el panel.

@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { cache } from "react";
 import type { MarketplaceData } from "@/lib/marketplace";
+import type { ServicesAccessoriesState, ServicesAccessoryItem } from "@/lib/services-accessories";
+import { readCompatibleModelRows, type CompatibleModelRow } from "@/lib/accessory-compatibility";
 
 // Base URL de la API Nest (sin secretos)
 function apiBase() {
@@ -598,6 +600,11 @@ export async function markProductSold(
     stagedId?: string;
     exchangeRate?: string | number;
     clientPhotoUrl?: string;
+    accesoriosStockIds?: number[];
+    accesoriosStockRevision?: number;
+    accesoriosStockUnitId?: string;
+    /** Solo accesorios sueltos: unidades vendidas; salePrice es el importe TOTAL. */
+    cantidad?: number;
   }
 ) {
   const cookieStore = await cookies();
@@ -630,6 +637,11 @@ export async function markStagedProductSold(
     saleLocation?: string;
     exchangeRate?: string | number;
     clientPhotoUrl?: string;
+    accesoriosStockIds?: number[];
+    accesoriosStockRevision?: number;
+    accesoriosStockUnitId?: string;
+    /** Solo accesorios sueltos: unidades vendidas; salePrice es el importe TOTAL. */
+    cantidad?: number;
   }
 ) {
   const cookieStore = await cookies();
@@ -814,3 +826,54 @@ export async function getCatalogAnalytics(days = 30) {
 
 
 
+
+// ----- Admin: accesorios de Servicios vinculados a un equipo MS-n -----
+function apiErrorParts(error: unknown, fallback: string) {
+  const raw = error instanceof Error ? error.message : "";
+  const match = raw.match(/^API \S+ (\d{3})(?::\s*([\s\S]*))?$/);
+  return { status: match ? Number(match[1]) : 0, error: (match?.[2] || "").trim() || fallback };
+}
+
+export async function getStagedServicesAccessories(stagedId: string) {
+  const token = (await cookies()).get("token")?.value;
+  if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
+  try {
+    const data = await apiFetch<ServicesAccessoriesState>(`/admin/staged/${encodeURIComponent(stagedId)}/services-accessories`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return { ok: true as const, data };
+  } catch (error) {
+    return { ok: false as const, ...apiErrorParts(error, "No se pudieron cargar los accesorios de Servicios") };
+  }
+}
+
+export async function saveStagedServicesAccessories(stagedId: string, body: { revision: number; productoIds: number[] }) {
+  const token = (await cookies()).get("token")?.value;
+  if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
+  try {
+    const data = await apiFetch<{ ok: boolean; revision: number; accesorios: ServicesAccessoryItem[] }>(`/admin/staged/${encodeURIComponent(stagedId)}/services-accessories`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ revision: body.revision, productoIds: body.productoIds }),
+    });
+    revalidateTag("catalog-products");
+    revalidateTag("catalog-staged");
+    return { ok: true as const, data };
+  } catch (error) {
+    return { ok: false as const, ...apiErrorParts(error, "No se pudieron guardar los accesorios") };
+  }
+}
+
+// ----- Admin: catálogo de modelos Apple de Servicios (compatibilidad de accesorios) -----
+export async function getAccessoryCompatibleModels() {
+  const token = (await cookies()).get("token")?.value;
+  if (!token) redirect("/servmacso10?next=/servmacso10/servicios");
+  try {
+    const data = await apiFetch<CompatibleModelRow[]>(`/admin/accessories/compatible-models`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return { ok: true as const, rows: readCompatibleModelRows(data) };
+  } catch (error) {
+    return { ok: false as const, ...apiErrorParts(error, "No se pudo cargar el catálogo de modelos de Servicios") };
+  }
+}

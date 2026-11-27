@@ -313,7 +313,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   });
   const [stock, setStock] = React.useState<number>(() => {
     const initial = Number(item?.stock ?? 1);
-    return isFinite(initial) && initial > 0 ? initial : 1;
+    return isFinite(initial) && (item?.category === "accesorios" ? initial >= 0 : initial > 0) ? initial : 1;
   });
   const [iphoneModel, setIphoneModel] = React.useState<string>(item?.iphone_model || notes?.iphoneModel || "");
   const [iphoneNumber, setIphoneNumber] = React.useState<string>(String(item?.iphone_number ?? notes?.iphoneNumber ?? ""));
@@ -422,13 +422,13 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   }, [gama, proc, tam, ipadConnectivity, titleManual, specs?.tipo, descriptionOther, iphoneModel, iphoneNumber, iphoneStorage, color, watchType, watchSeries, watchVersion, watchConnection, saleType, title, item?.title]);
 
   React.useEffect(() => {
-    if (productCondition && productCondition !== "Nuevo") {
+    if (item?.category !== "accesorios" && productCondition && productCondition !== "Nuevo") {
       setStock(1);
     } else if (productCondition === "Nuevo") {
       setHasWarranty(true);
       setWarrantyDate("1 año de garantía");
     }
-  }, [productCondition]);
+  }, [productCondition, item?.category]);
 
   React.useEffect(() => {
     if (productCondition !== "Nuevo" && !hasWarranty) setWarrantyDate("");
@@ -442,6 +442,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
   const isIphone = category === "iphone";
   const isWatch = category === "watch";
   const isOtros = category === "otros";
+  const isAcc = item?.category === "accesorios";
   const procLabel = "Procesador";
   const procPlaceholder = "M3 / M4";
   const iphoneNum = Number(iphoneNumber || 0);
@@ -538,10 +539,10 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
     if (!color?.trim()) errors.push("El color es obligatorio");
   }
   if (includesValue === "Otros" && !includesExtra?.trim()) errors.push("Describe lo que incluye");
-  if (productCondition === "Nuevo" && stockNum < 1) {
+  if (!isAcc && productCondition === "Nuevo" && stockNum < 1) {
     errors.push("El stock debe ser mayor o igual a 1");
   }
-  if (productCondition && productCondition !== "Nuevo" && stockNum !== 1) {
+  if (!isAcc && productCondition && productCondition !== "Nuevo" && stockNum !== 1) {
     errors.push("El stock debe ser 1 para Usado/Open Box/Arreglado");
   }
   if (productCondition !== "Nuevo" && hasWarranty && !warrantyDate.trim()) {
@@ -780,7 +781,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         title: fixedTitle,
         price: String(salePrice),
         images,
-        stock: productCondition === "Nuevo" ? Number(stock || 1) : 1,
+        stock: isAcc ? Math.max(0, Number(stock) || 0) : productCondition === "Nuevo" ? Number(stock || 1) : 1,
         notes: JSON.stringify(newNotes),
         category,
         productCondition,
@@ -807,7 +808,7 @@ export default function StagedPublishModal({ item, onClose, onSaved }: { item: a
         title: fixedTitle,
         price: String(salePrice),
         images,
-        stock: productCondition === "Nuevo" ? Number(stock || 1) : 1,
+        stock: isAcc ? Math.max(0, Number(stock) || 0) : productCondition === "Nuevo" ? Number(stock || 1) : 1,
         notes: JSON.stringify(newNotes),
         sale_type: saleType,
         discount: saleType === "PROMOCION" ? String(discount) : null,

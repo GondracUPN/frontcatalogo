@@ -95,3 +95,69 @@ export async function deliveryStatsAction(from: string, to: string) {
     `/admin/delivery/stats?from=${enc(from)}&to=${enc(to)}`,
   );
 }
+
+// ----- Agenda de citas -----
+export type Appointment = {
+  id: string;
+  customer_name: string | null;
+  customer_contact: string;
+  product_id: string | null;
+  product_title: string;
+  sku: string | null;
+  scheduled_at: string;
+  note: string | null;
+  status: "scheduled" | "done" | "cancelled";
+  source_request_id: string | null;
+  reminders: Record<"day_before" | "same_day", { state: string; dueAt?: string; reason?: string; lastError?: string | null }>;
+};
+
+export type AppointmentInput = {
+  customerName?: string;
+  customerContact: string;
+  productId?: string | null;
+  productTitle: string;
+  sku?: string;
+  scheduledAt: string;
+  note?: string;
+  sourceRequestId?: string | null;
+};
+
+export async function listAppointmentsAction(params: { status?: string; from?: string } = {}) {
+  const qs = new URLSearchParams();
+  qs.set("status", params.status || "scheduled");
+  if (params.from) qs.set("from", params.from);
+  return call<{ items: Appointment[]; remindersEnabled?: boolean }>(`/admin/appointments?${qs}`);
+}
+
+export async function saveAppointmentAction(id: string | null, body: Partial<AppointmentInput>) {
+  return call<Appointment>(id ? `/admin/appointments/${enc(id)}` : "/admin/appointments", {
+    method: id ? "PATCH" : "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function changeAppointmentStatusAction(id: string, status: "scheduled" | "done" | "cancelled") {
+  return call<Appointment>(`/admin/appointments/${enc(id)}/status`, { method: "POST", body: JSON.stringify({ status }) });
+}
+
+export type AppointmentProduct = { id: string; title: string; sku: string; status: string; catalogProductId: string | null };
+
+/** Busca productos (borradores y publicados, sin vendidos/ocultos) para autocompletar la cita. */
+export async function searchAppointmentProductsAction(q: string) {
+  const term = q.trim();
+  if (term.length < 2) return { ok: true as const, data: { items: [] as AppointmentProduct[] } };
+  const result = await call<{ items: any[] }>(`/admin/appointments/products?${new URLSearchParams({ q: term })}`);
+  if (!result.ok) return result;
+  return {
+    ok: true as const,
+    data: {
+      items: (result.data.items || []).map((item): AppointmentProduct => ({
+        id: String(item.id),
+        title: String(item.title || ""),
+        sku: String(item.sku || ""),
+        status: String(item.status || ""),
+        catalogProductId: item.catalog_product_id ? String(item.catalog_product_id) : null,
+      })),
+    },
+  };
+}

@@ -196,7 +196,7 @@ function OverviewTab({ from, to, group, multiDay }: { from: string; to: string; 
             ) : <Empty />}
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card title="Horas con más tráfico" note={data.peakHour.n ? `Pico: ${data.peakHour.hour}:00–${data.peakHour.hour + 1}:00` : undefined}>
               {data.hours.some((h: any) => h.n) ? <ColumnChart labels={data.hours.map((h: any) => `${h.hour}h`)} values={data.hours.map((h: any) => h.n)} unit="visitas" /> : <Empty />}
             </Card>
@@ -205,7 +205,7 @@ function OverviewTab({ from, to, group, multiDay }: { from: string; to: string; 
             </Card>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card title="Tendencia por categoría" note="Vistas de productos frente al periodo anterior.">
               {data.categories.length ? (
                 <ul className="divide-y text-sm">
@@ -312,7 +312,7 @@ function ProductsTab({ from, to }: { from: string; to: string }) {
             ) : <Empty />}
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card title="Por categoría">
               <SummaryTable rows={data.byCategory} />
             </Card>
@@ -321,7 +321,7 @@ function ProductsTab({ from, to }: { from: string; to: string }) {
             </Card>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card title="Interés sin stock" note="Productos vistos o pedidos que ya no están disponibles: oportunidades de reposición.">
               {data.interestWithoutStock.length ? (
                 <ul className="divide-y text-sm">
@@ -387,7 +387,7 @@ function SearchesTab({ from, to }: { from: string; to: string }) {
       <Status loading={state.loading} error={state.error} />
       {data && (
         <>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card title="Lo más buscado">
               <RankBars rows={data.top.slice(0, 15).map((row: any) => ({ label: row.query, value: row.n, note: row.zero ? `(${row.zero} sin resultados)` : undefined }))} unit="búsquedas" />
             </Card>
@@ -395,7 +395,7 @@ function SearchesTab({ from, to }: { from: string; to: string }) {
               <RankBars rows={data.zero.slice(0, 15).map((row: any) => ({ label: row.query, value: row.n }))} unit="búsquedas" />
             </Card>
           </div>
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Card title="Modelos buscados">
               <RankBars rows={data.models.map((row: any) => ({ label: row.key, value: row.n }))} unit="búsquedas" />
             </Card>
@@ -460,7 +460,7 @@ function SourcesTab({ from, to }: { from: string; to: string }) {
       <Status loading={state.loading} error={state.error} />
       {data && (
         <>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card title="¿De dónde llegan?" note="Por la primera página de cada visita.">
               <RankBars rows={data.sources.map((row: any) => ({ label: SOURCE_LABELS[row.source] || row.source, value: row.visits, note: row.share !== null ? `(${row.share}%)` : undefined }))} unit="visitas" />
             </Card>

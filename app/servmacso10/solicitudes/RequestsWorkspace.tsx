@@ -4,8 +4,9 @@ import React from "react";
 import RequestsList from "./RequestsList";
 import DeliverySettings from "./DeliverySettings";
 import PointStats from "./PointStats";
+import AppointmentsAgenda, { AppointmentPrefill } from "./AppointmentsAgenda";
 
-type Tab = "solicitudes" | "entrega" | "estadisticas";
+type Tab = "solicitudes" | "agenda" | "entrega" | "estadisticas";
 
 export default function RequestsWorkspace({
   isAdmin,
@@ -17,8 +18,11 @@ export default function RequestsWorkspace({
   initialError: string;
 }) {
   const [tab, setTab] = React.useState<Tab>("solicitudes");
+  const [prefill, setPrefill] = React.useState<AppointmentPrefill | null>(null);
+  const clearPrefill = React.useCallback(() => setPrefill(null), []);
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "solicitudes", label: "Solicitudes" },
+    { id: "agenda", label: "Agenda" },
     ...(isAdmin ? ([{ id: "entrega", label: "Entrega y puntos" }, { id: "estadisticas", label: "Estadísticas por punto" }] as const) : []),
   ];
 
@@ -40,7 +44,8 @@ export default function RequestsWorkspace({
           ))}
         </div>
       )}
-      {tab === "solicitudes" && <RequestsList initial={initial} initialError={initialError} />}
+      {tab === "solicitudes" && <RequestsList initial={initial} initialError={initialError} onSchedule={(data) => { setPrefill(data); setTab("agenda"); }} />}
+      {tab === "agenda" && <AppointmentsAgenda prefill={prefill} onPrefillUsed={clearPrefill} />}
       {tab === "entrega" && isAdmin && <DeliverySettings />}
       {tab === "estadisticas" && isAdmin && <PointStats />}
     </div>

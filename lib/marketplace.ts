@@ -1,4 +1,5 @@
 import { isAccessory, accessoryState, accessorySku, getAccessoryPack } from "@/lib/accessories";
+import { compatibleModelsOf, compatibleModelsText } from "@/lib/accessory-compatibility";
 import { buildAppleWatchTitle, cleanAppleWatchTitle } from "@/lib/watch";
 import { formatWarrantyDate, warrantyStatus } from "@/lib/warranty";
 
@@ -458,7 +459,8 @@ export function generateMarketplaceDescription(product: MarketplaceProduct) {
   if (isAccessory(product)) {
     const pack = getAccessoryPack(product);
     const prices = pack ? [`Precio por unidad: S/ ${generateMarketplacePrice(product)}`, `${pack.label} de ${pack.units} unidades: S/ ${pack.price.toFixed(2)}`, ""] : [];
-    return [`Se remata ${text(product.title)}`, "", `Estado: ${accessoryState(product)}`, "", ...prices, ...MARKETPLACE_CLOSING].join("\n");
+    const compatible = compatibleModelsText(compatibleModelsOf(product));
+    return [`Se remata ${text(product.title)}`, "", `Estado: ${accessoryState(product)}`, "", ...(compatible ? [compatible, ""] : []), ...prices, ...MARKETPLACE_CLOSING].join("\n");
   }
   const facts = productFacts(product);
   const battery = !isSealed(facts) && facts.batteryHealth

@@ -34,7 +34,8 @@
     ".next-dev/types/**/*.ts",
     ".next-e2e/types/**/*.ts",
     ".next/types/**/*.ts",
-    "next-env.d.ts"
+    "next-env.d.ts",
+    ".next-verify/types/**/*.ts"
   ],
   "exclude": [
     "scripts/check-theme-contrast.ts",

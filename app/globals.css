@@ -608,3 +608,113 @@ textarea:focus-visible {
   .store-shell { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
 }
 :where(a, button):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* ── Panel interno en celular ─────────────────────────────────────────────
+   `.panel-actions`: accesos de la cabecera en rejilla de dos columnas.
+   `table.m-cards`: cada fila pasa a ser una tarjeta; la etiqueta de cada dato
+   sale de `data-label` (la cabecera de la tabla se oculta solo a la vista). */
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+@media (max-width: 639px) {
+  .panel-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+  }
+  .panel-actions > a,
+  .panel-actions > button,
+  .panel-actions > form > button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+  }
+  .panel-actions > form {
+    grid-column: 1 / -1;
+  }
+
+  table.m-cards {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  table.m-cards > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  table.m-cards > tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+  table.m-cards > tbody > tr:not(.hidden) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 0.75rem;
+    height: auto;
+    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.875rem;
+  }
+  table.m-cards > tbody > tr > td {
+    min-width: 0;
+    padding: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  table.m-cards > tbody > tr > td:first-child,
+  table.m-cards > tbody > tr > td:last-child,
+  table.m-cards > tbody > tr > td[colspan],
+  table.m-cards > tbody > tr > td[data-wide] {
+    grid-column: 1 / -1;
+  }
+  table.m-cards > tbody > tr > td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.125rem;
+    color: #6b7280;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.3;
+    text-transform: uppercase;
+  }
+  /* Anchos fijos pensados para columnas: en tarjeta ocupan lo disponible. */
+  table.m-cards > tbody > tr > td > div {
+    width: auto;
+    max-width: 100%;
+  }
+  /* Acciones: al pie de la tarjeta, con salto de línea y tamaño táctil. */
+  table.m-cards > tbody > tr > td:last-child:not([colspan]) {
+    padding-top: 0.5rem;
+    border-top: 1px solid #f3f4f6;
+  }
+  table.m-cards > tbody > tr > td:last-child,
+  table.m-cards > tbody > tr > td:last-child > div {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+  table.m-cards > tbody > tr > td:last-child button,
+  table.m-cards > tbody > tr > td:last-child a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+  }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { accessorySku, isAccessory } from "@/lib/accessories";
 import { listAdminCatalog, updatePromotionAction } from "../../actions";
 
 type Row = {
@@ -139,7 +140,7 @@ export default function PromotionsButton({ isAdmin = false }: { isAdmin?: boolea
                         <option value="">Elige un producto publicado…</option>
                         {candidates.map((row) => (
                           <option key={row.id} value={row.id}>
-                            {(row.product?.title || row.staged?.title || "Producto")} · {row.product?.sku} · {formatMoney(Number(row.product?.price || 0))}
+                            {(row.product?.title || row.staged?.title || "Producto")} · {isAccessory(row) ? accessorySku(row) : row.product?.sku} ·{formatMoney(Number(row.product?.price || 0))}
                           </option>
                         ))}
                       </select>

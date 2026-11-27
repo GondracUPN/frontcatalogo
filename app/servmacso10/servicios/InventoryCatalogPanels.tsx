@@ -6,8 +6,8 @@ import StagedManager from "./StagedManager";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border bg-white p-5">
-      <h2 className="mb-3 text-xl font-semibold text-gray-900">{title}</h2>
+    <div className="min-w-0 rounded-2xl border bg-white p-3 sm:p-5">
+      <h2 className="mb-3 text-lg sm:text-xl font-semibold text-gray-900">{title}</h2>
       {children}
     </div>
   );
@@ -33,7 +33,7 @@ export default function InventoryCatalogPanels({ inventoryItems, catalogItems, s
           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
         />
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         <Section title="Inventario">
           <StagedManager onlyCategory={category} initialItems={inventoryItems} sealedPresets={sealedPresets} canDelete={canDelete} search={search} />
         </Section>

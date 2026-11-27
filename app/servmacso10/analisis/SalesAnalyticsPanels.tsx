@@ -232,7 +232,7 @@ export function SalesTab({
               }
             />
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card title="Ingresos con tipo de cambio">
               <p className="text-2xl font-semibold text-gray-900">
                 US${" "}
@@ -280,7 +280,7 @@ export function SalesTab({
               unit={series === "revenue" ? "S/" : "ventas"}
             />
           </Card>
-          <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
             <Card title="Modelos y categorías">
               <RankBars
                 unit="unidades"
