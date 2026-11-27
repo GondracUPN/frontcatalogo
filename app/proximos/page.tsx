@@ -7,7 +7,22 @@ import PriceWithIgv from "../components/PriceWithIgv";
 import { catalogFacts, compactSpecs, detailCountLabel } from "@/lib/catalog-display";
 
 export const revalidate = 300;
-export const metadata: Metadata = { title: "Equipos en camino", description: "Explora los equipos anunciados en preventa y consulta su estado actualizado en Macsomenos.", alternates: { canonical: "/proximos" } };
+
+// Sin preventas la página queda vacía: noindex para que Google no la marque como soft 404.
+export async function generateMetadata(): Promise<Metadata> {
+  const { items } = await listCatalog().catch(() => ({ items: null as any[] | null }));
+  const empty = Array.isArray(items) && preventasFrom(items).length === 0;
+  return {
+    title: "Equipos Apple en camino (preventa) en Lima",
+    description: "Equipos Apple en preventa en Macsomenos: sepáralos antes de su llegada a Lima y consulta la fecha estimada.",
+    alternates: { canonical: "/proximos" },
+    ...(empty ? { robots: { index: false, follow: true } } : {}),
+  };
+}
+
+function preventasFrom(items: any[]) {
+  return (items || []).filter((row: any) => row?.product?.status !== "sold" && saleTypeFromRow(row) === "PREVENTA");
+}
 
 function saleTypeFromRow(row: any) {
   try {
@@ -26,8 +41,7 @@ function priceFromRow(row: any) {
 
 export default async function ProximosPage() {
   const { items } = await listCatalog().catch(() => ({ items: [] as any[] }));
-  const preventas = (items || [])
-    .filter((row: any) => row?.product?.status !== "sold" && saleTypeFromRow(row) === "PREVENTA");
+  const preventas = preventasFrom(items || []);
 
   return (
     <div className="px-3 pb-10 pt-4 sm:px-4 sm:pb-14 sm:pt-6">

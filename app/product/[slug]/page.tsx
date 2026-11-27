@@ -15,8 +15,8 @@ import MobileProductAction from "@/app/components/MobileProductAction";
 import { getCatalogItem, listCatalog } from "@/app/actions";
 import { Suspense } from "react";
 import ProductAlternatives from "@/app/components/ProductAlternatives";
-import { accessoryBreakdown, categoryLabel, screenSizeLabel, badgeTone, formatRam, isUsedCondition, keyboardLabel, productBadges, publicSku } from "@/lib/catalog-display";
-import { catalogPrice } from "@/lib/catalog-price";
+import { accessoryBreakdown, categoryLabel, screenSizeLabel, badgeTone, conditionInfo, formatRam, isUsedCondition, keyboardLabel, productBadges, publicSku } from "@/lib/catalog-display";
+import { catalogPrice, formatSoles, withIgv } from "@/lib/catalog-price";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { formatStorageCompact, formatStorageDisplay } from "@/lib/storage";
@@ -40,13 +40,46 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const { item } = await getCatalogItem(slug).catch(() => ({ item: null as any }));
   if (!item) return { title: "Equipo no disponible", robots: { index: false } };
-  const title = String(item.product?.title || item.staged?.title || "Equipo Apple");
-  const description = `Consulta fotografías, condición, características y precio de ${title} en Macsomenos.`;
+  const baseName = String(item.product?.title || item.staged?.title || "Equipo Apple");
+  // SEO: el título y la descripción incluyen la condición, el precio total y
+  // la ciudad, que es como se busca en Google («iPhone 15 usado Lima»).
+  const metaNotes = parseNotes(item.staged?.notes);
+  const metaCondition = isAccessory(item) ? accessoryState(item) : item.product?.product_condition || item.staged?.product_condition || metaNotes?.productCondition || metaNotes?.estado || metaNotes?.specs?.estado || "";
+  const conditionText = conditionInfo(metaCondition)?.label || "";
+  const { price: metaPrice } = catalogPrice(item);
+  const metaCategory = String(item.category || item.staged?.category || item.product?.category || "").toLowerCase();
+  const specs = unitSpecs(item);
+  const metaIphone = metaCategory === "iphone" ? buildIphoneTitle(specs.iphoneNumber, specs.iphoneModel, specs.storageGb, specs.colorCap) : "";
+  const specText = metaIphone ? "" : [specs.ramVal && `${specs.ramVal} RAM`, specs.almVal, specs.colorCap && !baseName.toLowerCase().includes(specs.colorCap.toLowerCase()) ? specs.colorCap : ""].filter(Boolean).join(" ");
+  const seoName = metaIphone || [baseName, specText].filter(Boolean).join(" ");
+  const title = `${seoName}${conditionText ? ` ${conditionText}` : ""} en Lima`;
+  const description = `${seoName}${conditionText ? ` ${conditionText.toLowerCase()}` : ""}${metaPrice > 0 ? ` a ${formatSoles(withIgv(metaPrice))} con IGV` : ""}. Fotos reales y estado verificado. Recojo en Surco, contra entrega en Lima o envío a todo el Perú.`;
   const url = `/product/${item.slug || slug}`;
   // Una unidad vendida o reservada no se ofrece en buscadores; su URL sigue
   // abriendo (enlaces compartidos) con alternativas disponibles.
   const notForSale = item.availability === "sold" || item.availability === "reserved";
   return { title, description, alternates: { canonical: url }, ...(notForSale ? { robots: { index: false, follow: true } } : {}), openGraph: { title, description, url, images: item.images?.[0] ? [{ url: item.images[0] }] : undefined } };
+}
+
+// Datos de configuración que distinguen una unidad de otra del mismo modelo.
+// Los usa la ficha y también el título SEO (sin ellos, varias MacBook iguales
+// compartían título y Google las trataba como duplicadas).
+function unitSpecs(item: any) {
+  const notes = parseNotes(item?.staged?.notes);
+  const specsAny: any = notes?.specs || notes || {};
+  const det: any = specsAny?.detalle || notes?.detalle || {};
+  const product = item?.product || {};
+  const staged = item?.staged || {};
+  const colorRaw = notes?.color ? String(notes.color) : product?.color || staged?.color || "";
+  const colorCap = colorRaw ? colorRaw.charAt(0).toUpperCase() + colorRaw.slice(1) : "";
+  return {
+    notes, specsAny, det, colorCap,
+    ramVal: formatRam(det?.ram),
+    almVal: formatStorageDisplay(det?.almacenamiento),
+    iphoneModel: product?.iphone_model || staged?.iphone_model || notes?.iphoneModel || "",
+    iphoneNumber: product?.iphone_number ?? staged?.iphone_number ?? notes?.iphoneNumber,
+    storageGb: product?.storage_gb ?? staged?.storage_gb ?? notes?.storageGb ?? notes?.storage,
+  };
 }
 
 function parseNotes(notes: any) {
@@ -146,13 +179,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const category = String(item.category || item.staged?.category || item.product?.category || "").toLowerCase();
   const titleFallback: string = item.product?.title || item.staged?.title || item.slug;
   const productId: string = item.product?.id || item.product_id || "";
-  const notes = parseNotes(item.staged?.notes);
+  const { notes, specsAny, det, colorCap, ramVal, almVal, iphoneModel, iphoneNumber, storageGb } = unitSpecs(item);
   const product = item.product || {};
   const staged = item.staged || {};
   const salePrice = Number(product?.price ?? staged?.price ?? 0);
   const { price, compareAt, saleType, promoLabel } = catalogPrice(item);
-  const specsAny: any = notes?.specs || notes || {};
-  const det: any = specsAny?.detalle || notes?.detalle || {};
   const productDetails = String(det?.detalles || det?.productDetails || notes?.productDetails || notes?.detalles || "").trim();
   const proc: string = det?.procesador || "";
   const teclado: string = product?.keyboard_layout || staged?.keyboard_layout || det?.teclado || "";
@@ -170,15 +201,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     return d2["tamaño"] || d2.tamanio || d2.tamano || "";
   })();
 
-  const colorRaw = notes?.color ? String(notes.color) : product?.color || staged?.color || "";
-  const colorCap = colorRaw ? colorRaw.charAt(0).toUpperCase() + colorRaw.slice(1) : "";
-
-  const ramVal = formatRam(det?.ram);
-  const almVal = formatStorageDisplay(det?.almacenamiento);
-
-  const iphoneModel = product?.iphone_model || staged?.iphone_model || notes?.iphoneModel || "";
-  const iphoneNumber = product?.iphone_number ?? staged?.iphone_number ?? notes?.iphoneNumber;
-  const storageGb = product?.storage_gb ?? staged?.storage_gb ?? notes?.storageGb ?? notes?.storage;
   const batteryCycles = product?.battery_cycles ?? staged?.battery_cycles ?? notes?.batteryCycles ?? notes?.bateria?.ciclos;
   const batteryHealth = product?.battery_health ?? staged?.battery_health ?? notes?.batteryHealth ?? notes?.bateria?.salud;
   const formatSimType = (value: any) => {
@@ -379,6 +401,38 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     sku: sku || undefined,
     description: productDescription || undefined,
     url: `https://www.macsomenos.com/product/${encodeURIComponent(item.slug || slug)}`,
+    ...(isAccessory(item) ? {} : { brand: { "@type": "Brand", name: "Apple" } }),
+    ...(price > 0 ? {
+      offers: {
+        "@type": "Offer",
+        url: `https://www.macsomenos.com/product/${encodeURIComponent(item.slug || slug)}`,
+        price: withIgv(price).toFixed(2),
+        priceCurrency: "PEN",
+        availability: availability === "sold" ? "https://schema.org/SoldOut"
+          : availability === "reserved" ? "https://schema.org/OutOfStock"
+          : availability === "preorder" ? "https://schema.org/PreOrder"
+          : "https://schema.org/InStock",
+        itemCondition: conditionInfo(productCondition)?.key === "nuevo" ? "https://schema.org/NewCondition" : "https://schema.org/UsedCondition",
+        seller: { "@type": "Organization", name: "Macsomenos" },
+        // Política publicada en Preguntas frecuentes: no se aceptan devoluciones
+        // después de que el comprador prueba el equipo y confirma su conformidad.
+        hasMerchantReturnPolicy: {
+          "@type": "MerchantReturnPolicy",
+          applicableCountry: "PE",
+          returnPolicyCategory: "https://schema.org/MerchantReturnNotPermitted",
+        },
+      },
+    } : {}),
+  };
+
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Inicio", item: "https://www.macsomenos.com/" },
+      { "@type": "ListItem", position: 2, name: categoryLabel(category), item: `https://www.macsomenos.com/c/${category || "otros"}` },
+      { "@type": "ListItem", position: 3, name: title, item: `https://www.macsomenos.com/product/${encodeURIComponent(item.slug || slug)}` },
+    ],
   };
 
   // Observaciones: el texto registrado, separado en frases cuando trae varias líneas.
@@ -432,6 +486,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     <div className="route-enter overflow-x-clip px-2 pb-28 pt-4 sm:px-4 sm:pb-14 sm:pt-6">
       <div className="mx-auto min-w-0 max-w-7xl">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredProduct).replace(/</g, "\\u003c") }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd).replace(/</g, "\\u003c") }} />
         <nav aria-label="Ruta de navegación" className="mb-4 px-2 text-sm text-[color:var(--foreground-soft)]"><Link href="/">Inicio</Link><span aria-hidden="true"> / </span><Link href={`/c/${category || "otros"}`}>{categoryLabel(category)}</Link><span aria-hidden="true"> / </span><span aria-current="page">{title}</span></nav>
         <ProductViewTracker
           productId={productId}
@@ -458,7 +513,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             </header>
 
             <div id="galeria" className="min-w-0 scroll-mt-24 lg:sticky lg:top-24 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:self-start">
-              <ProductGallery images={images} detailImages={detailImages} sold={availability === "sold"} />
+              <ProductGallery images={images} detailImages={detailImages} sold={availability === "sold"} title={title} />
             </div>
 
             <div className="min-w-0 space-y-5 lg:col-start-2 lg:row-start-2">

@@ -9,7 +9,7 @@ import { OPEN_GALLERY_EVENT, SHOW_DETAILS_EVENT } from "./DetailHighlights";
 const GALLERY_IMAGE_SIZES = "(min-width: 1280px) 620px, (min-width: 1024px) 48vw, 100vw";
 const ImageZoomViewer = dynamic(() => import("./ImageZoomViewer"), { ssr: false });
 
-export default function ProductGallery({ images, detailImages = [], sold }: { images: string[]; detailImages?: string[]; sold?: boolean }) {
+export default function ProductGallery({ images, detailImages = [], sold, title = "" }: { images: string[]; detailImages?: string[]; sold?: boolean; title?: string }) {
   const imgs = React.useMemo(
     () => {
       const primary = Array.isArray(images) ? images.filter(Boolean) : [];
@@ -36,6 +36,13 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
     [imgs]
   );
   const mainImageFitClass = "object-contain";
+  // Texto alternativo con el nombre del equipo (Google Imágenes). El carrusel
+  // lleva una copia de la última foto al inicio y de la primera al final.
+  const photoAlt = (trackIndex: number) => {
+    if (!title) return "Vista del producto";
+    const real = imgs.length > 1 ? (trackIndex - 1 + imgs.length) % imgs.length : trackIndex;
+    return real >= primaryCount ? `${title}: detalle estético, foto ${real + 1}` : `${title}, foto ${real + 1}`;
+  };
   // Fotos ya descargadas: mientras una no termina, se ve un indicador en el
   // fondo gris del marco en lugar de un hueco vacío.
   const [loadedSources, setLoadedSources] = React.useState<Set<string>>(() => new Set());
@@ -309,7 +316,7 @@ export default function ProductGallery({ images, detailImages = [], sold }: { im
                 {shouldLoad && !failedSources.has(src) && (
                   <Image
                     src={src}
-                    alt="Vista del producto"
+                    alt={photoAlt(index)}
                     fill
                     sizes={GALLERY_IMAGE_SIZES}
                     // Sin ocultar la foto hasta onLoad: la primera llega en el HTML

@@ -1,7 +1,8 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import DeliveryPreview from "./components/home/DeliveryPreview";
-import { WAREHOUSE_ADDRESS } from "@/lib/help-content";
+import { WAREHOUSE_ADDRESS, WAREHOUSE_MAP_URL } from "@/lib/help-content";
 import { getClientPurchases, getHomeCatalog } from "./actions";
 import { ClientDeliveriesHome } from "./components/ClientDeliveries";
 import { FaqEntry } from "./preguntas-frecuentes/FaqBrowser";
@@ -10,6 +11,30 @@ import HomeViewTracker from "./components/HomeViewTracker";
 import CampaignHero from "./components/campaign/CampaignHero";
 import type { HeroProduct } from "./components/campaign/parts";
 import HeroVitrina, { type VitrinaUnit } from "./components/home/HeroVitrina";
+
+// Ficha de negocio local para Google (tienda física en Surco, ventas en todo el Perú).
+const STORE_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "Store",
+  "@id": "https://www.macsomenos.com/#store",
+  name: "Macsomenos",
+  url: "https://www.macsomenos.com",
+  logo: "https://www.macsomenos.com/logo.png",
+  image: "https://www.macsomenos.com/logo.png",
+  description: "Venta de MacBook, iPhone, iPad y Apple Watch nuevos, Open Box y usados en Lima, Perú.",
+  telephone: "+51976283856",
+  priceRange: "S/",
+  currenciesAccepted: "PEN",
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "Jr. Ganimedes 245",
+    addressLocality: "Santiago de Surco",
+    addressRegion: "Lima",
+    addressCountry: "PE",
+  },
+  hasMap: WAREHOUSE_MAP_URL,
+  areaServed: { "@type": "Country", name: "Perú" },
+};
 import StoreProductCard, { batteryLine, specLine, type StoreUnit } from "./components/home/StoreProductCard";
 import Reveal from "./components/home/Reveal";
 import { BrandHeading, LeafMark } from "./components/home/BrandBits";
@@ -20,6 +45,9 @@ import WhatsAppIcon from "./components/WhatsAppIcon";
 import { WHATSAPP_DISPLAY, whatsappUrl, GENERAL_WHATSAPP_MESSAGE } from "@/lib/store-config";
 
 export const revalidate = 300;
+
+// Canonical solo para el home: en el layout raíz lo heredaban todas las páginas sin canonical propio.
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 type HomeRow = Awaited<ReturnType<typeof getHomeCatalog>>["items"][number];
 
@@ -117,6 +145,7 @@ export default async function Home() {
 
   return (
     <div className="pb-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(STORE_JSON_LD).replace(/</g, "\\u003c") }} />
       <HomeViewTracker />
 
       <CampaignHero products={heroProducts} promotions={heroPromotions}>
